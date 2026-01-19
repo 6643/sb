@@ -1,0 +1,171 @@
+package sb
+
+import (
+	"bytes"
+	"fmt"
+	"math"
+	"slices"
+	
+)
+
+type SimOrder struct {
+	Id uint32 `bson:"id" json:"id"` 
+	AccountId uint32 `bson:"account_id" json:"account_id"` 
+	ItemId uint32 `bson:"item_id" json:"item_id"` 
+	Name string `bson:"name" json:"name"` // 办理人姓名
+	Phone string `bson:"phone" json:"phone"` // 联系电话
+	IdNo string `bson:"id_no" json:"id_no"` // 身份证号
+	CityCode uint32 `bson:"city_code" json:"city_code"` // 所在城市
+	Address string `bson:"address" json:"address"` // 详细地址
+	NewPhone string `bson:"new_phone" json:"new_phone"` // 新手机号码
+	Commission uint16 `bson:"commission" json:"commission"` // 佣金
+	Status OrderStatus `bson:"status" json:"status"` 
+}
+
+func (s *SimOrder) Get(buf *bytes.Buffer) error {
+	if buf.Len() == 0 { return nil }
+	bitSize := int(math.Ceil(float64(11) / 8.0))
+	if buf.Len() < bitSize { return fmt.Errorf("GetSimOrder bitmask: %d - %d", buf.Len(), bitSize) }
+	bits := buf.Next(bitSize)
+	if GetBit(bits, uint8(0)) {
+		val, err := GetU32(buf)
+		if err != nil { return fmt.Errorf("GetSimOrder Id: %w", err) }
+		s.Id = val
+	}
+	if GetBit(bits, uint8(1)) {
+		val, err := GetU32(buf)
+		if err != nil { return fmt.Errorf("GetSimOrder AccountId: %w", err) }
+		s.AccountId = val
+	}
+	if GetBit(bits, uint8(2)) {
+		val, err := GetU32(buf)
+		if err != nil { return fmt.Errorf("GetSimOrder ItemId: %w", err) }
+		s.ItemId = val
+	}
+	if GetBit(bits, uint8(3)) {
+		val, err := GetText(buf)
+		if err != nil { return fmt.Errorf("GetSimOrder Name: %w", err) }
+		s.Name = val
+	}
+	if GetBit(bits, uint8(4)) {
+		val, err := GetText(buf)
+		if err != nil { return fmt.Errorf("GetSimOrder Phone: %w", err) }
+		s.Phone = val
+	}
+	if GetBit(bits, uint8(5)) {
+		val, err := GetText(buf)
+		if err != nil { return fmt.Errorf("GetSimOrder IdNo: %w", err) }
+		s.IdNo = val
+	}
+	if GetBit(bits, uint8(6)) {
+		val, err := GetU32(buf)
+		if err != nil { return fmt.Errorf("GetSimOrder CityCode: %w", err) }
+		s.CityCode = val
+	}
+	if GetBit(bits, uint8(7)) {
+		val, err := GetText(buf)
+		if err != nil { return fmt.Errorf("GetSimOrder Address: %w", err) }
+		s.Address = val
+	}
+	if GetBit(bits, uint8(8)) {
+		val, err := GetText(buf)
+		if err != nil { return fmt.Errorf("GetSimOrder NewPhone: %w", err) }
+		s.NewPhone = val
+	}
+	if GetBit(bits, uint8(9)) {
+		val, err := GetU16(buf)
+		if err != nil { return fmt.Errorf("GetSimOrder Commission: %w", err) }
+		s.Commission = val
+	}
+	if GetBit(bits, uint8(10)) {
+		val, err := GetU8(buf)
+		if err != nil { return fmt.Errorf("GetSimOrder Status: %w", err) }
+		s.Status = OrderStatus(val)
+	}
+	return nil
+}
+
+func (s *SimOrder) Set(buf *bytes.Buffer) error {
+	if s == nil { return nil }
+	bits := make([]byte, uint8(math.Ceil(float64(11)/8.0)))
+	body := bytes.NewBuffer(nil)
+	if s.Id != 0 {
+		if err := SetU32(body, s.Id); err != nil { return fmt.Errorf("SetSimOrder Id: %w", err) }
+		SetBit(bits, uint8(0), true)
+	}
+	if s.AccountId != 0 {
+		if err := SetU32(body, s.AccountId); err != nil { return fmt.Errorf("SetSimOrder AccountId: %w", err) }
+		SetBit(bits, uint8(1), true)
+	}
+	if s.ItemId != 0 {
+		if err := SetU32(body, s.ItemId); err != nil { return fmt.Errorf("SetSimOrder ItemId: %w", err) }
+		SetBit(bits, uint8(2), true)
+	}
+	if s.Name != "" {
+		if err := SetText(body, s.Name); err != nil { return fmt.Errorf("SetSimOrder Name: %w", err) }
+		SetBit(bits, uint8(3), true)
+	}
+	if s.Phone != "" {
+		if err := SetText(body, s.Phone); err != nil { return fmt.Errorf("SetSimOrder Phone: %w", err) }
+		SetBit(bits, uint8(4), true)
+	}
+	if s.IdNo != "" {
+		if err := SetText(body, s.IdNo); err != nil { return fmt.Errorf("SetSimOrder IdNo: %w", err) }
+		SetBit(bits, uint8(5), true)
+	}
+	if s.CityCode != 0 {
+		if err := SetU32(body, s.CityCode); err != nil { return fmt.Errorf("SetSimOrder CityCode: %w", err) }
+		SetBit(bits, uint8(6), true)
+	}
+	if s.Address != "" {
+		if err := SetText(body, s.Address); err != nil { return fmt.Errorf("SetSimOrder Address: %w", err) }
+		SetBit(bits, uint8(7), true)
+	}
+	if s.NewPhone != "" {
+		if err := SetText(body, s.NewPhone); err != nil { return fmt.Errorf("SetSimOrder NewPhone: %w", err) }
+		SetBit(bits, uint8(8), true)
+	}
+	if s.Commission != 0 {
+		if err := SetU16(body, s.Commission); err != nil { return fmt.Errorf("SetSimOrder Commission: %w", err) }
+		SetBit(bits, uint8(9), true)
+	}
+	if s.Status != 0 {
+		if err := SetU8(body, uint8(s.Status)); err != nil { return fmt.Errorf("SetSimOrder Status: %w", err) }
+		SetBit(bits, uint8(10), true)
+	}
+
+	if _, err := buf.Write(bits); err != nil { return fmt.Errorf("SetSimOrder write bitmask: %w", err) }
+	_, err := body.WriteTo(buf); return err
+}
+
+func (s *SimOrder) Eq(other *SimOrder) bool {
+	if s == other { return true }
+	if s == nil || other == nil { return false }
+	if !EqU32(s.Id, other.Id) { return false }
+	if !EqU32(s.AccountId, other.AccountId) { return false }
+	if !EqU32(s.ItemId, other.ItemId) { return false }
+	if !EqText(s.Name, other.Name) { return false }
+	if !EqText(s.Phone, other.Phone) { return false }
+	if !EqText(s.IdNo, other.IdNo) { return false }
+	if !EqU32(s.CityCode, other.CityCode) { return false }
+	if !EqText(s.Address, other.Address) { return false }
+	if !EqText(s.NewPhone, other.NewPhone) { return false }
+	if !EqU16(s.Commission, other.Commission) { return false }
+	if s.Status != other.Status { return false }
+	return true
+}
+
+// Standalone functions for compatibility
+func GetSimOrder(buf *bytes.Buffer) (*SimOrder, error) {
+	s := new(SimOrder); return s, s.Get(buf)
+}
+func SetSimOrder(buf *bytes.Buffer, s *SimOrder) error { return s.Set(buf) }
+func EqSimOrder(a, b *SimOrder) bool { return a.Eq(b) }
+
+type SimOrderList []*SimOrder
+func (v SimOrderList) Set(buf *bytes.Buffer) error { return setList(buf, v, SetSimOrder) }
+func (v *SimOrderList) Get(buf *bytes.Buffer) error {
+	val, err := getList[*SimOrder, SimOrderList](buf, GetSimOrder)
+	if err == nil { *v = val }; return err
+}
+func (v SimOrderList) Eq(other SimOrderList) bool { return slices.EqualFunc(v, other, EqSimOrder) }
