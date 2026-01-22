@@ -9,10 +9,10 @@ import (
 )
 
 type Recharge struct {
-	Id uint32  // abcd
-	Type []OrderStatus  
-	Phone []string  
-	Si *SimInfo  
+	Id uint32 `bson:"_id" json:"_id"` // abcd
+	Type []OrderStatus `bson:"type" json:"type"` 
+	Phone []string `bson:"phone" json:"phone"` 
+	Si *SimInfo `bson:"si" json:"si"` 
 }
 
 func (s *Recharge) Get(buf *bytes.Buffer) error {

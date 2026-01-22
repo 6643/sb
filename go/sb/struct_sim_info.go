@@ -9,14 +9,14 @@ import (
 )
 
 type SimInfo struct {
-	Id uint32  
-	Title string  
-	Content string  
-	A bool  
-	B bool  
-	C bool  
-	D bool  
-	Zip []byte  
+	Id uint32 `bson:"id" json:"id"` 
+	Title string `bson:"title" json:"title"` 
+	Content string `bson:"content" json:"content"` 
+	A bool `bson:"a" json:"a"` 
+	B bool `bson:"b" json:"b"` 
+	C bool `bson:"c" json:"c"` 
+	D bool `bson:"d" json:"d"` 
+	Zip []byte `bson:"zip" json:"zip"` 
 }
 
 func (s *SimInfo) Get(buf *bytes.Buffer) error {

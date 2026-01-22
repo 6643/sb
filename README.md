@@ -28,7 +28,7 @@ go run . <input.sb> [flags]
 
 **示例命令：**
 ```bash
-go run . aaa.sb -go ./go -ts ./ts -tag bson,json
+go run . -go ./go -ts ./ts -tag bson,json aaa.sb
 ```
 
 ## 3. `.sb` 语法规范

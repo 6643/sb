@@ -9,33 +9,33 @@ import (
 )
 
 type Sim struct {
-	Id uint32  // SIM卡ID
-	Type Type  
-	Status ItemStatus  
-	Commission uint16  // 佣金
-	Supplier uint32  // 供应商ID
-	Aff uint32  // 推广员ID
-	ContractDuration uint8  // 合约期(月), 0:长期
-	Name string  
-	Operator SimOperator  // 运营商
-	Monthly uint16  // 月租
-	FlowUniversal uint16  // 通用流量
-	FlowDirectional uint16  // 定向流量
-	CanMoveFlow bool  // 流量是否结转
-	CallMonth uint16  // 每月通话(分钟)
-	CallPrice uint16  
-	SmsMonth uint16  // 每月短信(条)
-	SmsPrice uint16  
-	MinAge uint8  
-	MaxAge uint8  
-	Attribution uint32  // 归属地, 0:随机, 1:收货地
-	PickPhone []SimPickPhone  // 选号
-	FirstChargeLink string  // 首充渠道
-	FirstChargeMoney string  // 首充金额
-	FirstChargeReturn string  // 首充返额
-	BanCity []uint32  // 禁发区域
-	Info []*SimInfo  
-	Snapshot []string  // 套餐截图
+	Id uint32 `bson:"_id" json:"_id"` // SIM卡ID
+	Type Type `bson:"type" json:"type"` 
+	Status ItemStatus `bson:"status" json:"status"` 
+	Commission uint16 `bson:"commission" json:"commission"` // 佣金
+	Supplier uint32 `bson:"supplier" json:"supplier"` // 供应商ID
+	Aff uint32 `bson:"aff" json:"aff"` // 推广员ID
+	ContractDuration uint8 `bson:"contract_duration" json:"contract_duration"` // 合约期(月), 0:长期
+	Name string `bson:"name" json:"name"` 
+	Operator SimOperator `bson:"operator" json:"operator"` // 运营商
+	Monthly uint16 `bson:"monthly" json:"monthly"` // 月租
+	FlowUniversal uint16 `bson:"flow_universal" json:"flow_universal"` // 通用流量
+	FlowDirectional uint16 `bson:"flow_directional" json:"flow_directional"` // 定向流量
+	CanMoveFlow bool `bson:"can_move_flow" json:"can_move_flow"` // 流量是否结转
+	CallMonth uint16 `bson:"call_month" json:"call_month"` // 每月通话(分钟)
+	CallPrice uint16 `bson:"call_price" json:"call_price"` 
+	SmsMonth uint16 `bson:"sms_month" json:"sms_month"` // 每月短信(条)
+	SmsPrice uint16 `bson:"sms_price" json:"sms_price"` 
+	MinAge uint8 `bson:"min_age" json:"min_age"` 
+	MaxAge uint8 `bson:"max_age" json:"max_age"` 
+	Attribution uint32 `bson:"attribution" json:"attribution"` // 归属地, 0:随机, 1:收货地
+	PickPhone []SimPickPhone `bson:"pick_phone" json:"pick_phone"` // 选号
+	FirstChargeLink string `bson:"first_charge_link" json:"first_charge_link"` // 首充渠道
+	FirstChargeMoney string `bson:"first_charge_money" json:"first_charge_money"` // 首充金额
+	FirstChargeReturn string `bson:"first_charge_return" json:"first_charge_return"` // 首充返额
+	BanCity []uint32 `bson:"ban_city" json:"ban_city"` // 禁发区域
+	Info []*SimInfo `bson:"info" json:"info"` 
+	Snapshot []string `bson:"snapshot" json:"snapshot"` // 套餐截图
 }
 
 func (s *Sim) Get(buf *bytes.Buffer) error {
