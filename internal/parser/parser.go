@@ -12,7 +12,7 @@ type Parser struct {
 	l         *lexer.Lexer
 	curToken  lexer.Token
 	peekToken lexer.Token
-	
+
 	structNames map[string]bool
 	enumNames   map[string]bool
 }
@@ -38,49 +38,91 @@ func (p *Parser) ParseSchema() (*ast.Schema, error) {
 	var lastNote string
 
 	for p.curToken.Type != lexer.TokenEOF {
-		switch p.curToken.Type {
-		case lexer.TokenComment:
+		if p.curToken.Type == lexer.TokenError {
+			return nil, fmt.Errorf("lexing error: %s", p.curToken.Value)
+		}
+
+		if p.curToken.Type == lexer.TokenComment {
 			if lastNote != "" {
 				lastNote += "\n"
 			}
 			lastNote += p.curToken.Value
 			p.nextToken()
-		case lexer.TokenIdent:
-			if p.peekToken.Type == lexer.TokenLBrace {
-				if p.structNames[p.curToken.Value] || p.enumNames[p.curToken.Value] {
-					return nil, fmt.Errorf("line %d: %s redefined", p.curToken.Line, p.curToken.Value)
-				}
-				s, err := p.parseStruct(lastNote)
-				if err != nil { return nil, err }
-				schema.Structs = append(schema.Structs, s)
-				p.structNames[s.Name] = true
-				lastNote = ""
-			} else if p.isEnumDefinition() {
-				if p.structNames[p.curToken.Value] || p.enumNames[p.curToken.Value] {
-					return nil, fmt.Errorf("line %d: %s redefined", p.curToken.Line, p.curToken.Value)
-				}
-				e, err := p.parseEnum(lastNote)
-				if err != nil { return nil, err }
-				schema.Enums = append(schema.Enums, e)
-				p.enumNames[e.Name] = true
-				lastNote = ""
-			} else if p.isApiDefinition() {
-				api, err := p.parseApi(lastNote)
-				if err != nil { return nil, err }
-				schema.Apis = append(schema.Apis, api)
-				lastNote = ""
-			} else {
-				return nil, fmt.Errorf("line %d: unexpected identifier %q", p.curToken.Line, p.curToken.Value)
-			}
-		default:
-			p.nextToken()
+			continue
 		}
+
+		if p.curToken.Type == lexer.TokenIdent {
+			if err := p.parseDefinition(schema, &lastNote); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		return nil, fmt.Errorf("line %d: unexpected token %q", p.curToken.Line, p.curToken.Value)
 	}
 
 	if err := p.resolveTypes(schema); err != nil {
 		return nil, err
 	}
 	return schema, nil
+}
+
+func (p *Parser) parseDefinition(schema *ast.Schema, lastNote *string) error {
+	defer func() { *lastNote = "" }()
+	note := *lastNote
+
+	if p.peekToken.Type == lexer.TokenLBrace {
+		return p.parseAndAddStruct(schema, note)
+	}
+
+	if p.isEnumDefinition() {
+		return p.parseAndAddEnum(schema, note)
+	}
+
+	if p.isApiDefinition() {
+		return p.parseAndAddApi(schema, note)
+	}
+
+	return fmt.Errorf("line %d: unexpected identifier %q", p.curToken.Line, p.curToken.Value)
+}
+
+func (p *Parser) parseAndAddStruct(schema *ast.Schema, note string) error {
+	if p.isDefined(p.curToken.Value) {
+		return fmt.Errorf("line %d: %s redefined", p.curToken.Line, p.curToken.Value)
+	}
+	s, err := p.parseStruct(note)
+	if err != nil {
+		return err
+	}
+	schema.Structs = append(schema.Structs, s)
+	p.structNames[s.Name] = true
+	return nil
+}
+
+func (p *Parser) parseAndAddEnum(schema *ast.Schema, note string) error {
+	if p.isDefined(p.curToken.Value) {
+		return fmt.Errorf("line %d: %s redefined", p.curToken.Line, p.curToken.Value)
+	}
+	e, err := p.parseEnum(note)
+	if err != nil {
+		return err
+	}
+	schema.Enums = append(schema.Enums, e)
+	p.enumNames[e.Name] = true
+	return nil
+}
+
+func (p *Parser) parseAndAddApi(schema *ast.Schema, note string) error {
+	api, err := p.parseApi(note)
+	if err != nil {
+		return err
+	}
+	schema.Apis = append(schema.Apis, api)
+	return nil
+}
+
+func (p *Parser) isDefined(name string) bool {
+	return p.structNames[name] || p.enumNames[name]
 }
 
 func (p *Parser) isEnumDefinition() bool {
@@ -101,8 +143,15 @@ func (p *Parser) parseStruct(note string) (ast.Struct, error) {
 			p.nextToken()
 			continue
 		}
+		if p.curToken.Type == lexer.TokenComma {
+			p.nextToken() // Skip optional commas
+			continue
+		}
+
 		field, err := p.parseStructField()
-		if err != nil { return s, err }
+		if err != nil {
+			return s, err
+		}
 		s.Fields = append(s.Fields, field)
 	}
 	p.nextToken() // }
@@ -116,17 +165,22 @@ func (p *Parser) parseStructField() (ast.StructField, error) {
 	f.Name = p.curToken.Value
 	p.nextToken()
 
-	if (p.curToken.Type == lexer.TokenIdent || p.curToken.Type == lexer.TokenLBracket) && p.curToken.Line == startLine {
-		// Normal field: Name Type
+	// Embedded struct case: Name is actually the Type
+	if p.curToken.Line != startLine {
+		f.Type = ast.Type{Name: f.Name}
+		f.Name = ""
+		return f, nil
+	}
+	
+	// Normal field case
+	if p.curToken.Type == lexer.TokenIdent || p.curToken.Type == lexer.TokenLBracket {
 		f.Type = p.parseType()
-
-		// Handle tag (simple string/ident check)
 		if p.curToken.Type == lexer.TokenIdent && (strings.HasPrefix(p.curToken.Value, "\"") || strings.HasPrefix(p.curToken.Value, "`")) {
 			f.Tag = strings.Trim(p.curToken.Value, "\"`")
 			p.nextToken()
 		}
 	} else {
-		// Embedded struct: Name is actually the Type
+		// Fallback for embedded
 		f.Type = ast.Type{Name: f.Name}
 		f.Name = ""
 	}
@@ -141,16 +195,17 @@ func (p *Parser) parseStructField() (ast.StructField, error) {
 
 func (p *Parser) parseType() ast.Type {
 	var t ast.Type
-	if p.curToken.Type == lexer.TokenLBracket {
-		t.IsList = true
-		p.nextToken() // [
-		t.Name = p.curToken.Value
-		p.nextToken() // name
-		p.nextToken() // ]
-	} else {
+	if p.curToken.Type != lexer.TokenLBracket {
 		t.Name = p.curToken.Value
 		p.nextToken()
+		return t
 	}
+
+	t.IsList = true
+	p.nextToken() // [
+	t.Name = p.curToken.Value
+	p.nextToken() // name
+	p.nextToken() // ]
 	return t
 }
 
@@ -169,44 +224,57 @@ func (p *Parser) parseEnum(note string) (ast.Enum, error) {
 			p.nextToken()
 			continue
 		}
-		if p.curToken.Type != lexer.TokenIdent { break }
-
-		child := ast.EnumChild{Name: p.curToken.Value}
-		childLine := p.curToken.Line
-		p.nextToken()
-
-		if p.curToken.Type == lexer.TokenLParen {
-			p.nextToken() // (
-			id, err := strconv.ParseUint(p.curToken.Value, 10, 8)
-			if err != nil {
-				return e, fmt.Errorf("line %d: invalid enum value %q: %w", p.curToken.Line, p.curToken.Value, err)
-			}
-			child.ID = uint8(id)
-			lastID = child.ID
-			p.nextToken() // num
-			p.nextToken() // )
-			isFirst = false
-		} else {
-			if isFirst {
-				child.ID = 0
-				isFirst = false
-			} else {
-				if lastID == 255 {
-					return e, fmt.Errorf("line %d: enum value overflow", p.curToken.Line)
-				}
-				lastID++
-				child.ID = lastID
-			}
+		if p.curToken.Type != lexer.TokenIdent {
+			break
 		}
 
-		if p.curToken.Type == lexer.TokenComment && p.curToken.Line == childLine {
-			child.Note = p.curToken.Value
-			p.nextToken()
+		child, err := p.parseEnumChild(&lastID, &isFirst)
+		if err != nil {
+			return e, err
 		}
 		e.Children = append(e.Children, child)
-		if p.curToken.Type != lexer.TokenPipe { break }
+
+		if p.curToken.Type != lexer.TokenPipe {
+			break
+		}
 	}
 	return e, nil
+}
+
+func (p *Parser) parseEnumChild(lastID *uint8, isFirst *bool) (ast.EnumChild, error) {
+	child := ast.EnumChild{Name: p.curToken.Value}
+	childLine := p.curToken.Line
+	p.nextToken()
+
+	if p.curToken.Type == lexer.TokenLParen {
+		p.nextToken() // (
+		id, err := strconv.ParseUint(p.curToken.Value, 10, 8)
+		if err != nil {
+			return child, fmt.Errorf("line %d: invalid enum value %q: %w", p.curToken.Line, p.curToken.Value, err)
+		}
+		child.ID = uint8(id)
+		*lastID = child.ID
+		p.nextToken() // num
+		p.nextToken() // )
+		*isFirst = false
+	} else {
+		if *isFirst {
+			child.ID = 0
+			*isFirst = false
+		} else {
+			if *lastID == 255 {
+				return child, fmt.Errorf("line %d: enum value overflow", childLine)
+			}
+			*lastID++
+			child.ID = *lastID
+		}
+	}
+
+	if p.curToken.Type == lexer.TokenComment && p.curToken.Line == childLine {
+		child.Note = p.curToken.Value
+		p.nextToken()
+	}
+	return child, nil
 }
 
 func (p *Parser) parseApi(note string) (ast.Api, error) {
@@ -214,6 +282,7 @@ func (p *Parser) parseApi(note string) (ast.Api, error) {
 	apiLine := p.curToken.Line
 	name := p.curToken.Value
 	p.nextToken()
+	
 	for p.curToken.Type == lexer.TokenDot {
 		p.nextToken()
 		name += "." + p.curToken.Value
@@ -227,7 +296,9 @@ func (p *Parser) parseApi(note string) (ast.Api, error) {
 		p.nextToken()
 		arg.Type = p.parseType()
 		api.Args = append(api.Args, arg)
-		if p.curToken.Type == lexer.TokenComma { p.nextToken() }
+		if p.curToken.Type == lexer.TokenComma {
+			p.nextToken()
+		}
 	}
 	p.nextToken() // )
 	p.nextToken() // =>
@@ -248,54 +319,71 @@ func (p *Parser) parseApi(note string) (ast.Api, error) {
 }
 
 func (p *Parser) resolveTypes(s *ast.Schema) error {
-	baseTypes := map[string]bool{
-		"i8": true, "u8": true, "i16": true, "u16": true,
-		"i32": true, "u32": true, "i64": true, "u64": true,
-		"f32": true, "f64": true, "bool": true, "text": true, "bin": true,
+	if err := p.resolveStructFields(s); err != nil {
+		return err
 	}
-
-	resolve := func(t *ast.Type) error {
-		if t.Name == "nil" {
-			t.Kind = ast.KindBase
-			return nil
-		}
-		if baseTypes[t.Name] {
-			t.Kind = ast.KindBase
-		} else if p.structNames[t.Name] {
-			t.Kind = ast.KindStruct
-		} else if p.enumNames[t.Name] {
-			t.Kind = ast.KindEnum
-		} else {
-			return fmt.Errorf("undefined type: %s", t.Name)
-		}
-		return nil
+	if err := p.resolveApiArgs(s); err != nil {
+		return err
 	}
+	return p.expandEmbeddedStructs(s)
+}
 
+func (p *Parser) resolveStructFields(s *ast.Schema) error {
 	for i := range s.Structs {
 		for j := range s.Structs[i].Fields {
-			if err := resolve(&s.Structs[i].Fields[j].Type); err != nil {
+			if err := p.resolveType(&s.Structs[i].Fields[j].Type); err != nil {
 				return fmt.Errorf("struct %s field %s: %w", s.Structs[i].Name, s.Structs[i].Fields[j].Name, err)
 			}
 		}
 	}
+	return nil
+}
+
+func (p *Parser) resolveApiArgs(s *ast.Schema) error {
 	for i := range s.Apis {
 		for j := range s.Apis[i].Args {
-			if err := resolve(&s.Apis[i].Args[j].Type); err != nil {
+			if err := p.resolveType(&s.Apis[i].Args[j].Type); err != nil {
 				return fmt.Errorf("api %s arg %s: %w", s.Apis[i].Name, s.Apis[i].Args[j].Name, err)
 			}
 		}
-		if err := resolve(&s.Apis[i].Result); err != nil {
+		if err := p.resolveType(&s.Apis[i].Result); err != nil {
 			return fmt.Errorf("api %s result: %w", s.Apis[i].Name, err)
 		}
 	}
+	return nil
+}
 
-	// Resolve embedded structs
+func (p *Parser) resolveType(t *ast.Type) error {
+	if t.Name == "nil" || isBaseType(t.Name) {
+		t.Kind = ast.KindBase
+		return nil
+	}
+	if p.structNames[t.Name] {
+		t.Kind = ast.KindStruct
+		return nil
+	}
+	if p.enumNames[t.Name] {
+		t.Kind = ast.KindEnum
+		return nil
+	}
+	return fmt.Errorf("undefined type: %s", t.Name)
+}
+
+func isBaseType(name string) bool {
+	switch name {
+	case "i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64", 
+		 "f32", "f64", "bool", "text", "bin":
+		return true
+	}
+	return false
+}
+
+func (p *Parser) expandEmbeddedStructs(s *ast.Schema) error {
 	structMap := make(map[string]ast.Struct)
 	for _, st := range s.Structs {
 		structMap[st.Name] = st
 	}
 
-	// Simple recursive expansion for each struct
 	visited := make(map[string]bool)
 	for i := range s.Structs {
 		clear(visited)
@@ -317,18 +405,22 @@ func (p *Parser) expandFields(fields []ast.StructField, structMap map[string]ast
 
 	var result []ast.StructField
 	for _, f := range fields {
-		if f.Name == "" {
-			if base, ok := structMap[f.Type.Name]; ok {
-				// Recursively expand base fields too
-				expanded, err := p.expandFields(base.Fields, structMap, visited, f.Type.Name)
-				if err != nil {
-					return nil, err
-				}
-				result = append(result, expanded...)
-			}
-		} else {
+		if f.Name != "" {
 			result = append(result, f)
+			continue
 		}
+
+		base, ok := structMap[f.Type.Name]
+		if !ok {
+			// Should be unreachable due to resolveTypes
+			return nil, fmt.Errorf("embedded struct %s not found", f.Type.Name)
+		}
+
+		expanded, err := p.expandFields(base.Fields, structMap, visited, f.Type.Name)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, expanded...)
 	}
 	return result, nil
 }

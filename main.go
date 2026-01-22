@@ -16,6 +16,14 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("Successfully generated code.")
+}
+
+func run() error {
 	goDir := flag.String("go", "./go", "Output directory for Go code")
 	tsDir := flag.String("ts", "./ts", "Output directory for TypeScript code")
 	tags := flag.String("tag", "", "Go struct tags (e.g., bson,json)")
@@ -24,23 +32,13 @@ func main() {
 
 	args := flag.Args()
 	if len(args) != 1 {
-		fmt.Println("Usage: sb [flags] <file.sb>")
 		flag.Usage()
-		return
+		return fmt.Errorf("missing input file")
 	}
 
-	content, err := os.ReadFile(args[0])
+	schema, err := parseSchema(args[0])
 	if err != nil {
-		fmt.Printf("Error reading file: %v\n", err)
-		os.Exit(1)
-	}
-
-	l := lexer.New(string(content))
-	p := parser.New(l)
-	schema, err := p.ParseSchema()
-	if err != nil {
-		fmt.Printf("Error parsing: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("parse error: %w", err)
 	}
 
 	cfg := generator.Config{
@@ -50,25 +48,40 @@ func main() {
 		TplFS: generator.TplFS,
 	}
 
+	if err := generateCode(schema, cfg); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func parseSchema(filename string) (*ast.Schema, error) {
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("read file: %w", err)
+	}
+
+	l := lexer.New(string(content))
+	p := parser.New(l)
+	return p.ParseSchema()
+}
+
+func generateCode(schema *ast.Schema, cfg generator.Config) error {
 	goGen := generator.NewGoGenerator(cfg)
 	if err := goGen.Generate(schema); err != nil {
-		fmt.Printf("Error generating Go code: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("go generation: %w", err)
 	}
 
 	tsGen := generator.NewTsGenerator(cfg)
 	if err := tsGen.Generate(schema); err != nil {
-		fmt.Printf("Error generating TypeScript code: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("ts generation: %w", err)
 	}
 
-	// Generate Documentation
 	if err := generateDoc(schema, cfg); err != nil {
-		fmt.Printf("Error generating documentation: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("documentation: %w", err)
 	}
 
-	fmt.Println("Successfully generated code.")
+	return nil
 }
 
 func generateDoc(schema *ast.Schema, cfg generator.Config) error {
@@ -77,26 +90,8 @@ func generateDoc(schema *ast.Schema, cfg generator.Config) error {
 		return err
 	}
 
-	groups := make(map[string][]ast.Api)
-	for _, api := range schema.Apis {
-		module := "api"
-		if parts := strings.Split(api.Name, "."); len(parts) > 1 {
-			module = parts[0]
-		}
-		groups[module] = append(groups[module], api)
-	}
-
-	dummyCfg := generator.Config{TplFS: cfg.TplFS}
-	goGen := generator.NewGoGenerator(dummyCfg)
-	tsGen := generator.NewTsGenerator(dummyCfg)
-
-	funcMap := template.FuncMap{
-		"SnakeCase":  util.SnakeCase,
-		"PascalCase": util.PascalCase,
-		"CamelCase":  util.CamelCase,
-		"GoValue":    goGen.FuncMap["GoValue"],
-		"TsValue":    tsGen.FuncMap["TsValue"],
-	}
+	groups := groupApis(schema.Apis)
+	funcMap := createFuncMap(cfg)
 
 	tpl, err := template.New("doc").Funcs(funcMap).Parse(string(tplContent))
 	if err != nil {
@@ -116,7 +111,45 @@ func generateDoc(schema *ast.Schema, cfg generator.Config) error {
 		return err
 	}
 
-	os.WriteFile(filepath.Join(cfg.GoDir, "sb", "DOC.md"), buf.Bytes(), 0644)
-	os.WriteFile(filepath.Join(cfg.TsDir, "sb", "DOC.md"), buf.Bytes(), 0644)
+	if err := writeDocFile(cfg.GoDir, buf.Bytes()); err != nil {
+		return err
+	}
+	if err := writeDocFile(cfg.TsDir, buf.Bytes()); err != nil {
+		return err
+	}
 	return nil
+}
+
+func groupApis(apis []ast.Api) map[string][]ast.Api {
+	groups := make(map[string][]ast.Api)
+	for _, api := range apis {
+		module := "api"
+		if parts := strings.Split(api.Name, "."); len(parts) > 1 {
+			module = parts[0]
+		}
+		groups[module] = append(groups[module], api)
+	}
+	return groups
+}
+
+func createFuncMap(cfg generator.Config) template.FuncMap {
+	dummyCfg := generator.Config{TplFS: cfg.TplFS}
+	goGen := generator.NewGoGenerator(dummyCfg)
+	tsGen := generator.NewTsGenerator(dummyCfg)
+
+	return template.FuncMap{
+		"SnakeCase":  util.SnakeCase,
+		"PascalCase": util.PascalCase,
+		"CamelCase":  util.CamelCase,
+		"GoValue":    goGen.FuncMap["GoValue"],
+		"TsValue":    tsGen.FuncMap["TsValue"],
+	}
+}
+
+func writeDocFile(baseDir string, data []byte) error {
+	path := filepath.Join(baseDir, "sb", "DOC.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
 }

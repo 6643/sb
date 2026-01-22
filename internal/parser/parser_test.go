@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"sb/internal/lexer"
 	"testing"
 )
@@ -25,21 +26,21 @@ func TestParser_Robustness(t *testing.T) {
 				A { B }
 				B { A }
 			`,
-			wantErr: false, // 应该被 expandFields 优雅处理（打印警告而不崩溃）
+			wantErr: true, // Circular embedding is an error
 		},
 		{
 			name: "Undefined Type",
 			input: `
 				User { info UnknownType }
 			`,
-			wantErr: false, // 目前 resolveTypes 只是标记，不会返回 error，但这会导致生成代码失败
+			wantErr: true, // Undefined type is an error
 		},
 		{
 			name: "Invalid Syntax - Missing Brace",
 			input: `
 				User { id u32
 			`,
-			wantErr: false, // 目前 Parser 在 EOF 时会停止，不会 panic，但结果不完整
+			wantErr: false, // Parser handles EOF gracefully (returns what it has)
 		},
 		{
 			name: "Invalid API - No Arrow",
@@ -63,10 +64,10 @@ func TestParser_Robustness(t *testing.T) {
 }
 
 func TestParser_FieldLimit(t *testing.T) {
-	// 模拟生成 256 个字段的结构体字符串
+	// Generate struct with 256 fields using valid identifiers
 	input := "LargeStruct {\n"
 	for i := 0; i < 256; i++ {
-		input += "field" + string(rune(i)) + " u32\n"
+		input += fmt.Sprintf("field_%d u32\n", i)
 	}
 	input += "}"
 
@@ -75,6 +76,10 @@ func TestParser_FieldLimit(t *testing.T) {
 	schema, err := p.ParseSchema()
 	if err != nil {
 		t.Fatalf("Failed to parse: %v", err)
+	}
+
+	if len(schema.Structs) == 0 {
+		t.Fatal("No struct parsed")
 	}
 
 	if len(schema.Structs[0].Fields) < 256 {

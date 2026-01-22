@@ -9,17 +9,17 @@ import (
 )
 
 type SimOrder struct {
-	Id uint32 `bson:"id" json:"id"` 
-	AccountId uint32 `bson:"account_id" json:"account_id"` 
-	ItemId uint32 `bson:"item_id" json:"item_id"` 
-	Name string `bson:"name" json:"name"` // 办理人姓名
-	Phone string `bson:"phone" json:"phone"` // 联系电话
-	IdNo string `bson:"id_no" json:"id_no"` // 身份证号
-	CityCode uint32 `bson:"city_code" json:"city_code"` // 所在城市
-	Address string `bson:"address" json:"address"` // 详细地址
-	NewPhone string `bson:"new_phone" json:"new_phone"` // 新手机号码
-	Commission uint16 `bson:"commission" json:"commission"` // 佣金
-	Status OrderStatus `bson:"status" json:"status"` 
+	Id uint32  
+	AccountId uint32  
+	ItemId uint32  
+	Name string  // 办理人姓名
+	Phone string  // 联系电话
+	IdNo string  // 身份证号
+	CityCode uint32  // 所在城市
+	Address string  // 详细地址
+	NewPhone string  // 新手机号码
+	Commission uint16  // 佣金
+	Status OrderStatus  
 }
 
 func (s *SimOrder) Get(buf *bytes.Buffer) error {

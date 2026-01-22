@@ -9,11 +9,11 @@ import (
 )
 
 type RechargeB struct {
-	Id uint32 `bson:"_id" json:"_id"` // abcd
-	Type []OrderStatus `bson:"type" json:"type"` 
-	Phone []string `bson:"phone" json:"phone"` 
-	Si *SimInfo `bson:"si" json:"si"` 
-	Bid uint32 `bson:"bid" json:"bid"` 
+	Id uint32  // abcd
+	Type []OrderStatus  
+	Phone []string  
+	Si *SimInfo  
+	Bid uint32  
 }
 
 func (s *RechargeB) Get(buf *bytes.Buffer) error {

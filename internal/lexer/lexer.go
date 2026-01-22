@@ -13,17 +13,17 @@ const (
 	TokenEOF
 	TokenIdent
 	TokenNumber
-	TokenLBrace // {
-	TokenRBrace // }
-	TokenLParen // (
-	TokenRParen // )
+	TokenLBrace   // {
+	TokenRBrace   // }
+	TokenLParen   // (
+	TokenRParen   // )
 	TokenLBracket // [
 	TokenRBracket // ]
-	TokenAssign // =
-	TokenPipe   // |
-	TokenComma  // ,
-	TokenDot    // .
-	TokenArrow  // =>
+	TokenAssign   // =
+	TokenPipe     // |
+	TokenComma    // ,
+	TokenDot      // .
+	TokenArrow    // =>
 	TokenComment
 )
 
@@ -52,35 +52,54 @@ func (l *Lexer) NextToken() Token {
 
 	ch := l.input[l.pos]
 
-	switch {
-	case isIdentStart(ch):
+	if isIdentStart(ch) {
 		return l.readIdent()
-	case unicode.IsDigit(ch) || (ch == '-' && unicode.IsDigit(l.peek())):
-		return l.readNumber()
-	case ch == '"' || ch == '`':
-		return l.readTag(ch)
-	case ch == '/':
-		if l.peek() == '/' {
-			return l.readComment()
-		}
-	case ch == '{': return l.advanceAndMakeToken(TokenLBrace, "{")
-	case ch == '}': return l.advanceAndMakeToken(TokenRBrace, "}")
-	case ch == '(': return l.advanceAndMakeToken(TokenLParen, "(")
-	case ch == ')': return l.advanceAndMakeToken(TokenRParen, ")")
-	case ch == '[': return l.advanceAndMakeToken(TokenLBracket, "[")
-	case ch == ']': return l.advanceAndMakeToken(TokenRBracket, "]")
-	case ch == '=':
-		if l.peek() == '>' {
-			l.pos++
-			return l.advanceAndMakeToken(TokenArrow, "=>")
-		}
-		return l.advanceAndMakeToken(TokenAssign, "=")
-	case ch == '|': return l.advanceAndMakeToken(TokenPipe, "|")
-	case ch == ',': return l.advanceAndMakeToken(TokenComma, ",")
-	case ch == '.': return l.advanceAndMakeToken(TokenDot, ".")
 	}
 
-	return l.errorToken(fmt.Sprintf("unexpected character %q", ch))
+	if unicode.IsDigit(ch) || (ch == '-' && unicode.IsDigit(l.peek())) {
+		return l.readNumber()
+	}
+
+	if ch == '"' || ch == '`' {
+		return l.readTag(ch)
+	}
+
+	// Double char tokens
+	if ch == '/' && l.peek() == '/' {
+		return l.readComment()
+	}
+	if ch == '=' && l.peek() == '>' {
+		l.pos += 2
+		return Token{Type: TokenArrow, Value: "=>", Line: l.line}
+	}
+
+	// Single char tokens
+	switch ch {
+	case '{':
+		return l.advanceAndMakeToken(TokenLBrace, "{")
+	case '}':
+		return l.advanceAndMakeToken(TokenRBrace, "}")
+	case '(':
+		return l.advanceAndMakeToken(TokenLParen, "(")
+	case ')':
+		return l.advanceAndMakeToken(TokenRParen, ")")
+	case '[':
+		return l.advanceAndMakeToken(TokenLBracket, "[")
+	case ']':
+		return l.advanceAndMakeToken(TokenRBracket, "]")
+	case '=':
+		return l.advanceAndMakeToken(TokenAssign, "=")
+	case '|':
+		return l.advanceAndMakeToken(TokenPipe, "|")
+	case ',':
+		return l.advanceAndMakeToken(TokenComma, ",")
+	case '.':
+		return l.advanceAndMakeToken(TokenDot, ".")
+	}
+
+	// Error handling - MUST advance to avoid infinite loop
+	l.pos++
+	return Token{Type: TokenError, Value: fmt.Sprintf("unexpected character %q", ch), Line: l.line}
 }
 
 func (l *Lexer) advanceAndMakeToken(t TokenType, val string) Token {
@@ -101,11 +120,13 @@ func (l *Lexer) skipWhitespace() {
 		if ch == '\n' {
 			l.line++
 			l.pos++
-		} else if unicode.IsSpace(ch) {
-			l.pos++
-		} else {
-			break
+			continue
 		}
+		if unicode.IsSpace(ch) {
+			l.pos++
+			continue
+		}
+		break
 	}
 }
 
@@ -140,10 +161,14 @@ func (l *Lexer) readTag(quote rune) Token {
 	start := l.pos
 	l.pos++ // skip start quote
 	for l.pos < len(l.input) && l.input[l.pos] != quote {
-		if l.input[l.pos] == '\n' { l.line++ }
+		if l.input[l.pos] == '\n' {
+			l.line++
+		}
 		l.pos++
 	}
-	if l.pos < len(l.input) { l.pos++ } // skip end quote
+	if l.pos < len(l.input) {
+		l.pos++ // skip end quote
+	}
 	return Token{Type: TokenIdent, Value: string(l.input[start:l.pos]), Line: l.line}
 }
 
@@ -154,8 +179,4 @@ func (l *Lexer) readComment() Token {
 		l.pos++
 	}
 	return Token{Type: TokenComment, Value: strings.TrimSpace(string(l.input[start:l.pos])), Line: l.line}
-}
-
-func (l *Lexer) errorToken(msg string) Token {
-	return Token{Type: TokenError, Value: msg, Line: l.line}
 }
