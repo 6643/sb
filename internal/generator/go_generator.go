@@ -142,14 +142,14 @@ func (g *GoGenerator) Generate(schema *ast.Schema) error {
 
 	pkgName := "sb"
 
-	// 0. Validation
+	// 0. 校验
 	for _, s := range schema.Structs {
 		if len(s.Fields) > 255 {
-			return fmt.Errorf("struct %s has %d fields, exceeds limit of 255", s.Name, len(s.Fields))
+			return fmt.Errorf("结构体 %s 拥有 %d 个字段，超过限制 (255)", s.Name, len(s.Fields))
 		}
 	}
 
-	// 1. Generate type.go
+	// 1. 生成 type.go
 	types := []baseTypeInfo{
 		{"I8", "int8", false, ""}, {"U8", "uint8", false, ""},
 		{"I16", "int16", false, ""}, {"U16", "uint16", false, ""},
@@ -165,7 +165,7 @@ func (g *GoGenerator) Generate(schema *ast.Schema) error {
 		return err
 	}
 
-	// 2. Generate Enums
+	// 2. 生成枚举
 	if err := g.executeTemplate("_tpl/go.enum.tpl", filepath.Join(targetDir, "enum.go"), map[string]any{
 		"Enums":   schema.Enums,
 		"Package": pkgName,
@@ -173,7 +173,7 @@ func (g *GoGenerator) Generate(schema *ast.Schema) error {
 		return err
 	}
 
-	// 3. Generate Structs
+	// 3. 生成结构体
 	for _, s := range schema.Structs {
 		path := filepath.Join(targetDir, "struct_"+util.SnakeCase(s.Name)+".go")
 		if err := g.executeTemplate("_tpl/go.struct.tpl", path, map[string]any{
@@ -186,11 +186,11 @@ func (g *GoGenerator) Generate(schema *ast.Schema) error {
 		}
 	}
 
-	// 4. Generate API & RPC
+	// 4. 生成 API 与 RPC
 	if len(schema.Apis) > 0 {
 		modName := g.getModuleName()
 		
-		// Logic handlers
+		// 业务逻辑 Handler
 		for _, api := range schema.Apis {
 			filename := "api." + api.Name + ".go"
 			logicPath := filepath.Join(targetDir, filename)
@@ -205,7 +205,7 @@ func (g *GoGenerator) Generate(schema *ast.Schema) error {
 			}
 		}
 
-		// API registration
+		// API 注册
 		groups := make(map[string][]ast.Api)
 		for _, api := range schema.Apis {
 			module := "api"
@@ -223,7 +223,7 @@ func (g *GoGenerator) Generate(schema *ast.Schema) error {
 			return err
 		}
 
-		// RPC Client/Server
+		// RPC 客户端/服务端
 		if err := g.executeTemplate("_tpl/go.rpc.tpl", filepath.Join(targetDir, "rpc.go"), map[string]any{
 			"Apis":    schema.Apis,
 			"Mod":     modName,

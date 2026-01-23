@@ -17,28 +17,28 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "错误: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Println("Successfully generated code.")
+	fmt.Println("代码生成成功。")
 }
 
 func run() error {
-	goDir := flag.String("go", "./go", "Output directory for Go code")
-	tsDir := flag.String("ts", "./ts", "Output directory for TypeScript code")
-	tags := flag.String("tag", "", "Go struct tags (e.g., bson,json)")
+	goDir := flag.String("go", "./go", "Go 代码输出目录")
+	tsDir := flag.String("ts", "./ts", "TypeScript 代码输出目录")
+	tags := flag.String("tag", "", "Go 结构体 Tag (例如 bson,json)")
 
 	flag.Parse()
 
 	args := flag.Args()
 	if len(args) != 1 {
 		flag.Usage()
-		return fmt.Errorf("missing input file")
+		return fmt.Errorf("缺少输入文件")
 	}
 
 	schema, err := parseSchema(args[0])
 	if err != nil {
-		return fmt.Errorf("parse error: %w", err)
+		return fmt.Errorf("解析错误: %w", err)
 	}
 
 	cfg := generator.Config{

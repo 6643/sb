@@ -67,17 +67,17 @@ func (g *TsGenerator) Generate(schema *ast.Schema) error {
 	targetDir := filepath.Join(g.Config.TsDir, "sb")
 	os.MkdirAll(targetDir, 0755)
 
-	// 0. Copy type.ts from embedded FS
+	// 0. 从嵌入文件系统中复制 type.ts
 	typeTs, err := g.Config.TplFS.ReadFile("_tpl/type.ts")
 	if err != nil { return err }
 	if err := os.WriteFile(filepath.Join(targetDir, "type.ts"), typeTs, 0644); err != nil { return err }
 
-	// 1. Generate Enums
+	// 1. 生成枚举
 	if err := g.executeTemplate("_tpl/ts.enum.tpl", filepath.Join(targetDir, "enum.ts"), map[string]any{
 		"Enums": schema.Enums,
 	}); err != nil { return err }
 
-	// 2. Generate Structs
+	// 2. 生成结构体
 	var structFiles []string
 	for _, s := range schema.Structs {
 		filename := "struct_" + util.SnakeCase(s.Name) + ".ts"
@@ -86,11 +86,11 @@ func (g *TsGenerator) Generate(schema *ast.Schema) error {
 		if err := g.executeTemplate("_tpl/ts.struct.tpl", path, s); err != nil { return err }
 	}
 
-	// 3. Generate Index (_.ts)
+	// 3. 生成索引文件 (_.ts)
 	allFiles := append([]string{"enum.ts"}, structFiles...)
 	if err := g.executeTemplate("_tpl/ts._.tpl", filepath.Join(targetDir, "_.ts"), allFiles); err != nil { return err }
 
-	// 4. Generate RPC
+	// 4. 生成 RPC
 	if len(schema.Apis) > 0 {
 		if err := g.executeTemplate("_tpl/ts.rpc.tpl", filepath.Join(targetDir, "rpc.ts"), map[string]any{
 			"Apis": schema.Apis,

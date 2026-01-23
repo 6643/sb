@@ -6,6 +6,8 @@ import (
 	"testing"
 )
 
+// TestParser_Robustness 鲁棒性测试
+// 涵盖正常解析, 循环嵌套检测, 未定义类型校验等边界场景
 func TestParser_Robustness(t *testing.T) {
 	tests := []struct {
 		name    string
