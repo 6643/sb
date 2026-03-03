@@ -16,33 +16,36 @@ const (
 	AccountStatusDeleted AccountStatus = 2 
 )
 
-func IsAccountStatusValid(v AccountStatus) bool {
+func IsAccountStatus(v AccountStatus) bool {
 	switch v {
-	case AccountStatusOffline:
-		return true
-	case AccountStatusOnline:
-		return true
-	case AccountStatusDeleted:
+	case AccountStatusOffline, AccountStatusOnline, AccountStatusDeleted:
 		return true
 	default:
 		return false
 	}
 }
 
-type AccountStatusList []AccountStatus
-func (v AccountStatusList) Set(buf *bytes.Buffer) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
-func (v *AccountStatusList) Get(buf *bytes.Buffer) error {
-	val, err := GetU8List(buf)
-	if err == nil { *v = *(*AccountStatusList)(unsafe.Pointer(&val)) }
-	return err
+func GetAccountStatus(buf *bytes.Buffer) (AccountStatus, error) {
+	val, err := GetU8(buf)
+	return AccountStatus(val), err
 }
-func IsAccountStatusListValid(v AccountStatusList) bool {
+
+func SetAccountStatus(buf *bytes.Buffer, v AccountStatus) error { return SetU8(buf, uint8(v)) }
+
+type AccountStatusList []AccountStatus
+func GetAccountStatusList(buf *bytes.Buffer) (AccountStatusList, error) {
+	val, err := GetU8List(buf)
+	if err != nil { return nil, err }
+	return *(*AccountStatusList)(unsafe.Pointer(&val)), nil
+}
+func SetAccountStatusList(buf *bytes.Buffer, v AccountStatusList) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
+func IsAccountStatusList(v AccountStatusList) bool {
 	for _, item := range v {
-		if !IsAccountStatusValid(item) { return false }
+		if !IsAccountStatus(item) { return false }
 	}
 	return true
 }
-func (v AccountStatusList) Eq(other AccountStatusList) bool { return slices.Equal(v, other) }
+func EqAccountStatusList(a, b AccountStatusList) bool { return slices.Equal(a, b) }
 
 // Type 类型
 type Type uint8
@@ -52,31 +55,36 @@ const (
 	TypeRecharge Type = 1 
 )
 
-func IsTypeValid(v Type) bool {
+func IsType(v Type) bool {
 	switch v {
-	case TypeSim:
-		return true
-	case TypeRecharge:
+	case TypeSim, TypeRecharge:
 		return true
 	default:
 		return false
 	}
 }
 
-type TypeList []Type
-func (v TypeList) Set(buf *bytes.Buffer) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
-func (v *TypeList) Get(buf *bytes.Buffer) error {
-	val, err := GetU8List(buf)
-	if err == nil { *v = *(*TypeList)(unsafe.Pointer(&val)) }
-	return err
+func GetType(buf *bytes.Buffer) (Type, error) {
+	val, err := GetU8(buf)
+	return Type(val), err
 }
-func IsTypeListValid(v TypeList) bool {
+
+func SetType(buf *bytes.Buffer, v Type) error { return SetU8(buf, uint8(v)) }
+
+type TypeList []Type
+func GetTypeList(buf *bytes.Buffer) (TypeList, error) {
+	val, err := GetU8List(buf)
+	if err != nil { return nil, err }
+	return *(*TypeList)(unsafe.Pointer(&val)), nil
+}
+func SetTypeList(buf *bytes.Buffer, v TypeList) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
+func IsTypeList(v TypeList) bool {
 	for _, item := range v {
-		if !IsTypeValid(item) { return false }
+		if !IsType(item) { return false }
 	}
 	return true
 }
-func (v TypeList) Eq(other TypeList) bool { return slices.Equal(v, other) }
+func EqTypeList(a, b TypeList) bool { return slices.Equal(a, b) }
 
 // Status 错误码
 type Status uint8
@@ -93,45 +101,36 @@ const (
 	StatusOne Status = 11 
 )
 
-func IsStatusValid(v Status) bool {
+func IsStatus(v Status) bool {
 	switch v {
-	case StatusOk:
-		return true
-	case StatusErr:
-		return true
-	case StatusTwo:
-		return true
-	case StatusThree:
-		return true
-	case StatusFour:
-		return true
-	case StatusFive:
-		return true
-	case StatusSix:
-		return true
-	case StatusSeven:
-		return true
-	case StatusOne:
+	case StatusOk, StatusErr, StatusTwo, StatusThree, StatusFour, StatusFive, StatusSix, StatusSeven, StatusOne:
 		return true
 	default:
 		return false
 	}
 }
 
-type StatusList []Status
-func (v StatusList) Set(buf *bytes.Buffer) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
-func (v *StatusList) Get(buf *bytes.Buffer) error {
-	val, err := GetU8List(buf)
-	if err == nil { *v = *(*StatusList)(unsafe.Pointer(&val)) }
-	return err
+func GetStatus(buf *bytes.Buffer) (Status, error) {
+	val, err := GetU8(buf)
+	return Status(val), err
 }
-func IsStatusListValid(v StatusList) bool {
+
+func SetStatus(buf *bytes.Buffer, v Status) error { return SetU8(buf, uint8(v)) }
+
+type StatusList []Status
+func GetStatusList(buf *bytes.Buffer) (StatusList, error) {
+	val, err := GetU8List(buf)
+	if err != nil { return nil, err }
+	return *(*StatusList)(unsafe.Pointer(&val)), nil
+}
+func SetStatusList(buf *bytes.Buffer, v StatusList) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
+func IsStatusList(v StatusList) bool {
 	for _, item := range v {
-		if !IsStatusValid(item) { return false }
+		if !IsStatus(item) { return false }
 	}
 	return true
 }
-func (v StatusList) Eq(other StatusList) bool { return slices.Equal(v, other) }
+func EqStatusList(a, b StatusList) bool { return slices.Equal(a, b) }
 
 // StatusA 状态A
 type StatusA uint8
@@ -147,43 +146,36 @@ const (
 	StatusASeven StatusA = 7 
 )
 
-func IsStatusAValid(v StatusA) bool {
+func IsStatusA(v StatusA) bool {
 	switch v {
-	case StatusAOk:
-		return true
-	case StatusAOne:
-		return true
-	case StatusATwo:
-		return true
-	case StatusAThree:
-		return true
-	case StatusAFour:
-		return true
-	case StatusAFive:
-		return true
-	case StatusASix:
-		return true
-	case StatusASeven:
+	case StatusAOk, StatusAOne, StatusATwo, StatusAThree, StatusAFour, StatusAFive, StatusASix, StatusASeven:
 		return true
 	default:
 		return false
 	}
 }
 
-type StatusAList []StatusA
-func (v StatusAList) Set(buf *bytes.Buffer) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
-func (v *StatusAList) Get(buf *bytes.Buffer) error {
-	val, err := GetU8List(buf)
-	if err == nil { *v = *(*StatusAList)(unsafe.Pointer(&val)) }
-	return err
+func GetStatusA(buf *bytes.Buffer) (StatusA, error) {
+	val, err := GetU8(buf)
+	return StatusA(val), err
 }
-func IsStatusAListValid(v StatusAList) bool {
+
+func SetStatusA(buf *bytes.Buffer, v StatusA) error { return SetU8(buf, uint8(v)) }
+
+type StatusAList []StatusA
+func GetStatusAList(buf *bytes.Buffer) (StatusAList, error) {
+	val, err := GetU8List(buf)
+	if err != nil { return nil, err }
+	return *(*StatusAList)(unsafe.Pointer(&val)), nil
+}
+func SetStatusAList(buf *bytes.Buffer, v StatusAList) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
+func IsStatusAList(v StatusAList) bool {
 	for _, item := range v {
-		if !IsStatusAValid(item) { return false }
+		if !IsStatusA(item) { return false }
 	}
 	return true
 }
-func (v StatusAList) Eq(other StatusAList) bool { return slices.Equal(v, other) }
+func EqStatusAList(a, b StatusAList) bool { return slices.Equal(a, b) }
 
 // ItemStatus 订单状态
 type ItemStatus uint8
@@ -193,31 +185,36 @@ const (
 	ItemStatusOnline ItemStatus = 1 
 )
 
-func IsItemStatusValid(v ItemStatus) bool {
+func IsItemStatus(v ItemStatus) bool {
 	switch v {
-	case ItemStatusOffline:
-		return true
-	case ItemStatusOnline:
+	case ItemStatusOffline, ItemStatusOnline:
 		return true
 	default:
 		return false
 	}
 }
 
-type ItemStatusList []ItemStatus
-func (v ItemStatusList) Set(buf *bytes.Buffer) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
-func (v *ItemStatusList) Get(buf *bytes.Buffer) error {
-	val, err := GetU8List(buf)
-	if err == nil { *v = *(*ItemStatusList)(unsafe.Pointer(&val)) }
-	return err
+func GetItemStatus(buf *bytes.Buffer) (ItemStatus, error) {
+	val, err := GetU8(buf)
+	return ItemStatus(val), err
 }
-func IsItemStatusListValid(v ItemStatusList) bool {
+
+func SetItemStatus(buf *bytes.Buffer, v ItemStatus) error { return SetU8(buf, uint8(v)) }
+
+type ItemStatusList []ItemStatus
+func GetItemStatusList(buf *bytes.Buffer) (ItemStatusList, error) {
+	val, err := GetU8List(buf)
+	if err != nil { return nil, err }
+	return *(*ItemStatusList)(unsafe.Pointer(&val)), nil
+}
+func SetItemStatusList(buf *bytes.Buffer, v ItemStatusList) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
+func IsItemStatusList(v ItemStatusList) bool {
 	for _, item := range v {
-		if !IsItemStatusValid(item) { return false }
+		if !IsItemStatus(item) { return false }
 	}
 	return true
 }
-func (v ItemStatusList) Eq(other ItemStatusList) bool { return slices.Equal(v, other) }
+func EqItemStatusList(a, b ItemStatusList) bool { return slices.Equal(a, b) }
 
 // SimPickPhone 可否选号
 type SimPickPhone uint8
@@ -229,35 +226,36 @@ const (
 	SimPickPhoneAbcc SimPickPhone = 4 
 )
 
-func IsSimPickPhoneValid(v SimPickPhone) bool {
+func IsSimPickPhone(v SimPickPhone) bool {
 	switch v {
-	case SimPickPhoneNo:
-		return true
-	case SimPickPhoneYes:
-		return true
-	case SimPickPhoneActive:
-		return true
-	case SimPickPhoneAbcc:
+	case SimPickPhoneNo, SimPickPhoneYes, SimPickPhoneActive, SimPickPhoneAbcc:
 		return true
 	default:
 		return false
 	}
 }
 
-type SimPickPhoneList []SimPickPhone
-func (v SimPickPhoneList) Set(buf *bytes.Buffer) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
-func (v *SimPickPhoneList) Get(buf *bytes.Buffer) error {
-	val, err := GetU8List(buf)
-	if err == nil { *v = *(*SimPickPhoneList)(unsafe.Pointer(&val)) }
-	return err
+func GetSimPickPhone(buf *bytes.Buffer) (SimPickPhone, error) {
+	val, err := GetU8(buf)
+	return SimPickPhone(val), err
 }
-func IsSimPickPhoneListValid(v SimPickPhoneList) bool {
+
+func SetSimPickPhone(buf *bytes.Buffer, v SimPickPhone) error { return SetU8(buf, uint8(v)) }
+
+type SimPickPhoneList []SimPickPhone
+func GetSimPickPhoneList(buf *bytes.Buffer) (SimPickPhoneList, error) {
+	val, err := GetU8List(buf)
+	if err != nil { return nil, err }
+	return *(*SimPickPhoneList)(unsafe.Pointer(&val)), nil
+}
+func SetSimPickPhoneList(buf *bytes.Buffer, v SimPickPhoneList) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
+func IsSimPickPhoneList(v SimPickPhoneList) bool {
 	for _, item := range v {
-		if !IsSimPickPhoneValid(item) { return false }
+		if !IsSimPickPhone(item) { return false }
 	}
 	return true
 }
-func (v SimPickPhoneList) Eq(other SimPickPhoneList) bool { return slices.Equal(v, other) }
+func EqSimPickPhoneList(a, b SimPickPhoneList) bool { return slices.Equal(a, b) }
 
 // SimOperator 运营商
 type SimOperator uint8
@@ -273,43 +271,36 @@ const (
 	SimOperatorB SimOperator = 12 
 )
 
-func IsSimOperatorValid(v SimOperator) bool {
+func IsSimOperator(v SimOperator) bool {
 	switch v {
-	case SimOperatorZz:
-		return true
-	case SimOperatorLt:
-		return true
-	case SimOperatorYd:
-		return true
-	case SimOperatorDx:
-		return true
-	case SimOperatorGd:
-		return true
-	case SimOperatorXx:
-		return true
-	case SimOperatorA:
-		return true
-	case SimOperatorB:
+	case SimOperatorZz, SimOperatorLt, SimOperatorYd, SimOperatorDx, SimOperatorGd, SimOperatorXx, SimOperatorA, SimOperatorB:
 		return true
 	default:
 		return false
 	}
 }
 
-type SimOperatorList []SimOperator
-func (v SimOperatorList) Set(buf *bytes.Buffer) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
-func (v *SimOperatorList) Get(buf *bytes.Buffer) error {
-	val, err := GetU8List(buf)
-	if err == nil { *v = *(*SimOperatorList)(unsafe.Pointer(&val)) }
-	return err
+func GetSimOperator(buf *bytes.Buffer) (SimOperator, error) {
+	val, err := GetU8(buf)
+	return SimOperator(val), err
 }
-func IsSimOperatorListValid(v SimOperatorList) bool {
+
+func SetSimOperator(buf *bytes.Buffer, v SimOperator) error { return SetU8(buf, uint8(v)) }
+
+type SimOperatorList []SimOperator
+func GetSimOperatorList(buf *bytes.Buffer) (SimOperatorList, error) {
+	val, err := GetU8List(buf)
+	if err != nil { return nil, err }
+	return *(*SimOperatorList)(unsafe.Pointer(&val)), nil
+}
+func SetSimOperatorList(buf *bytes.Buffer, v SimOperatorList) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
+func IsSimOperatorList(v SimOperatorList) bool {
 	for _, item := range v {
-		if !IsSimOperatorValid(item) { return false }
+		if !IsSimOperator(item) { return false }
 	}
 	return true
 }
-func (v SimOperatorList) Eq(other SimOperatorList) bool { return slices.Equal(v, other) }
+func EqSimOperatorList(a, b SimOperatorList) bool { return slices.Equal(a, b) }
 
 // OrderStatus 订单状态
 type OrderStatus uint8
@@ -324,39 +315,34 @@ const (
 	OrderStatusSettled OrderStatus = 6 // 已结算
 )
 
-func IsOrderStatusValid(v OrderStatus) bool {
+func IsOrderStatus(v OrderStatus) bool {
 	switch v {
-	case OrderStatusPending:
-		return true
-	case OrderStatusClosed:
-		return true
-	case OrderStatusCanceled:
-		return true
-	case OrderStatusShipped:
-		return true
-	case OrderStatusDelivered:
-		return true
-	case OrderStatusActived:
-		return true
-	case OrderStatusSettled:
+	case OrderStatusPending, OrderStatusClosed, OrderStatusCanceled, OrderStatusShipped, OrderStatusDelivered, OrderStatusActived, OrderStatusSettled:
 		return true
 	default:
 		return false
 	}
 }
 
-type OrderStatusList []OrderStatus
-func (v OrderStatusList) Set(buf *bytes.Buffer) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
-func (v *OrderStatusList) Get(buf *bytes.Buffer) error {
-	val, err := GetU8List(buf)
-	if err == nil { *v = *(*OrderStatusList)(unsafe.Pointer(&val)) }
-	return err
+func GetOrderStatus(buf *bytes.Buffer) (OrderStatus, error) {
+	val, err := GetU8(buf)
+	return OrderStatus(val), err
 }
-func IsOrderStatusListValid(v OrderStatusList) bool {
+
+func SetOrderStatus(buf *bytes.Buffer, v OrderStatus) error { return SetU8(buf, uint8(v)) }
+
+type OrderStatusList []OrderStatus
+func GetOrderStatusList(buf *bytes.Buffer) (OrderStatusList, error) {
+	val, err := GetU8List(buf)
+	if err != nil { return nil, err }
+	return *(*OrderStatusList)(unsafe.Pointer(&val)), nil
+}
+func SetOrderStatusList(buf *bytes.Buffer, v OrderStatusList) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
+func IsOrderStatusList(v OrderStatusList) bool {
 	for _, item := range v {
-		if !IsOrderStatusValid(item) { return false }
+		if !IsOrderStatus(item) { return false }
 	}
 	return true
 }
-func (v OrderStatusList) Eq(other OrderStatusList) bool { return slices.Equal(v, other) }
+func EqOrderStatusList(a, b OrderStatusList) bool { return slices.Equal(a, b) }
 

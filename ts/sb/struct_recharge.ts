@@ -48,6 +48,7 @@ export const getRecharge = (buf: _.Buffer): [Recharge, Error | null] => {
         const [v, err] = _.getU8List(buf);
         if (err !== null) return [s, err];
         s.type = v as any;
+        if (!_.IsOrderStatusList(s.type as any)) return [s, new Error("get Recharge Type: invalid enum value")];
     }
     if (_.GetBit(bits, 2)) {
         const [v, err] = _.getTextList(buf);
@@ -72,6 +73,7 @@ export const setRecharge = (buf: _.Buffer, s: Recharge): Error | null => {
         _.SetBit(bits, 0, true);
     }
     if (s.type && s.type.length > 0) {
+        if (!_.IsOrderStatusList(s.type as any)) return new Error("set Recharge Type: invalid enum value");
         const err = _.setU8List(body, s.type as any);
         if (err !== null) return err;
         _.SetBit(bits, 1, true);

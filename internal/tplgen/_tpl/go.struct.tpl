@@ -1,9 +1,3 @@
-{{- $needUnsafe := false -}}
-{{- range .Fields -}}
-	{{- if and (IsEnum .Type) .Type.IsList -}}
-		{{- $needUnsafe = true -}}
-	{{- end -}}
-{{- end -}}
 package sb
 
 import (
@@ -11,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	{{if $needUnsafe}}"unsafe"{{end}}
 )
 
 type {{.Name | PascalCase}} struct {
@@ -20,7 +13,8 @@ type {{.Name | PascalCase}} struct {
 	{{- end}}
 }
 
-func (s *{{.Name | PascalCase}}) Get(buf *bytes.Buffer) error {
+func Get{{.Name | PascalCase}}(buf *bytes.Buffer, s *{{.Name | PascalCase}}) error {
+	if s == nil { return nil }
 	if buf.Len() == 0 { return nil }
 	bitSize := int(math.Ceil(float64({{len .Fields}}) / 8.0))
 	if buf.Len() < bitSize { return fmt.Errorf("Get{{$.Name | PascalCase}} bitmask: %d - %d", buf.Len(), bitSize) }
@@ -38,35 +32,36 @@ func (s *{{.Name | PascalCase}}) Get(buf *bytes.Buffer) error {
 		{{- else}}
 		{{- if IsEnum .Type}}
 		{{- if .Type.IsList}}
-		val, err := GetU8List(buf)
+		val, err := Get{{.Type.Name | PascalCase}}List(buf)
 		if err != nil { return fmt.Errorf("Get{{$.Name | PascalCase}} {{.Name | PascalCase}}: %w", err) }
-		s.{{$field.Name | PascalCase}} = *(*[]{{.Type.Name | PascalCase}})(unsafe.Pointer(&val))
+		s.{{$field.Name | PascalCase}} = val
 		{{- else}}
-		val, err := GetU8(buf)
+		val, err := Get{{.Type.Name | PascalCase}}(buf)
 		if err != nil { return fmt.Errorf("Get{{$.Name | PascalCase}} {{.Name | PascalCase}}: %w", err) }
-		s.{{$field.Name | PascalCase}} = {{.Type.Name | PascalCase}}(val)
+		s.{{$field.Name | PascalCase}} = val
 		{{- end}}
 		{{- else}}
 		{{- if .Type.IsList}}
-		var val {{.Type.Name | PascalCase}}List
-		if err := val.Get(buf); err != nil { return fmt.Errorf("Get{{$.Name | PascalCase}} {{.Name | PascalCase}}: %w", err) }
+		val, err := Get{{.Type.Name | PascalCase}}List(buf)
+		if err != nil { return fmt.Errorf("Get{{$.Name | PascalCase}} {{.Name | PascalCase}}: %w", err) }
 		s.{{$field.Name | PascalCase}} = val
 		{{- else}}
-		if s.{{$field.Name | PascalCase}} == nil { s.{{$field.Name | PascalCase}} = new({{.Type.Name | PascalCase}}) }
-		if err := s.{{$field.Name | PascalCase}}.Get(buf); err != nil { return fmt.Errorf("Get{{$.Name | PascalCase}} {{.Name | PascalCase}}: %w", err) }
+		val, err := Read{{.Type.Name | PascalCase}}(buf)
+		if err != nil { return fmt.Errorf("Get{{$.Name | PascalCase}} {{.Name | PascalCase}}: %w", err) }
+		s.{{$field.Name | PascalCase}} = val
 		{{- end}}
 		{{- end}}
 		{{- end}}
 	}
 	{{- end}}
 	{{- end}}
-	if err := s.Validate(); err != nil { return fmt.Errorf("Validate{{$.Name | PascalCase}}: %w", err) }
+	if err := Validate{{$.Name | PascalCase}}(s); err != nil { return fmt.Errorf("Validate{{$.Name | PascalCase}}: %w", err) }
 	return nil
 }
 
-func (s *{{.Name | PascalCase}}) Set(buf *bytes.Buffer) error {
+func Set{{.Name | PascalCase}}(buf *bytes.Buffer, s *{{.Name | PascalCase}}) error {
 	if s == nil { return nil }
-	if err := s.Validate(); err != nil { return fmt.Errorf("Validate{{$.Name | PascalCase}}: %w", err) }
+	if err := Validate{{$.Name | PascalCase}}(s); err != nil { return fmt.Errorf("Validate{{$.Name | PascalCase}}: %w", err) }
 	bits := make([]byte, uint8(math.Ceil(float64({{len .Fields}})/8.0)))
 	body := bytes.NewBuffer(nil)
 
@@ -90,24 +85,24 @@ func (s *{{.Name | PascalCase}}) Set(buf *bytes.Buffer) error {
 	{{- if IsEnum .Type}}
 	{{- if .Type.IsList}}
 	if len(s.{{$field.Name | PascalCase}}) > 0 {
-		if err := SetU8List(body, *(*[]uint8)(unsafe.Pointer(&s.{{$field.Name | PascalCase}}))); err != nil { return fmt.Errorf("Set{{$.Name | PascalCase}} {{.Name | PascalCase}}: %w", err) }
+		if err := Set{{.Type.Name | PascalCase}}List(body, s.{{$field.Name | PascalCase}}); err != nil { return fmt.Errorf("Set{{$.Name | PascalCase}} {{.Name | PascalCase}}: %w", err) }
 		SetBit(bits, uint8({{$i}}), true)
 	}
 	{{- else}}
 	if s.{{$field.Name | PascalCase}} != 0 {
-		if err := SetU8(body, uint8(s.{{$field.Name | PascalCase}})); err != nil { return fmt.Errorf("Set{{$.Name | PascalCase}} {{.Name | PascalCase}}: %w", err) }
+		if err := Set{{.Type.Name | PascalCase}}(body, s.{{$field.Name | PascalCase}}); err != nil { return fmt.Errorf("Set{{$.Name | PascalCase}} {{.Name | PascalCase}}: %w", err) }
 		SetBit(bits, uint8({{$i}}), true)
 	}
 	{{- end}}
 	{{- else}}
 	{{- if .Type.IsList}}
 	if len(s.{{$field.Name | PascalCase}}) > 0 {
-		if err := ({{.Type.Name | PascalCase}}List)(s.{{$field.Name | PascalCase}}).Set(body); err != nil { return fmt.Errorf("Set{{$.Name | PascalCase}} {{.Name | PascalCase}}: %w", err) }
+		if err := Set{{.Type.Name | PascalCase}}List(body, ({{.Type.Name | PascalCase}}List)(s.{{$field.Name | PascalCase}})); err != nil { return fmt.Errorf("Set{{$.Name | PascalCase}} {{.Name | PascalCase}}: %w", err) }
 		SetBit(bits, uint8({{$i}}), true)
 	}
 	{{- else}}
 	if s.{{$field.Name | PascalCase}} != nil {
-		if err := s.{{$field.Name | PascalCase}}.Set(body); err != nil { return fmt.Errorf("Set{{$.Name | PascalCase}} {{.Name | PascalCase}}: %w", err) }
+		if err := Set{{.Type.Name | PascalCase}}(body, s.{{$field.Name | PascalCase}}); err != nil { return fmt.Errorf("Set{{$.Name | PascalCase}} {{.Name | PascalCase}}: %w", err) }
 		SetBit(bits, uint8({{$i}}), true)
 	}
 	{{- end}}
@@ -120,26 +115,23 @@ func (s *{{.Name | PascalCase}}) Set(buf *bytes.Buffer) error {
 	_, err := body.WriteTo(buf); return err
 }
 
-func (s *{{.Name | PascalCase}}) Validate() error {
+func Validate{{.Name | PascalCase}}(s *{{.Name | PascalCase}}) error {
 	if s == nil { return nil }
 	{{- range .Fields}}
 	{{- if IsEnum .Type}}
 	{{- if .Type.IsList}}
 	for i, item := range s.{{.Name | PascalCase}} {
-		if !Is{{.Type.Name | PascalCase}}Valid(item) { return fmt.Errorf("{{.Name | PascalCase}}[%d] 非法枚举值: %d", i, item) }
+		if !Is{{.Type.Name | PascalCase}}(item) { return fmt.Errorf("{{.Name | PascalCase}}[%d] 非法枚举值: %d", i, item) }
 	}
 	{{- else}}
-	if s.{{.Name | PascalCase}} != 0 && !Is{{.Type.Name | PascalCase}}Valid(s.{{.Name | PascalCase}}) { return fmt.Errorf("{{.Name | PascalCase}} 非法枚举值: %d", s.{{.Name | PascalCase}}) }
+	if s.{{.Name | PascalCase}} != 0 && !Is{{.Type.Name | PascalCase}}(s.{{.Name | PascalCase}}) { return fmt.Errorf("{{.Name | PascalCase}} 非法枚举值: %d", s.{{.Name | PascalCase}}) }
 	{{- end}}
 	{{- else if IsStruct .Type}}
 	{{- if .Type.IsList}}
-	for i, item := range s.{{.Name | PascalCase}} {
-		if item == nil { continue }
-		if err := item.Validate(); err != nil { return fmt.Errorf("{{.Name | PascalCase}}[%d]: %w", i, err) }
-	}
+	if err := Validate{{.Type.Name | PascalCase}}List(s.{{.Name | PascalCase}}); err != nil { return fmt.Errorf("{{.Name | PascalCase}}: %w", err) }
 	{{- else}}
 	if s.{{.Name | PascalCase}} != nil {
-		if err := s.{{.Name | PascalCase}}.Validate(); err != nil { return fmt.Errorf("{{.Name | PascalCase}}: %w", err) }
+		if err := Validate{{.Type.Name | PascalCase}}(s.{{.Name | PascalCase}}); err != nil { return fmt.Errorf("{{.Name | PascalCase}}: %w", err) }
 	}
 	{{- end}}
 	{{- end}}
@@ -147,24 +139,24 @@ func (s *{{.Name | PascalCase}}) Validate() error {
 	return nil
 }
 
-func (s *{{.Name | PascalCase}}) Eq(other *{{.Name | PascalCase}}) bool {
-	if s == other { return true }
-	if s == nil || other == nil { return false }
+func Eq{{.Name | PascalCase}}(a, b *{{.Name | PascalCase}}) bool {
+	if a == b { return true }
+	if a == nil || b == nil { return false }
 	{{- range .Fields}}
 	{{- if IsBaseType .Type}}
-	if !Eq{{.Type.Name | PascalCase}}{{if .Type.IsList}}List{{end}}(s.{{.Name | PascalCase}}, other.{{.Name | PascalCase}}) { return false }
+	if !Eq{{.Type.Name | PascalCase}}{{if .Type.IsList}}List{{end}}(a.{{.Name | PascalCase}}, b.{{.Name | PascalCase}}) { return false }
 	{{- else}}
 	{{- if IsEnum .Type}}
 	{{- if .Type.IsList}}
-	if !slices.Equal(s.{{.Name | PascalCase}}, other.{{.Name | PascalCase}}) { return false }
+	if !Eq{{.Type.Name | PascalCase}}List(a.{{.Name | PascalCase}}, b.{{.Name | PascalCase}}) { return false }
 	{{- else}}
-	if s.{{.Name | PascalCase}} != other.{{.Name | PascalCase}} { return false }
+	if a.{{.Name | PascalCase}} != b.{{.Name | PascalCase}} { return false }
 	{{- end}}
 	{{- else}}
 	{{- if .Type.IsList}}
-	if !({{.Type.Name | PascalCase}}List)(s.{{.Name | PascalCase}}).Eq(({{.Type.Name | PascalCase}}List)(other.{{.Name | PascalCase}})) { return false }
+	if !Eq{{.Type.Name | PascalCase}}List(({{.Type.Name | PascalCase}}List)(a.{{.Name | PascalCase}}), ({{.Type.Name | PascalCase}}List)(b.{{.Name | PascalCase}})) { return false }
 	{{- else}}
-	if !s.{{.Name | PascalCase}}.Eq(other.{{.Name | PascalCase}}) { return false }
+	if !Eq{{.Type.Name | PascalCase}}(a.{{.Name | PascalCase}}, b.{{.Name | PascalCase}}) { return false }
 	{{- end}}
 	{{- end}}
 	{{- end}}
@@ -172,24 +164,20 @@ func (s *{{.Name | PascalCase}}) Eq(other *{{.Name | PascalCase}}) bool {
 	return true
 }
 
-// Standalone functions for compatibility
-func Get{{.Name | PascalCase}}(buf *bytes.Buffer) (*{{.Name | PascalCase}}, error) {
-	s := new({{.Name | PascalCase}}); return s, s.Get(buf)
+// Standalone functions
+func Read{{.Name | PascalCase}}(buf *bytes.Buffer) (*{{.Name | PascalCase}}, error) {
+	s := new({{.Name | PascalCase}})
+	return s, Get{{.Name | PascalCase}}(buf, s)
 }
-func Set{{.Name | PascalCase}}(buf *bytes.Buffer, s *{{.Name | PascalCase}}) error { return s.Set(buf) }
-func Eq{{.Name | PascalCase}}(a, b *{{.Name | PascalCase}}) bool { return a.Eq(b) }
 
 type {{.Name | PascalCase}}List []*{{.Name | PascalCase}}
-func (v {{.Name | PascalCase}}List) Set(buf *bytes.Buffer) error { return setList(buf, v, Set{{.Name | PascalCase}}) }
-func (v *{{.Name | PascalCase}}List) Get(buf *bytes.Buffer) error {
-	val, err := getList[*{{.Name | PascalCase}}, {{.Name | PascalCase}}List](buf, Get{{.Name | PascalCase}})
-	if err == nil { *v = val }; return err
-}
-func (v {{.Name | PascalCase}}List) Validate() error {
+func Get{{.Name | PascalCase}}List(buf *bytes.Buffer) ({{.Name | PascalCase}}List, error) { return getList[*{{.Name | PascalCase}}, {{.Name | PascalCase}}List](buf, Read{{.Name | PascalCase}}) }
+func Set{{.Name | PascalCase}}List(buf *bytes.Buffer, v {{.Name | PascalCase}}List) error { return setList(buf, v, Set{{.Name | PascalCase}}) }
+func Validate{{.Name | PascalCase}}List(v {{.Name | PascalCase}}List) error {
 	for i, item := range v {
 		if item == nil { continue }
-		if err := item.Validate(); err != nil { return fmt.Errorf("{{.Name | PascalCase}}List[%d]: %w", i, err) }
+		if err := Validate{{.Name | PascalCase}}(item); err != nil { return fmt.Errorf("{{.Name | PascalCase}}List[%d]: %w", i, err) }
 	}
 	return nil
 }
-func (v {{.Name | PascalCase}}List) Eq(other {{.Name | PascalCase}}List) bool { return slices.EqualFunc(v, other, Eq{{.Name | PascalCase}}) }
+func Eq{{.Name | PascalCase}}List(a, b {{.Name | PascalCase}}List) bool { return slices.EqualFunc(a, b, Eq{{.Name | PascalCase}}) }

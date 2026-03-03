@@ -13,40 +13,39 @@ import (
 {{- $handlerName := .Name | PascalCase -}}
 func {{$handlerName}}Handler(w http.ResponseWriter, r *http.Request) {
 	{{- range .Args}}
-	var {{.Name}} {{GoRpcType .Type}}
+	var {{.Name}} {{GoLogicType .Type}}
 	{{- end}}
 
-	if !parseRequest(w, r{{range .Args}}, &{{.Name}}{{end}}) { return }
+	if !parseRequest(w, r{{range .Args}}, func(buf *bytes.Buffer) error {
+		val, err := {{if and (IsStruct .Type) (not .Type.IsList)}}Read{{PascalCase .Type.Name}}{{else}}Get{{PascalCase .Type.Name}}{{if .Type.IsList}}List{{end}}{{end}}(buf)
+		if err != nil { return err }
+		{{.Name}} = val
+		return nil
+	}{{end}}) { return }
 	{{- range .Args}}
 	{{- if IsEnum .Type}}
 	{{- if .Type.IsList}}
-	if !Is{{PascalCase .Type.Name}}ListValid({{.Name}}) { w.WriteHeader(http.StatusBadRequest); return }
+	if !Is{{PascalCase .Type.Name}}List({{.Name}}) { w.WriteHeader(http.StatusBadRequest); return }
 	{{- else}}
-	if !Is{{PascalCase .Type.Name}}Valid({{PascalCase .Type.Name}}({{.Name}})) { w.WriteHeader(http.StatusBadRequest); return }
+	if !Is{{PascalCase .Type.Name}}({{.Name}}) { w.WriteHeader(http.StatusBadRequest); return }
 	{{- end}}
 	{{- else if IsStruct .Type}}
 	{{- if .Type.IsList}}
-	if err := {{.Name}}.Validate(); err != nil { w.WriteHeader(http.StatusBadRequest); return }
+	if err := Validate{{PascalCase .Type.Name}}List({{.Name}}); err != nil { w.WriteHeader(http.StatusBadRequest); return }
 	{{- else}}
-	if err := (&{{.Name}}).Validate(); err != nil { w.WriteHeader(http.StatusBadRequest); return }
+	if err := Validate{{PascalCase .Type.Name}}({{.Name}}); err != nil { w.WriteHeader(http.StatusBadRequest); return }
 	{{- end}}
 	{{- end}}
 	{{- end}}
 
 	{{if ne $resData.Name "nil" -}}
 	result, status := {{.Name | SnakeCase}}(r.Context()
-		{{- range $i, $arg := .Args}}, {{if IsBaseType .Type}}{{GoLogicType .Type}}({{.Name}}){{else if IsEnum .Type}}{{if .Type.IsList}}{{.Name}}{{else}}{{PascalCase .Type.Name}}({{.Name}}){{end}}{{else if IsStruct .Type}}{{if .Type.IsList}}{{.Name}}{{else}}&{{.Name}}{{end}}{{else}}{{.Name}}{{end}}{{end}})
+		{{- range $i, $arg := .Args}}, {{.Name}}{{end}})
 	if !checkStatus(w, status) { return }
-	{{if or (IsStruct $resData) (IsList $resData) -}}
-	sendResponse(w, result)
-	{{- else if IsEnum $resData -}}
-	sendResponse(w, U8(result))
-	{{- else -}}
-	sendResponse(w, {{PascalCase $resData.Name}}(result))
-	{{- end}}
+	sendResponse(w, func(buf *bytes.Buffer) error { return Set{{PascalCase $resData.Name}}{{if $resData.IsList}}List{{end}}(buf, {{if and (not (IsBaseType $resData)) $resData.IsList}}({{PascalCase $resData.Name}}List)(result){{else}}result{{end}}) })
 	{{- else -}}
 	status := {{.Name | SnakeCase}}(r.Context()
-		{{- range $i, $arg := .Args}}, {{if IsBaseType .Type}}{{GoLogicType .Type}}({{.Name}}){{else if IsEnum .Type}}{{if .Type.IsList}}{{.Name}}{{else}}{{PascalCase .Type.Name}}({{.Name}}){{end}}{{else if IsStruct .Type}}{{if .Type.IsList}}{{.Name}}{{else}}&{{.Name}}{{end}}{{else}}{{.Name}}{{end}}{{end}})
+		{{- range $i, $arg := .Args}}, {{.Name}}{{end}})
 	if !checkStatus(w, status) { return }
 	w.WriteHeader(http.StatusOK)
 	{{- end}}
@@ -85,15 +84,15 @@ func checkStatus(w http.ResponseWriter, status RpcErrCode) bool {
 	w.WriteHeader(int(status)); return false
 }
 
-func parseRequest(w http.ResponseWriter, r *http.Request, args ...Deserializable) bool {
+func parseRequest(w http.ResponseWriter, r *http.Request, args ...Getter) bool {
 	if len(args) == 0 { return true }
 	body, err := io.ReadAll(r.Body); if err != nil { w.WriteHeader(http.StatusBadRequest); return false }
 	if err := GetAll(bytes.NewBuffer(body), args...); err != nil { w.WriteHeader(http.StatusBadRequest); return false }
 	return true
 }
 
-func sendResponse(w http.ResponseWriter, result Serializable) {
+func sendResponse(w http.ResponseWriter, setter Setter) {
 	var buf bytes.Buffer
-	if err := SetAll(&buf, result); err != nil { w.WriteHeader(http.StatusInternalServerError); return }
+	if err := SetAll(&buf, setter); err != nil { w.WriteHeader(http.StatusInternalServerError); return }
 	w.Write(buf.Bytes())
 }

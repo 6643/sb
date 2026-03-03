@@ -39,7 +39,7 @@ func main() {
     client.Retries = 3 // 默认已是 3 次
     
     // Example call
-    res, status := client.UserGetAbc(context.Background() )
+    res, status := sb.CallUserGetAbc(client, context.Background() )
     
     if status != sb.RpcOk {
         fmt.Printf("Request failed with status: %d\n", status)

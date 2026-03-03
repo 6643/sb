@@ -117,11 +117,13 @@ export const getSim = (buf: _.Buffer): [Sim, Error | null] => {
         const [v, err] = _.getU8(buf);
         if (err !== null) return [s, err];
         s.type = v as any;
+        if ((s.type as any) !== 0 && !_.IsType(s.type as any)) return [s, new Error("get Sim Type: invalid enum value")];
     }
     if (_.GetBit(bits, 2)) {
         const [v, err] = _.getU8(buf);
         if (err !== null) return [s, err];
         s.status = v as any;
+        if ((s.status as any) !== 0 && !_.IsItemStatus(s.status as any)) return [s, new Error("get Sim Status: invalid enum value")];
     }
     if (_.GetBit(bits, 3)) {
         const [v, err] = _.getU16(buf);
@@ -152,6 +154,7 @@ export const getSim = (buf: _.Buffer): [Sim, Error | null] => {
         const [v, err] = _.getU8(buf);
         if (err !== null) return [s, err];
         s.operator = v as any;
+        if ((s.operator as any) !== 0 && !_.IsSimOperator(s.operator as any)) return [s, new Error("get Sim Operator: invalid enum value")];
     }
     if (_.GetBit(bits, 9)) {
         const [v, err] = _.getU16(buf);
@@ -208,6 +211,7 @@ export const getSim = (buf: _.Buffer): [Sim, Error | null] => {
         const [v, err] = _.getU8List(buf);
         if (err !== null) return [s, err];
         s.pickPhone = v as any;
+        if (!_.IsSimPickPhoneList(s.pickPhone as any)) return [s, new Error("get Sim PickPhone: invalid enum value")];
     }
     if (_.GetBit(bits, 21)) {
         const [v, err] = _.getText(buf);
@@ -252,11 +256,13 @@ export const setSim = (buf: _.Buffer, s: Sim): Error | null => {
         _.SetBit(bits, 0, true);
     }
     if ((s.type as any) !== 0) {
+        if (!_.IsType(s.type as any)) return new Error("set Sim Type: invalid enum value");
         const err = _.setU8(body, s.type as any);
         if (err !== null) return err;
         _.SetBit(bits, 1, true);
     }
     if ((s.status as any) !== 0) {
+        if (!_.IsItemStatus(s.status as any)) return new Error("set Sim Status: invalid enum value");
         const err = _.setU8(body, s.status as any);
         if (err !== null) return err;
         _.SetBit(bits, 2, true);
@@ -287,6 +293,7 @@ export const setSim = (buf: _.Buffer, s: Sim): Error | null => {
         _.SetBit(bits, 7, true);
     }
     if ((s.operator as any) !== 0) {
+        if (!_.IsSimOperator(s.operator as any)) return new Error("set Sim Operator: invalid enum value");
         const err = _.setU8(body, s.operator as any);
         if (err !== null) return err;
         _.SetBit(bits, 8, true);
@@ -343,6 +350,7 @@ export const setSim = (buf: _.Buffer, s: Sim): Error | null => {
         _.SetBit(bits, 19, true);
     }
     if (s.pickPhone && s.pickPhone.length > 0) {
+        if (!_.IsSimPickPhoneList(s.pickPhone as any)) return new Error("set Sim PickPhone: invalid enum value");
         const err = _.setU8List(body, s.pickPhone as any);
         if (err !== null) return err;
         _.SetBit(bits, 20, true);

@@ -41,7 +41,7 @@ func main() {
     {{- if .Apis}}
     {{- $api := index .Apis 0}}
     {{- $hasRet := ne $api.Result.Name "nil"}}
-    {{if $hasRet}}res, status{{else}}status{{end}} := client.{{$api.Name | PascalCase}}(context.Background() {{range $api.Args}}, {{GoValue .Type.Name}}{{end}})
+    {{if $hasRet}}res, status{{else}}status{{end}} := sb.Call{{$api.Name | PascalCase}}(client, context.Background() {{range $api.Args}}, {{GoValue .Type.Name}}{{end}})
     
     if status != sb.RpcOk {
         fmt.Printf("Request failed with status: %d\n", status)

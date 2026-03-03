@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"unsafe"
 )
 
 type Sim struct {
@@ -38,7 +37,8 @@ type Sim struct {
 	Snapshot []string `bson:"snapshot" json:"snapshot"` // 套餐截图
 }
 
-func (s *Sim) Get(buf *bytes.Buffer) error {
+func GetSim(buf *bytes.Buffer, s *Sim) error {
+	if s == nil { return nil }
 	if buf.Len() == 0 { return nil }
 	bitSize := int(math.Ceil(float64(27) / 8.0))
 	if buf.Len() < bitSize { return fmt.Errorf("GetSim bitmask: %d - %d", buf.Len(), bitSize) }
@@ -49,14 +49,14 @@ func (s *Sim) Get(buf *bytes.Buffer) error {
 		s.Id = val
 	}
 	if GetBit(bits, uint8(1)) {
-		val, err := GetU8(buf)
+		val, err := GetType(buf)
 		if err != nil { return fmt.Errorf("GetSim Type: %w", err) }
-		s.Type = Type(val)
+		s.Type = val
 	}
 	if GetBit(bits, uint8(2)) {
-		val, err := GetU8(buf)
+		val, err := GetItemStatus(buf)
 		if err != nil { return fmt.Errorf("GetSim Status: %w", err) }
-		s.Status = ItemStatus(val)
+		s.Status = val
 	}
 	if GetBit(bits, uint8(3)) {
 		val, err := GetU16(buf)
@@ -84,9 +84,9 @@ func (s *Sim) Get(buf *bytes.Buffer) error {
 		s.Name = val
 	}
 	if GetBit(bits, uint8(8)) {
-		val, err := GetU8(buf)
+		val, err := GetSimOperator(buf)
 		if err != nil { return fmt.Errorf("GetSim Operator: %w", err) }
-		s.Operator = SimOperator(val)
+		s.Operator = val
 	}
 	if GetBit(bits, uint8(9)) {
 		val, err := GetU16(buf)
@@ -140,9 +140,9 @@ func (s *Sim) Get(buf *bytes.Buffer) error {
 		s.Attribution = val
 	}
 	if GetBit(bits, uint8(20)) {
-		val, err := GetU8List(buf)
+		val, err := GetSimPickPhoneList(buf)
 		if err != nil { return fmt.Errorf("GetSim PickPhone: %w", err) }
-		s.PickPhone = *(*[]SimPickPhone)(unsafe.Pointer(&val))
+		s.PickPhone = val
 	}
 	if GetBit(bits, uint8(21)) {
 		val, err := GetText(buf)
@@ -165,8 +165,8 @@ func (s *Sim) Get(buf *bytes.Buffer) error {
 		s.BanCity = val
 	}
 	if GetBit(bits, uint8(25)) {
-		var val SimInfoList
-		if err := val.Get(buf); err != nil { return fmt.Errorf("GetSim Info: %w", err) }
+		val, err := GetSimInfoList(buf)
+		if err != nil { return fmt.Errorf("GetSim Info: %w", err) }
 		s.Info = val
 	}
 	if GetBit(bits, uint8(26)) {
@@ -174,13 +174,13 @@ func (s *Sim) Get(buf *bytes.Buffer) error {
 		if err != nil { return fmt.Errorf("GetSim Snapshot: %w", err) }
 		s.Snapshot = val
 	}
-	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateSim: %w", err) }
+	if err := ValidateSim(s); err != nil { return fmt.Errorf("ValidateSim: %w", err) }
 	return nil
 }
 
-func (s *Sim) Set(buf *bytes.Buffer) error {
+func SetSim(buf *bytes.Buffer, s *Sim) error {
 	if s == nil { return nil }
-	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateSim: %w", err) }
+	if err := ValidateSim(s); err != nil { return fmt.Errorf("ValidateSim: %w", err) }
 	bits := make([]byte, uint8(math.Ceil(float64(27)/8.0)))
 	body := bytes.NewBuffer(nil)
 	if s.Id != 0 {
@@ -188,11 +188,11 @@ func (s *Sim) Set(buf *bytes.Buffer) error {
 		SetBit(bits, uint8(0), true)
 	}
 	if s.Type != 0 {
-		if err := SetU8(body, uint8(s.Type)); err != nil { return fmt.Errorf("SetSim Type: %w", err) }
+		if err := SetType(body, s.Type); err != nil { return fmt.Errorf("SetSim Type: %w", err) }
 		SetBit(bits, uint8(1), true)
 	}
 	if s.Status != 0 {
-		if err := SetU8(body, uint8(s.Status)); err != nil { return fmt.Errorf("SetSim Status: %w", err) }
+		if err := SetItemStatus(body, s.Status); err != nil { return fmt.Errorf("SetSim Status: %w", err) }
 		SetBit(bits, uint8(2), true)
 	}
 	if s.Commission != 0 {
@@ -216,7 +216,7 @@ func (s *Sim) Set(buf *bytes.Buffer) error {
 		SetBit(bits, uint8(7), true)
 	}
 	if s.Operator != 0 {
-		if err := SetU8(body, uint8(s.Operator)); err != nil { return fmt.Errorf("SetSim Operator: %w", err) }
+		if err := SetSimOperator(body, s.Operator); err != nil { return fmt.Errorf("SetSim Operator: %w", err) }
 		SetBit(bits, uint8(8), true)
 	}
 	if s.Monthly != 0 {
@@ -261,7 +261,7 @@ func (s *Sim) Set(buf *bytes.Buffer) error {
 		SetBit(bits, uint8(19), true)
 	}
 	if len(s.PickPhone) > 0 {
-		if err := SetU8List(body, *(*[]uint8)(unsafe.Pointer(&s.PickPhone))); err != nil { return fmt.Errorf("SetSim PickPhone: %w", err) }
+		if err := SetSimPickPhoneList(body, s.PickPhone); err != nil { return fmt.Errorf("SetSim PickPhone: %w", err) }
 		SetBit(bits, uint8(20), true)
 	}
 	if s.FirstChargeLink != "" {
@@ -281,7 +281,7 @@ func (s *Sim) Set(buf *bytes.Buffer) error {
 		SetBit(bits, uint8(24), true)
 	}
 	if len(s.Info) > 0 {
-		if err := (SimInfoList)(s.Info).Set(body); err != nil { return fmt.Errorf("SetSim Info: %w", err) }
+		if err := SetSimInfoList(body, (SimInfoList)(s.Info)); err != nil { return fmt.Errorf("SetSim Info: %w", err) }
 		SetBit(bits, uint8(25), true)
 	}
 	if len(s.Snapshot) > 0 {
@@ -293,72 +293,65 @@ func (s *Sim) Set(buf *bytes.Buffer) error {
 	_, err := body.WriteTo(buf); return err
 }
 
-func (s *Sim) Validate() error {
+func ValidateSim(s *Sim) error {
 	if s == nil { return nil }
-	if s.Type != 0 && !IsTypeValid(s.Type) { return fmt.Errorf("Type 非法枚举值: %d", s.Type) }
-	if s.Status != 0 && !IsItemStatusValid(s.Status) { return fmt.Errorf("Status 非法枚举值: %d", s.Status) }
-	if s.Operator != 0 && !IsSimOperatorValid(s.Operator) { return fmt.Errorf("Operator 非法枚举值: %d", s.Operator) }
+	if s.Type != 0 && !IsType(s.Type) { return fmt.Errorf("Type 非法枚举值: %d", s.Type) }
+	if s.Status != 0 && !IsItemStatus(s.Status) { return fmt.Errorf("Status 非法枚举值: %d", s.Status) }
+	if s.Operator != 0 && !IsSimOperator(s.Operator) { return fmt.Errorf("Operator 非法枚举值: %d", s.Operator) }
 	for i, item := range s.PickPhone {
-		if !IsSimPickPhoneValid(item) { return fmt.Errorf("PickPhone[%d] 非法枚举值: %d", i, item) }
+		if !IsSimPickPhone(item) { return fmt.Errorf("PickPhone[%d] 非法枚举值: %d", i, item) }
 	}
-	for i, item := range s.Info {
-		if item == nil { continue }
-		if err := item.Validate(); err != nil { return fmt.Errorf("Info[%d]: %w", i, err) }
-	}
+	if err := ValidateSimInfoList(s.Info); err != nil { return fmt.Errorf("Info: %w", err) }
 	return nil
 }
 
-func (s *Sim) Eq(other *Sim) bool {
-	if s == other { return true }
-	if s == nil || other == nil { return false }
-	if !EqU32(s.Id, other.Id) { return false }
-	if s.Type != other.Type { return false }
-	if s.Status != other.Status { return false }
-	if !EqU16(s.Commission, other.Commission) { return false }
-	if !EqU32(s.Supplier, other.Supplier) { return false }
-	if !EqU32(s.Aff, other.Aff) { return false }
-	if !EqU8(s.ContractDuration, other.ContractDuration) { return false }
-	if !EqText(s.Name, other.Name) { return false }
-	if s.Operator != other.Operator { return false }
-	if !EqU16(s.Monthly, other.Monthly) { return false }
-	if !EqU16(s.FlowUniversal, other.FlowUniversal) { return false }
-	if !EqU16(s.FlowDirectional, other.FlowDirectional) { return false }
-	if !EqBool(s.CanMoveFlow, other.CanMoveFlow) { return false }
-	if !EqU16(s.CallMonth, other.CallMonth) { return false }
-	if !EqU16(s.CallPrice, other.CallPrice) { return false }
-	if !EqU16(s.SmsMonth, other.SmsMonth) { return false }
-	if !EqU16(s.SmsPrice, other.SmsPrice) { return false }
-	if !EqU8(s.MinAge, other.MinAge) { return false }
-	if !EqU8(s.MaxAge, other.MaxAge) { return false }
-	if !EqU32(s.Attribution, other.Attribution) { return false }
-	if !slices.Equal(s.PickPhone, other.PickPhone) { return false }
-	if !EqText(s.FirstChargeLink, other.FirstChargeLink) { return false }
-	if !EqText(s.FirstChargeMoney, other.FirstChargeMoney) { return false }
-	if !EqText(s.FirstChargeReturn, other.FirstChargeReturn) { return false }
-	if !EqU32List(s.BanCity, other.BanCity) { return false }
-	if !(SimInfoList)(s.Info).Eq((SimInfoList)(other.Info)) { return false }
-	if !EqTextList(s.Snapshot, other.Snapshot) { return false }
+func EqSim(a, b *Sim) bool {
+	if a == b { return true }
+	if a == nil || b == nil { return false }
+	if !EqU32(a.Id, b.Id) { return false }
+	if a.Type != b.Type { return false }
+	if a.Status != b.Status { return false }
+	if !EqU16(a.Commission, b.Commission) { return false }
+	if !EqU32(a.Supplier, b.Supplier) { return false }
+	if !EqU32(a.Aff, b.Aff) { return false }
+	if !EqU8(a.ContractDuration, b.ContractDuration) { return false }
+	if !EqText(a.Name, b.Name) { return false }
+	if a.Operator != b.Operator { return false }
+	if !EqU16(a.Monthly, b.Monthly) { return false }
+	if !EqU16(a.FlowUniversal, b.FlowUniversal) { return false }
+	if !EqU16(a.FlowDirectional, b.FlowDirectional) { return false }
+	if !EqBool(a.CanMoveFlow, b.CanMoveFlow) { return false }
+	if !EqU16(a.CallMonth, b.CallMonth) { return false }
+	if !EqU16(a.CallPrice, b.CallPrice) { return false }
+	if !EqU16(a.SmsMonth, b.SmsMonth) { return false }
+	if !EqU16(a.SmsPrice, b.SmsPrice) { return false }
+	if !EqU8(a.MinAge, b.MinAge) { return false }
+	if !EqU8(a.MaxAge, b.MaxAge) { return false }
+	if !EqU32(a.Attribution, b.Attribution) { return false }
+	if !EqSimPickPhoneList(a.PickPhone, b.PickPhone) { return false }
+	if !EqText(a.FirstChargeLink, b.FirstChargeLink) { return false }
+	if !EqText(a.FirstChargeMoney, b.FirstChargeMoney) { return false }
+	if !EqText(a.FirstChargeReturn, b.FirstChargeReturn) { return false }
+	if !EqU32List(a.BanCity, b.BanCity) { return false }
+	if !EqSimInfoList((SimInfoList)(a.Info), (SimInfoList)(b.Info)) { return false }
+	if !EqTextList(a.Snapshot, b.Snapshot) { return false }
 	return true
 }
 
-// Standalone functions for compatibility
-func GetSim(buf *bytes.Buffer) (*Sim, error) {
-	s := new(Sim); return s, s.Get(buf)
+// Standalone functions
+func ReadSim(buf *bytes.Buffer) (*Sim, error) {
+	s := new(Sim)
+	return s, GetSim(buf, s)
 }
-func SetSim(buf *bytes.Buffer, s *Sim) error { return s.Set(buf) }
-func EqSim(a, b *Sim) bool { return a.Eq(b) }
 
 type SimList []*Sim
-func (v SimList) Set(buf *bytes.Buffer) error { return setList(buf, v, SetSim) }
-func (v *SimList) Get(buf *bytes.Buffer) error {
-	val, err := getList[*Sim, SimList](buf, GetSim)
-	if err == nil { *v = val }; return err
-}
-func (v SimList) Validate() error {
+func GetSimList(buf *bytes.Buffer) (SimList, error) { return getList[*Sim, SimList](buf, ReadSim) }
+func SetSimList(buf *bytes.Buffer, v SimList) error { return setList(buf, v, SetSim) }
+func ValidateSimList(v SimList) error {
 	for i, item := range v {
 		if item == nil { continue }
-		if err := item.Validate(); err != nil { return fmt.Errorf("SimList[%d]: %w", i, err) }
+		if err := ValidateSim(item); err != nil { return fmt.Errorf("SimList[%d]: %w", i, err) }
 	}
 	return nil
 }
-func (v SimList) Eq(other SimList) bool { return slices.EqualFunc(v, other, EqSim) }
+func EqSimList(a, b SimList) bool { return slices.EqualFunc(a, b, EqSim) }

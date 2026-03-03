@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	
 )
 
 type SimOrder struct {
@@ -22,7 +21,8 @@ type SimOrder struct {
 	Status OrderStatus `bson:"status" json:"status"` 
 }
 
-func (s *SimOrder) Get(buf *bytes.Buffer) error {
+func GetSimOrder(buf *bytes.Buffer, s *SimOrder) error {
+	if s == nil { return nil }
 	if buf.Len() == 0 { return nil }
 	bitSize := int(math.Ceil(float64(11) / 8.0))
 	if buf.Len() < bitSize { return fmt.Errorf("GetSimOrder bitmask: %d - %d", buf.Len(), bitSize) }
@@ -78,17 +78,17 @@ func (s *SimOrder) Get(buf *bytes.Buffer) error {
 		s.Commission = val
 	}
 	if GetBit(bits, uint8(10)) {
-		val, err := GetU8(buf)
+		val, err := GetOrderStatus(buf)
 		if err != nil { return fmt.Errorf("GetSimOrder Status: %w", err) }
-		s.Status = OrderStatus(val)
+		s.Status = val
 	}
-	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateSimOrder: %w", err) }
+	if err := ValidateSimOrder(s); err != nil { return fmt.Errorf("ValidateSimOrder: %w", err) }
 	return nil
 }
 
-func (s *SimOrder) Set(buf *bytes.Buffer) error {
+func SetSimOrder(buf *bytes.Buffer, s *SimOrder) error {
 	if s == nil { return nil }
-	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateSimOrder: %w", err) }
+	if err := ValidateSimOrder(s); err != nil { return fmt.Errorf("ValidateSimOrder: %w", err) }
 	bits := make([]byte, uint8(math.Ceil(float64(11)/8.0)))
 	body := bytes.NewBuffer(nil)
 	if s.Id != 0 {
@@ -132,7 +132,7 @@ func (s *SimOrder) Set(buf *bytes.Buffer) error {
 		SetBit(bits, uint8(9), true)
 	}
 	if s.Status != 0 {
-		if err := SetU8(body, uint8(s.Status)); err != nil { return fmt.Errorf("SetSimOrder Status: %w", err) }
+		if err := SetOrderStatus(body, s.Status); err != nil { return fmt.Errorf("SetSimOrder Status: %w", err) }
 		SetBit(bits, uint8(10), true)
 	}
 
@@ -140,47 +140,43 @@ func (s *SimOrder) Set(buf *bytes.Buffer) error {
 	_, err := body.WriteTo(buf); return err
 }
 
-func (s *SimOrder) Validate() error {
+func ValidateSimOrder(s *SimOrder) error {
 	if s == nil { return nil }
-	if s.Status != 0 && !IsOrderStatusValid(s.Status) { return fmt.Errorf("Status 非法枚举值: %d", s.Status) }
+	if s.Status != 0 && !IsOrderStatus(s.Status) { return fmt.Errorf("Status 非法枚举值: %d", s.Status) }
 	return nil
 }
 
-func (s *SimOrder) Eq(other *SimOrder) bool {
-	if s == other { return true }
-	if s == nil || other == nil { return false }
-	if !EqU32(s.Id, other.Id) { return false }
-	if !EqU32(s.AccountId, other.AccountId) { return false }
-	if !EqU32(s.ItemId, other.ItemId) { return false }
-	if !EqText(s.Name, other.Name) { return false }
-	if !EqText(s.Phone, other.Phone) { return false }
-	if !EqText(s.IdNo, other.IdNo) { return false }
-	if !EqU32(s.CityCode, other.CityCode) { return false }
-	if !EqText(s.Address, other.Address) { return false }
-	if !EqText(s.NewPhone, other.NewPhone) { return false }
-	if !EqU16(s.Commission, other.Commission) { return false }
-	if s.Status != other.Status { return false }
+func EqSimOrder(a, b *SimOrder) bool {
+	if a == b { return true }
+	if a == nil || b == nil { return false }
+	if !EqU32(a.Id, b.Id) { return false }
+	if !EqU32(a.AccountId, b.AccountId) { return false }
+	if !EqU32(a.ItemId, b.ItemId) { return false }
+	if !EqText(a.Name, b.Name) { return false }
+	if !EqText(a.Phone, b.Phone) { return false }
+	if !EqText(a.IdNo, b.IdNo) { return false }
+	if !EqU32(a.CityCode, b.CityCode) { return false }
+	if !EqText(a.Address, b.Address) { return false }
+	if !EqText(a.NewPhone, b.NewPhone) { return false }
+	if !EqU16(a.Commission, b.Commission) { return false }
+	if a.Status != b.Status { return false }
 	return true
 }
 
-// Standalone functions for compatibility
-func GetSimOrder(buf *bytes.Buffer) (*SimOrder, error) {
-	s := new(SimOrder); return s, s.Get(buf)
+// Standalone functions
+func ReadSimOrder(buf *bytes.Buffer) (*SimOrder, error) {
+	s := new(SimOrder)
+	return s, GetSimOrder(buf, s)
 }
-func SetSimOrder(buf *bytes.Buffer, s *SimOrder) error { return s.Set(buf) }
-func EqSimOrder(a, b *SimOrder) bool { return a.Eq(b) }
 
 type SimOrderList []*SimOrder
-func (v SimOrderList) Set(buf *bytes.Buffer) error { return setList(buf, v, SetSimOrder) }
-func (v *SimOrderList) Get(buf *bytes.Buffer) error {
-	val, err := getList[*SimOrder, SimOrderList](buf, GetSimOrder)
-	if err == nil { *v = val }; return err
-}
-func (v SimOrderList) Validate() error {
+func GetSimOrderList(buf *bytes.Buffer) (SimOrderList, error) { return getList[*SimOrder, SimOrderList](buf, ReadSimOrder) }
+func SetSimOrderList(buf *bytes.Buffer, v SimOrderList) error { return setList(buf, v, SetSimOrder) }
+func ValidateSimOrderList(v SimOrderList) error {
 	for i, item := range v {
 		if item == nil { continue }
-		if err := item.Validate(); err != nil { return fmt.Errorf("SimOrderList[%d]: %w", i, err) }
+		if err := ValidateSimOrder(item); err != nil { return fmt.Errorf("SimOrderList[%d]: %w", i, err) }
 	}
 	return nil
 }
-func (v SimOrderList) Eq(other SimOrderList) bool { return slices.EqualFunc(v, other, EqSimOrder) }
+func EqSimOrderList(a, b SimOrderList) bool { return slices.EqualFunc(a, b, EqSimOrder) }

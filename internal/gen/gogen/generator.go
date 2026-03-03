@@ -182,7 +182,7 @@ func generateRPCFile(targetDir string, apis []ir.API) error {
 		methodName := util.PascalCase(api.Name)
 		args := goLogicArgs(api.Args)
 		if api.Result.Kind == ir.KindNil {
-			fmt.Fprintf(&b, "func (c *Client) %s(ctx context.Context%s) (errCode RpcErrCode) {\n", methodName, args)
+			fmt.Fprintf(&b, "func Call%s(c *Client, ctx context.Context%s) (errCode RpcErrCode) {\n", methodName, args)
 			fmt.Fprintln(&b, "\treturn RpcRespErr")
 			fmt.Fprintln(&b, "}")
 			fmt.Fprintln(&b)
@@ -190,7 +190,7 @@ func generateRPCFile(targetDir string, apis []ir.API) error {
 		}
 
 		retType := goType(api.Result)
-		fmt.Fprintf(&b, "func (c *Client) %s(ctx context.Context%s) (result %s, errCode RpcErrCode) {\n", methodName, args, retType)
+		fmt.Fprintf(&b, "func Call%s(c *Client, ctx context.Context%s) (result %s, errCode RpcErrCode) {\n", methodName, args, retType)
 		fmt.Fprintf(&b, "\treturn %s, RpcRespErr\n", goZeroValue(api.Result))
 		fmt.Fprintln(&b, "}")
 		fmt.Fprintln(&b)

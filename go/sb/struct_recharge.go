@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"unsafe"
 )
 
 type Recharge struct {
@@ -15,7 +14,8 @@ type Recharge struct {
 	Si *SimInfo `bson:"si" json:"si"` 
 }
 
-func (s *Recharge) Get(buf *bytes.Buffer) error {
+func GetRecharge(buf *bytes.Buffer, s *Recharge) error {
+	if s == nil { return nil }
 	if buf.Len() == 0 { return nil }
 	bitSize := int(math.Ceil(float64(4) / 8.0))
 	if buf.Len() < bitSize { return fmt.Errorf("GetRecharge bitmask: %d - %d", buf.Len(), bitSize) }
@@ -26,9 +26,9 @@ func (s *Recharge) Get(buf *bytes.Buffer) error {
 		s.Id = val
 	}
 	if GetBit(bits, uint8(1)) {
-		val, err := GetU8List(buf)
+		val, err := GetOrderStatusList(buf)
 		if err != nil { return fmt.Errorf("GetRecharge Type: %w", err) }
-		s.Type = *(*[]OrderStatus)(unsafe.Pointer(&val))
+		s.Type = val
 	}
 	if GetBit(bits, uint8(2)) {
 		val, err := GetTextList(buf)
@@ -36,16 +36,17 @@ func (s *Recharge) Get(buf *bytes.Buffer) error {
 		s.Phone = val
 	}
 	if GetBit(bits, uint8(3)) {
-		if s.Si == nil { s.Si = new(SimInfo) }
-		if err := s.Si.Get(buf); err != nil { return fmt.Errorf("GetRecharge Si: %w", err) }
+		val, err := ReadSimInfo(buf)
+		if err != nil { return fmt.Errorf("GetRecharge Si: %w", err) }
+		s.Si = val
 	}
-	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateRecharge: %w", err) }
+	if err := ValidateRecharge(s); err != nil { return fmt.Errorf("ValidateRecharge: %w", err) }
 	return nil
 }
 
-func (s *Recharge) Set(buf *bytes.Buffer) error {
+func SetRecharge(buf *bytes.Buffer, s *Recharge) error {
 	if s == nil { return nil }
-	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateRecharge: %w", err) }
+	if err := ValidateRecharge(s); err != nil { return fmt.Errorf("ValidateRecharge: %w", err) }
 	bits := make([]byte, uint8(math.Ceil(float64(4)/8.0)))
 	body := bytes.NewBuffer(nil)
 	if s.Id != 0 {
@@ -53,7 +54,7 @@ func (s *Recharge) Set(buf *bytes.Buffer) error {
 		SetBit(bits, uint8(0), true)
 	}
 	if len(s.Type) > 0 {
-		if err := SetU8List(body, *(*[]uint8)(unsafe.Pointer(&s.Type))); err != nil { return fmt.Errorf("SetRecharge Type: %w", err) }
+		if err := SetOrderStatusList(body, s.Type); err != nil { return fmt.Errorf("SetRecharge Type: %w", err) }
 		SetBit(bits, uint8(1), true)
 	}
 	if len(s.Phone) > 0 {
@@ -61,7 +62,7 @@ func (s *Recharge) Set(buf *bytes.Buffer) error {
 		SetBit(bits, uint8(2), true)
 	}
 	if s.Si != nil {
-		if err := s.Si.Set(body); err != nil { return fmt.Errorf("SetRecharge Si: %w", err) }
+		if err := SetSimInfo(body, s.Si); err != nil { return fmt.Errorf("SetRecharge Si: %w", err) }
 		SetBit(bits, uint8(3), true)
 	}
 
@@ -69,45 +70,41 @@ func (s *Recharge) Set(buf *bytes.Buffer) error {
 	_, err := body.WriteTo(buf); return err
 }
 
-func (s *Recharge) Validate() error {
+func ValidateRecharge(s *Recharge) error {
 	if s == nil { return nil }
 	for i, item := range s.Type {
-		if !IsOrderStatusValid(item) { return fmt.Errorf("Type[%d] 非法枚举值: %d", i, item) }
+		if !IsOrderStatus(item) { return fmt.Errorf("Type[%d] 非法枚举值: %d", i, item) }
 	}
 	if s.Si != nil {
-		if err := s.Si.Validate(); err != nil { return fmt.Errorf("Si: %w", err) }
+		if err := ValidateSimInfo(s.Si); err != nil { return fmt.Errorf("Si: %w", err) }
 	}
 	return nil
 }
 
-func (s *Recharge) Eq(other *Recharge) bool {
-	if s == other { return true }
-	if s == nil || other == nil { return false }
-	if !EqU32(s.Id, other.Id) { return false }
-	if !slices.Equal(s.Type, other.Type) { return false }
-	if !EqTextList(s.Phone, other.Phone) { return false }
-	if !s.Si.Eq(other.Si) { return false }
+func EqRecharge(a, b *Recharge) bool {
+	if a == b { return true }
+	if a == nil || b == nil { return false }
+	if !EqU32(a.Id, b.Id) { return false }
+	if !EqOrderStatusList(a.Type, b.Type) { return false }
+	if !EqTextList(a.Phone, b.Phone) { return false }
+	if !EqSimInfo(a.Si, b.Si) { return false }
 	return true
 }
 
-// Standalone functions for compatibility
-func GetRecharge(buf *bytes.Buffer) (*Recharge, error) {
-	s := new(Recharge); return s, s.Get(buf)
+// Standalone functions
+func ReadRecharge(buf *bytes.Buffer) (*Recharge, error) {
+	s := new(Recharge)
+	return s, GetRecharge(buf, s)
 }
-func SetRecharge(buf *bytes.Buffer, s *Recharge) error { return s.Set(buf) }
-func EqRecharge(a, b *Recharge) bool { return a.Eq(b) }
 
 type RechargeList []*Recharge
-func (v RechargeList) Set(buf *bytes.Buffer) error { return setList(buf, v, SetRecharge) }
-func (v *RechargeList) Get(buf *bytes.Buffer) error {
-	val, err := getList[*Recharge, RechargeList](buf, GetRecharge)
-	if err == nil { *v = val }; return err
-}
-func (v RechargeList) Validate() error {
+func GetRechargeList(buf *bytes.Buffer) (RechargeList, error) { return getList[*Recharge, RechargeList](buf, ReadRecharge) }
+func SetRechargeList(buf *bytes.Buffer, v RechargeList) error { return setList(buf, v, SetRecharge) }
+func ValidateRechargeList(v RechargeList) error {
 	for i, item := range v {
 		if item == nil { continue }
-		if err := item.Validate(); err != nil { return fmt.Errorf("RechargeList[%d]: %w", i, err) }
+		if err := ValidateRecharge(item); err != nil { return fmt.Errorf("RechargeList[%d]: %w", i, err) }
 	}
 	return nil
 }
-func (v RechargeList) Eq(other RechargeList) bool { return slices.EqualFunc(v, other, EqRecharge) }
+func EqRechargeList(a, b RechargeList) bool { return slices.EqualFunc(a, b, EqRecharge) }

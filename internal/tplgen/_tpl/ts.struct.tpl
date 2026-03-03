@@ -65,10 +65,12 @@ export const get{{.Name | PascalCase}} = (buf: _.Buffer): [{{.Name | PascalCase}
         const [v, err] = _.getU8List(buf);
         if (err !== null) return [s, err];
         s.{{$field.Name | CamelCase}} = v as any;
+        if (!_.Is{{.Type.Name | PascalCase}}List(s.{{$field.Name | CamelCase}} as any)) return [s, new Error("get {{$.Name | PascalCase}} {{$field.Name | PascalCase}}: invalid enum value")];
         {{- else}}
         const [v, err] = _.getU8(buf);
         if (err !== null) return [s, err];
         s.{{$field.Name | CamelCase}} = v as any;
+        if ((s.{{$field.Name | CamelCase}} as any) !== 0 && !_.Is{{.Type.Name | PascalCase}}(s.{{$field.Name | CamelCase}} as any)) return [s, new Error("get {{$.Name | PascalCase}} {{$field.Name | PascalCase}}: invalid enum value")];
         {{- end}}
         {{- else}}
         {{- if .Type.IsList}}
@@ -112,12 +114,14 @@ export const set{{.Name | PascalCase}} = (buf: _.Buffer, s: {{.Name | PascalCase
     {{- else if IsEnum .Type}}
     {{- if .Type.IsList}}
     if (s.{{$field.Name | CamelCase}} && s.{{$field.Name | CamelCase}}.length > 0) {
+        if (!_.Is{{.Type.Name | PascalCase}}List(s.{{$field.Name | CamelCase}} as any)) return new Error("set {{$.Name | PascalCase}} {{$field.Name | PascalCase}}: invalid enum value");
         const err = _.setU8List(body, s.{{$field.Name | CamelCase}} as any);
         if (err !== null) return err;
         _.SetBit(bits, {{$i}}, true);
     }
     {{- else}}
     if ((s.{{$field.Name | CamelCase}} as any) !== 0) {
+        if (!_.Is{{.Type.Name | PascalCase}}(s.{{$field.Name | CamelCase}} as any)) return new Error("set {{$.Name | PascalCase}} {{$field.Name | PascalCase}}: invalid enum value");
         const err = _.setU8(body, s.{{$field.Name | CamelCase}} as any);
         if (err !== null) return err;
         _.SetBit(bits, {{$i}}, true);

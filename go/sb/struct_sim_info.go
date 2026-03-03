@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	
 )
 
 type SimInfo struct {
@@ -19,7 +18,8 @@ type SimInfo struct {
 	Zip []byte `bson:"zip" json:"zip"` 
 }
 
-func (s *SimInfo) Get(buf *bytes.Buffer) error {
+func GetSimInfo(buf *bytes.Buffer, s *SimInfo) error {
+	if s == nil { return nil }
 	if buf.Len() == 0 { return nil }
 	bitSize := int(math.Ceil(float64(8) / 8.0))
 	if buf.Len() < bitSize { return fmt.Errorf("GetSimInfo bitmask: %d - %d", buf.Len(), bitSize) }
@@ -48,13 +48,13 @@ func (s *SimInfo) Get(buf *bytes.Buffer) error {
 		if err != nil { return fmt.Errorf("GetSimInfo Zip: %w", err) }
 		s.Zip = val
 	}
-	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateSimInfo: %w", err) }
+	if err := ValidateSimInfo(s); err != nil { return fmt.Errorf("ValidateSimInfo: %w", err) }
 	return nil
 }
 
-func (s *SimInfo) Set(buf *bytes.Buffer) error {
+func SetSimInfo(buf *bytes.Buffer, s *SimInfo) error {
 	if s == nil { return nil }
-	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateSimInfo: %w", err) }
+	if err := ValidateSimInfo(s); err != nil { return fmt.Errorf("ValidateSimInfo: %w", err) }
 	bits := make([]byte, uint8(math.Ceil(float64(8)/8.0)))
 	body := bytes.NewBuffer(nil)
 	if s.Id != 0 {
@@ -82,43 +82,39 @@ func (s *SimInfo) Set(buf *bytes.Buffer) error {
 	_, err := body.WriteTo(buf); return err
 }
 
-func (s *SimInfo) Validate() error {
+func ValidateSimInfo(s *SimInfo) error {
 	if s == nil { return nil }
 	return nil
 }
 
-func (s *SimInfo) Eq(other *SimInfo) bool {
-	if s == other { return true }
-	if s == nil || other == nil { return false }
-	if !EqU32(s.Id, other.Id) { return false }
-	if !EqText(s.Title, other.Title) { return false }
-	if !EqText(s.Content, other.Content) { return false }
-	if !EqBool(s.A, other.A) { return false }
-	if !EqBool(s.B, other.B) { return false }
-	if !EqBool(s.C, other.C) { return false }
-	if !EqBool(s.D, other.D) { return false }
-	if !EqBin(s.Zip, other.Zip) { return false }
+func EqSimInfo(a, b *SimInfo) bool {
+	if a == b { return true }
+	if a == nil || b == nil { return false }
+	if !EqU32(a.Id, b.Id) { return false }
+	if !EqText(a.Title, b.Title) { return false }
+	if !EqText(a.Content, b.Content) { return false }
+	if !EqBool(a.A, b.A) { return false }
+	if !EqBool(a.B, b.B) { return false }
+	if !EqBool(a.C, b.C) { return false }
+	if !EqBool(a.D, b.D) { return false }
+	if !EqBin(a.Zip, b.Zip) { return false }
 	return true
 }
 
-// Standalone functions for compatibility
-func GetSimInfo(buf *bytes.Buffer) (*SimInfo, error) {
-	s := new(SimInfo); return s, s.Get(buf)
+// Standalone functions
+func ReadSimInfo(buf *bytes.Buffer) (*SimInfo, error) {
+	s := new(SimInfo)
+	return s, GetSimInfo(buf, s)
 }
-func SetSimInfo(buf *bytes.Buffer, s *SimInfo) error { return s.Set(buf) }
-func EqSimInfo(a, b *SimInfo) bool { return a.Eq(b) }
 
 type SimInfoList []*SimInfo
-func (v SimInfoList) Set(buf *bytes.Buffer) error { return setList(buf, v, SetSimInfo) }
-func (v *SimInfoList) Get(buf *bytes.Buffer) error {
-	val, err := getList[*SimInfo, SimInfoList](buf, GetSimInfo)
-	if err == nil { *v = val }; return err
-}
-func (v SimInfoList) Validate() error {
+func GetSimInfoList(buf *bytes.Buffer) (SimInfoList, error) { return getList[*SimInfo, SimInfoList](buf, ReadSimInfo) }
+func SetSimInfoList(buf *bytes.Buffer, v SimInfoList) error { return setList(buf, v, SetSimInfo) }
+func ValidateSimInfoList(v SimInfoList) error {
 	for i, item := range v {
 		if item == nil { continue }
-		if err := item.Validate(); err != nil { return fmt.Errorf("SimInfoList[%d]: %w", i, err) }
+		if err := ValidateSimInfo(item); err != nil { return fmt.Errorf("SimInfoList[%d]: %w", i, err) }
 	}
 	return nil
 }
-func (v SimInfoList) Eq(other SimInfoList) bool { return slices.EqualFunc(v, other, EqSimInfo) }
+func EqSimInfoList(a, b SimInfoList) bool { return slices.EqualFunc(a, b, EqSimInfo) }

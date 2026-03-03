@@ -17,29 +17,34 @@ const (
 {{- end}}
 )
 
-func Is{{$enumName}}Valid(v {{$enumName}}) bool {
+func Is{{$enumName}}(v {{$enumName}}) bool {
 	switch v {
-	{{- range .Children}}
-	case {{$enumName}}{{.Name | PascalCase}}:
+	case {{range $i, $child := .Children}}{{if gt $i 0}}, {{end}}{{$enumName}}{{.Name | PascalCase}}{{end}}:
 		return true
-	{{- end}}
 	default:
 		return false
 	}
 }
 
-type {{$enumName}}List []{{$enumName}}
-func (v {{$enumName}}List) Set(buf *bytes.Buffer) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
-func (v *{{$enumName}}List) Get(buf *bytes.Buffer) error {
-	val, err := GetU8List(buf)
-	if err == nil { *v = *(*{{$enumName}}List)(unsafe.Pointer(&val)) }
-	return err
+func Get{{$enumName}}(buf *bytes.Buffer) ({{$enumName}}, error) {
+	val, err := GetU8(buf)
+	return {{$enumName}}(val), err
 }
-func Is{{$enumName}}ListValid(v {{$enumName}}List) bool {
+
+func Set{{$enumName}}(buf *bytes.Buffer, v {{$enumName}}) error { return SetU8(buf, uint8(v)) }
+
+type {{$enumName}}List []{{$enumName}}
+func Get{{$enumName}}List(buf *bytes.Buffer) ({{$enumName}}List, error) {
+	val, err := GetU8List(buf)
+	if err != nil { return nil, err }
+	return *(*{{$enumName}}List)(unsafe.Pointer(&val)), nil
+}
+func Set{{$enumName}}List(buf *bytes.Buffer, v {{$enumName}}List) error { return SetU8List(buf, *(*[]uint8)(unsafe.Pointer(&v))) }
+func Is{{$enumName}}List(v {{$enumName}}List) bool {
 	for _, item := range v {
-		if !Is{{$enumName}}Valid(item) { return false }
+		if !Is{{$enumName}}(item) { return false }
 	}
 	return true
 }
-func (v {{$enumName}}List) Eq(other {{$enumName}}List) bool { return slices.Equal(v, other) }
+func Eq{{$enumName}}List(a, b {{$enumName}}List) bool { return slices.Equal(a, b) }
 {{end}}

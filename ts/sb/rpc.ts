@@ -76,6 +76,7 @@ export class RpcClient {
         if (status !== RpcErrCode.Ok || bytes === null) return [0 as _.OrderStatus, status];
 
         const [result, err] = _.getU8(new _.Buffer(bytes));
+        if (err === null && (result as any) !== 0 && !_.IsOrderStatus(result as any)) return [0 as _.OrderStatus, RpcErrCode.RespErr];
         if (err !== null) return [0 as _.OrderStatus, RpcErrCode.RespErr];
         return [result as any, RpcErrCode.Ok];
     };
@@ -88,6 +89,7 @@ export class RpcClient {
         if (status !== RpcErrCode.Ok || bytes === null) return [0 as _.OrderStatus, status];
 
         const [result, err] = _.getU8(new _.Buffer(bytes));
+        if (err === null && (result as any) !== 0 && !_.IsOrderStatus(result as any)) return [0 as _.OrderStatus, RpcErrCode.RespErr];
         if (err !== null) return [0 as _.OrderStatus, RpcErrCode.RespErr];
         return [result as any, RpcErrCode.Ok];
     };

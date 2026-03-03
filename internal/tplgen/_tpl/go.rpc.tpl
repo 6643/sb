@@ -38,14 +38,24 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-func (c *Client) SetHeader(key, value string) { c.headers[key] = value }
-func (c *Client) GetHeader(key string) string  { return c.headers[key] }
-func (c *Client) RemoveHeader(key string)      { delete(c.headers, key) }
+func SetClientHeader(c *Client, key, value string) {
+	if c == nil { return }
+	if c.headers == nil { c.headers = make(map[string]string) }
+	c.headers[key] = value
+}
+func GetClientHeader(c *Client, key string) string {
+	if c == nil { return "" }
+	return c.headers[key]
+}
+func RemoveClientHeader(c *Client, key string) {
+	if c == nil { return }
+	delete(c.headers, key)
+}
 
-func (c *Client) SetAuthorization(token string) { c.SetHeader("Authorization", "Bearer "+token) }
-func (c *Client) GetAuthorization() string      { return c.GetHeader("Authorization") }
-func (c *Client) RemoveAuthorization()          { c.RemoveHeader("Authorization") }
-func (c *Client) IsAuthorized() bool            { return c.GetAuthorization() != "" }
+func SetClientAuthorization(c *Client, token string) { SetClientHeader(c, "Authorization", "Bearer "+token) }
+func GetClientAuthorization(c *Client) string        { return GetClientHeader(c, "Authorization") }
+func RemoveClientAuthorization(c *Client)            { RemoveClientHeader(c, "Authorization") }
+func IsClientAuthorized(c *Client) bool              { return GetClientAuthorization(c) != "" }
 
 func isTimeout(err error) bool {
 	if err == nil { return false }
@@ -54,7 +64,9 @@ func isTimeout(err error) bool {
 	return false
 }
 
-func (c *Client) do(ctx context.Context, path string, body []byte) ([]byte, RpcErrCode) {
+func doClient(c *Client, ctx context.Context, path string, body []byte) ([]byte, RpcErrCode) {
+	if c == nil { return nil, RpcNoConn }
+	if c.HTTP == nil { c.HTTP = &http.Client{} }
 	var resp *http.Response
 	var err error
 
@@ -117,26 +129,38 @@ func (c *Client) do(ctx context.Context, path string, body []byte) ([]byte, RpcE
 
 {{range .Apis}}
 {{- $resData := .Result -}}
-// {{.Name | PascalCase}} {{.Note}}
-func (c *Client) {{.Name | PascalCase}}(ctx context.Context{{range .Args}}, {{.Name | CamelCase}} {{GoLogicType .Type}}{{end}}) ({{if eq $resData.Name "nil"}}errCode RpcErrCode{{else}}result {{GoLogicType .Result}}, errCode RpcErrCode{{end}}) {
-	{{if ne $resData.Name "nil"}}var res {{GoRpcType $resData}}{{end}}
+// Call{{.Name | PascalCase}} {{.Note}}
+func Call{{.Name | PascalCase}}(c *Client, ctx context.Context{{range .Args}}, {{.Name | CamelCase}} {{GoLogicType .Type}}{{end}}) ({{if eq $resData.Name "nil"}}errCode RpcErrCode{{else}}result {{GoLogicType .Result}}, errCode RpcErrCode{{end}}) {
 	var buf bytes.Buffer
 	{{- if .Args}}
-	if err := SetAll(&buf{{range .Args}}, {{if or (IsBaseType .Type) (IsEnum .Type)}}{{GoRpcType .Type}}({{.Name | CamelCase}}){{else if IsStruct .Type}}{{.Name | CamelCase}}{{else}}{{.Name | CamelCase}}{{end}}{{end}}); err != nil {
-		return {{if eq $resData.Name "nil"}}RpcReqErr{{else}}{{if or (IsBaseType $resData) (IsEnum $resData)}}{{GoLogicType $resData}}(res){{else}}res{{end}}, RpcReqErr{{end}}
+	if err := SetAll(&buf{{range .Args}}, func(buf *bytes.Buffer) error {
+		{{- if IsBaseType .Type}}
+		return Set{{.Type.Name | PascalCase}}{{if .Type.IsList}}List{{end}}(buf, {{.Name | CamelCase}})
+		{{- else if IsEnum .Type}}
+		return Set{{.Type.Name | PascalCase}}{{if .Type.IsList}}List{{end}}(buf, {{if .Type.IsList}}({{.Type.Name | PascalCase}}List)({{.Name | CamelCase}}){{else}}{{.Name | CamelCase}}{{end}})
+		{{- else if IsStruct .Type}}
+		return Set{{.Type.Name | PascalCase}}{{if .Type.IsList}}List{{end}}(buf, {{if .Type.IsList}}({{.Type.Name | PascalCase}}List)({{.Name | CamelCase}}){{else}}{{.Name | CamelCase}}{{end}})
+		{{- end}}
+	}{{end}}); err != nil {
+		return {{if eq $resData.Name "nil"}}RpcReqErr{{else}}result, RpcReqErr{{end}}
 	}
 	{{- end}}
 
-	{{if eq $resData.Name "nil"}}_{{else}}body{{end}}, status := c.do(ctx, "/{{.Name}}", buf.Bytes())
+	{{if eq $resData.Name "nil"}}_{{else}}body{{end}}, status := doClient(c, ctx, "/{{.Name}}", buf.Bytes())
 	if status != RpcOk {
-		return {{if eq $resData.Name "nil"}}status{{else}}{{if or (IsBaseType $resData) (IsEnum $resData)}}{{GoLogicType $resData}}(res){{else}}res{{end}}, status{{end}}
+		return {{if eq $resData.Name "nil"}}status{{else}}result, status{{end}}
 	}
 
 	{{if ne $resData.Name "nil" -}}
-	if err := GetAll(bytes.NewBuffer(body), {{if or (IsStruct $resData) (IsList $resData)}}&res{{else if IsEnum $resData}}(*U8)(&res){{else}}&res{{end}}); err != nil {
-		return {{if or (IsBaseType $resData) (IsEnum $resData)}}{{GoLogicType $resData}}(res){{else}}res{{end}}, RpcRespErr
+	if err := GetAll(bytes.NewBuffer(body), func(buf *bytes.Buffer) error {
+		val, err := {{if and (IsStruct .Result) (not .Result.IsList)}}Read{{.Result.Name | PascalCase}}{{else}}Get{{.Result.Name | PascalCase}}{{if .Result.IsList}}List{{end}}{{end}}(buf)
+		if err != nil { return err }
+		result = val
+		return nil
+	}); err != nil {
+		return result, RpcRespErr
 	}
-	return {{if or (IsBaseType $resData) (IsEnum $resData)}}{{GoLogicType $resData}}(res){{else}}res{{end}}, status
+	return result, status
 	{{- else -}}
 	return status
 	{{- end}}

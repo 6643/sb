@@ -83,6 +83,15 @@ export class RpcClient {
     /** {{.Note}} */
     public {{.Name | CamelCase}} = async ({{range $i, $arg := .Args}}{{if $i}}, {{end}}{{$arg.Name}}: {{if not (IsBaseType .Type)}}_.{{end}}{{TsLogicType $arg.Type}}{{end}}): Promise<{{if $hasRet}}[{{if not (IsBaseType $resData)}}_.{{end}}{{$retType}}, RpcErrCode]{{else}}RpcErrCode{{end}}> => {
         const buf = new _.Buffer();
+        {{- range .Args}}
+        {{- if IsEnum .Type}}
+        {{- if .Type.IsList}}
+        if (!_.Is{{.Type.Name | PascalCase}}List({{.Name}} as any)) return {{if $hasRet}}[{{$defaultVal}}, RpcErrCode.ReqErr]{{else}}RpcErrCode.ReqErr{{end}};
+        {{- else}}
+        if (({{.Name}} as any) !== 0 && !_.Is{{.Type.Name | PascalCase}}({{.Name}} as any)) return {{if $hasRet}}[{{$defaultVal}}, RpcErrCode.ReqErr]{{else}}RpcErrCode.ReqErr{{end}};
+        {{- end}}
+        {{- end}}
+        {{- end}}
         {{- if .Args}}
         if (_.setAll(buf, {{range $i, $arg := .Args}}{{if $i}}, {{end}}{{if IsBaseType .Type}}(buf) => _.set{{.Type.Name | PascalCase}}{{if .Type.IsList}}List{{end}}(buf, {{$arg.Name}}){{else if IsEnum .Type}}(buf) => _.setU8{{if .Type.IsList}}List{{end}}(buf, {{$arg.Name}} as any){{else}}(buf) => _.set{{.Type.Name | PascalCase}}{{if .Type.IsList}}List{{end}}(buf, {{$arg.Name}} as any){{end}}{{end}}) !== null) return {{if $hasRet}}[{{$defaultVal}}, RpcErrCode.ReqErr]{{else}}RpcErrCode.ReqErr{{end}};
         {{- end}}
@@ -94,8 +103,10 @@ export class RpcClient {
         {{- if IsEnum $resData -}}
         {{- if $resData.IsList -}}
         const [result, err] = _.getU8List(new _.Buffer(bytes));
+        if (err === null && !_.Is{{$resData.Name | PascalCase}}List(result as any)) return [{{$defaultVal}}, RpcErrCode.RespErr];
         {{- else -}}
         const [result, err] = _.getU8(new _.Buffer(bytes));
+        if (err === null && (result as any) !== 0 && !_.Is{{$resData.Name | PascalCase}}(result as any)) return [{{$defaultVal}}, RpcErrCode.RespErr];
         {{- end -}}
         {{- else -}}
         const [result, err] = _.get{{$resData.Name | PascalCase}}{{if $resData.IsList}}List{{end}}(new _.Buffer(bytes));

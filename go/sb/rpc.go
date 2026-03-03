@@ -38,14 +38,24 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-func (c *Client) SetHeader(key, value string) { c.headers[key] = value }
-func (c *Client) GetHeader(key string) string  { return c.headers[key] }
-func (c *Client) RemoveHeader(key string)      { delete(c.headers, key) }
+func SetClientHeader(c *Client, key, value string) {
+	if c == nil { return }
+	if c.headers == nil { c.headers = make(map[string]string) }
+	c.headers[key] = value
+}
+func GetClientHeader(c *Client, key string) string {
+	if c == nil { return "" }
+	return c.headers[key]
+}
+func RemoveClientHeader(c *Client, key string) {
+	if c == nil { return }
+	delete(c.headers, key)
+}
 
-func (c *Client) SetAuthorization(token string) { c.SetHeader("Authorization", "Bearer "+token) }
-func (c *Client) GetAuthorization() string      { return c.GetHeader("Authorization") }
-func (c *Client) RemoveAuthorization()          { c.RemoveHeader("Authorization") }
-func (c *Client) IsAuthorized() bool            { return c.GetAuthorization() != "" }
+func SetClientAuthorization(c *Client, token string) { SetClientHeader(c, "Authorization", "Bearer "+token) }
+func GetClientAuthorization(c *Client) string        { return GetClientHeader(c, "Authorization") }
+func RemoveClientAuthorization(c *Client)            { RemoveClientHeader(c, "Authorization") }
+func IsClientAuthorized(c *Client) bool              { return GetClientAuthorization(c) != "" }
 
 func isTimeout(err error) bool {
 	if err == nil { return false }
@@ -54,7 +64,9 @@ func isTimeout(err error) bool {
 	return false
 }
 
-func (c *Client) do(ctx context.Context, path string, body []byte) ([]byte, RpcErrCode) {
+func doClient(c *Client, ctx context.Context, path string, body []byte) ([]byte, RpcErrCode) {
+	if c == nil { return nil, RpcNoConn }
+	if c.HTTP == nil { c.HTTP = &http.Client{} }
 	var resp *http.Response
 	var err error
 
@@ -115,88 +127,113 @@ func (c *Client) do(ctx context.Context, path string, body []byte) ([]byte, RpcE
 	return b, RpcOk
 }
 
-// UserGetAbc 获取用户的id
-func (c *Client) UserGetAbc(ctx context.Context) (result OrderStatus, errCode RpcErrCode) {
-	var res U8
+// CallUserGetAbc 获取用户的id
+func CallUserGetAbc(c *Client, ctx context.Context) (result OrderStatus, errCode RpcErrCode) {
 	var buf bytes.Buffer
 
-	body, status := c.do(ctx, "/user.get_abc", buf.Bytes())
+	body, status := doClient(c, ctx, "/user.get_abc", buf.Bytes())
 	if status != RpcOk {
-		return OrderStatus(res), status
+		return result, status
 	}
 
-	if err := GetAll(bytes.NewBuffer(body), (*U8)(&res)); err != nil {
-		return OrderStatus(res), RpcRespErr
+	if err := GetAll(bytes.NewBuffer(body), func(buf *bytes.Buffer) error {
+		val, err := GetOrderStatus(buf)
+		if err != nil { return err }
+		result = val
+		return nil
+	}); err != nil {
+		return result, RpcRespErr
 	}
-	return OrderStatus(res), status
+	return result, status
 }
-// UserGetAbcd 获取abcd
-func (c *Client) UserGetAbcd(ctx context.Context, page uint8, size uint8) (result OrderStatus, errCode RpcErrCode) {
-	var res U8
+// CallUserGetAbcd 获取abcd
+func CallUserGetAbcd(c *Client, ctx context.Context, page uint8, size uint8) (result OrderStatus, errCode RpcErrCode) {
 	var buf bytes.Buffer
-	if err := SetAll(&buf, U8(page), U8(size)); err != nil {
-		return OrderStatus(res), RpcReqErr
+	if err := SetAll(&buf, func(buf *bytes.Buffer) error {
+		return SetU8(buf, page)
+	}, func(buf *bytes.Buffer) error {
+		return SetU8(buf, size)
+	}); err != nil {
+		return result, RpcReqErr
 	}
 
-	body, status := c.do(ctx, "/user.get_abcd", buf.Bytes())
+	body, status := doClient(c, ctx, "/user.get_abcd", buf.Bytes())
 	if status != RpcOk {
-		return OrderStatus(res), status
+		return result, status
 	}
 
-	if err := GetAll(bytes.NewBuffer(body), (*U8)(&res)); err != nil {
-		return OrderStatus(res), RpcRespErr
+	if err := GetAll(bytes.NewBuffer(body), func(buf *bytes.Buffer) error {
+		val, err := GetOrderStatus(buf)
+		if err != nil { return err }
+		result = val
+		return nil
+	}); err != nil {
+		return result, RpcRespErr
 	}
-	return OrderStatus(res), status
+	return result, status
 }
-// UserSetSimInfo 设置sim信息
-func (c *Client) UserSetSimInfo(ctx context.Context, info *SimInfo) (errCode RpcErrCode) {
-	
+// CallUserSetSimInfo 设置sim信息
+func CallUserSetSimInfo(c *Client, ctx context.Context, info *SimInfo) (errCode RpcErrCode) {
 	var buf bytes.Buffer
-	if err := SetAll(&buf, info); err != nil {
+	if err := SetAll(&buf, func(buf *bytes.Buffer) error {
+		return SetSimInfo(buf, info)
+	}); err != nil {
 		return RpcReqErr
 	}
 
-	_, status := c.do(ctx, "/user.set_sim_info", buf.Bytes())
+	_, status := doClient(c, ctx, "/user.set_sim_info", buf.Bytes())
 	if status != RpcOk {
 		return status
 	}
 
 	return status
 }
-// GetCount 获取数量
-func (c *Client) GetCount(ctx context.Context, page uint8) (result uint8, errCode RpcErrCode) {
-	var res U8
+// CallGetCount 获取数量
+func CallGetCount(c *Client, ctx context.Context, page uint8) (result uint8, errCode RpcErrCode) {
 	var buf bytes.Buffer
-	if err := SetAll(&buf, U8(page)); err != nil {
-		return uint8(res), RpcReqErr
+	if err := SetAll(&buf, func(buf *bytes.Buffer) error {
+		return SetU8(buf, page)
+	}); err != nil {
+		return result, RpcReqErr
 	}
 
-	body, status := c.do(ctx, "/get_count", buf.Bytes())
+	body, status := doClient(c, ctx, "/get_count", buf.Bytes())
 	if status != RpcOk {
-		return uint8(res), status
+		return result, status
 	}
 
-	if err := GetAll(bytes.NewBuffer(body), &res); err != nil {
-		return uint8(res), RpcRespErr
+	if err := GetAll(bytes.NewBuffer(body), func(buf *bytes.Buffer) error {
+		val, err := GetU8(buf)
+		if err != nil { return err }
+		result = val
+		return nil
+	}); err != nil {
+		return result, RpcRespErr
 	}
-	return uint8(res), status
+	return result, status
 }
-// GetBin 获取bin
-func (c *Client) GetBin(ctx context.Context, page uint8) (result []byte, errCode RpcErrCode) {
-	var res Bin
+// CallGetBin 获取bin
+func CallGetBin(c *Client, ctx context.Context, page uint8) (result []byte, errCode RpcErrCode) {
 	var buf bytes.Buffer
-	if err := SetAll(&buf, U8(page)); err != nil {
-		return []byte(res), RpcReqErr
+	if err := SetAll(&buf, func(buf *bytes.Buffer) error {
+		return SetU8(buf, page)
+	}); err != nil {
+		return result, RpcReqErr
 	}
 
-	body, status := c.do(ctx, "/get_bin", buf.Bytes())
+	body, status := doClient(c, ctx, "/get_bin", buf.Bytes())
 	if status != RpcOk {
-		return []byte(res), status
+		return result, status
 	}
 
-	if err := GetAll(bytes.NewBuffer(body), &res); err != nil {
-		return []byte(res), RpcRespErr
+	if err := GetAll(bytes.NewBuffer(body), func(buf *bytes.Buffer) error {
+		val, err := GetBin(buf)
+		if err != nil { return err }
+		result = val
+		return nil
+	}); err != nil {
+		return result, RpcRespErr
 	}
-	return []byte(res), status
+	return result, status
 }
 
