@@ -17,6 +17,21 @@ func {{$handlerName}}Handler(w http.ResponseWriter, r *http.Request) {
 	{{- end}}
 
 	if !parseRequest(w, r{{range .Args}}, &{{.Name}}{{end}}) { return }
+	{{- range .Args}}
+	{{- if IsEnum .Type}}
+	{{- if .Type.IsList}}
+	if !Is{{PascalCase .Type.Name}}ListValid({{.Name}}) { w.WriteHeader(http.StatusBadRequest); return }
+	{{- else}}
+	if !Is{{PascalCase .Type.Name}}Valid({{PascalCase .Type.Name}}({{.Name}})) { w.WriteHeader(http.StatusBadRequest); return }
+	{{- end}}
+	{{- else if IsStruct .Type}}
+	{{- if .Type.IsList}}
+	if err := {{.Name}}.Validate(); err != nil { w.WriteHeader(http.StatusBadRequest); return }
+	{{- else}}
+	if err := (&{{.Name}}).Validate(); err != nil { w.WriteHeader(http.StatusBadRequest); return }
+	{{- end}}
+	{{- end}}
+	{{- end}}
 
 	{{if ne $resData.Name "nil" -}}
 	result, status := {{.Name | SnakeCase}}(r.Context()

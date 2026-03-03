@@ -1,4 +1,4 @@
-export * from "./type.ts"
+export * from "./type"
 {{- range .}}
 export * from "./{{.}}"
 {{- end}}

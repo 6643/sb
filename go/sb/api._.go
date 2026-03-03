@@ -30,6 +30,7 @@ func UserSetSimInfoHandler(w http.ResponseWriter, r *http.Request) {
 	var info SimInfo
 
 	if !parseRequest(w, r, &info) { return }
+	if err := (&info).Validate(); err != nil { w.WriteHeader(http.StatusBadRequest); return }
 
 	status := user_set_sim_info(r.Context(), &info)
 	if !checkStatus(w, status) { return }

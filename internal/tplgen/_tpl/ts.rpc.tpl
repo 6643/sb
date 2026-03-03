@@ -1,4 +1,4 @@
-import * as _ from "./_.ts"
+import * as _ from "./_"
 
 export enum RpcErrCode {
     Ok = 200,
@@ -84,7 +84,7 @@ export class RpcClient {
     public {{.Name | CamelCase}} = async ({{range $i, $arg := .Args}}{{if $i}}, {{end}}{{$arg.Name}}: {{if not (IsBaseType .Type)}}_.{{end}}{{TsLogicType $arg.Type}}{{end}}): Promise<{{if $hasRet}}[{{if not (IsBaseType $resData)}}_.{{end}}{{$retType}}, RpcErrCode]{{else}}RpcErrCode{{end}}> => {
         const buf = new _.Buffer();
         {{- if .Args}}
-        if (_.setAll(buf, {{range $i, $arg := .Args}}{{if $i}}, {{end}}{{if IsBaseType .Type}}{{if .Type.IsList}}_.set{{.Type.Name | PascalCase}}List{{else}}_.{{.Type.Name | CamelCase}}{{end}}({{$arg.Name}}){{else if IsEnum .Type}}{{if .Type.IsList}}_.u8List({{$arg.Name}} as any){{else}}_.u8({{$arg.Name}} as any){{end}}{{else}}{{$arg.Name}}{{end}}{{end}}) !== null) return {{if $hasRet}}[{{$defaultVal}}, RpcErrCode.ReqErr]{{else}}RpcErrCode.ReqErr{{end}};
+        if (_.setAll(buf, {{range $i, $arg := .Args}}{{if $i}}, {{end}}{{if IsBaseType .Type}}(buf) => _.set{{.Type.Name | PascalCase}}{{if .Type.IsList}}List{{end}}(buf, {{$arg.Name}}){{else if IsEnum .Type}}(buf) => _.setU8{{if .Type.IsList}}List{{end}}(buf, {{$arg.Name}} as any){{else}}(buf) => _.set{{.Type.Name | PascalCase}}{{if .Type.IsList}}List{{end}}(buf, {{$arg.Name}} as any){{end}}{{end}}) !== null) return {{if $hasRet}}[{{$defaultVal}}, RpcErrCode.ReqErr]{{else}}RpcErrCode.ReqErr{{end}};
         {{- end}}
 
         const [bytes, status] = await this._fetch("{{.Name}}", buf.bytes);

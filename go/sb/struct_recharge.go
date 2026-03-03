@@ -39,11 +39,13 @@ func (s *Recharge) Get(buf *bytes.Buffer) error {
 		if s.Si == nil { s.Si = new(SimInfo) }
 		if err := s.Si.Get(buf); err != nil { return fmt.Errorf("GetRecharge Si: %w", err) }
 	}
+	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateRecharge: %w", err) }
 	return nil
 }
 
 func (s *Recharge) Set(buf *bytes.Buffer) error {
 	if s == nil { return nil }
+	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateRecharge: %w", err) }
 	bits := make([]byte, uint8(math.Ceil(float64(4)/8.0)))
 	body := bytes.NewBuffer(nil)
 	if s.Id != 0 {
@@ -65,6 +67,17 @@ func (s *Recharge) Set(buf *bytes.Buffer) error {
 
 	if _, err := buf.Write(bits); err != nil { return fmt.Errorf("SetRecharge write bitmask: %w", err) }
 	_, err := body.WriteTo(buf); return err
+}
+
+func (s *Recharge) Validate() error {
+	if s == nil { return nil }
+	for i, item := range s.Type {
+		if !IsOrderStatusValid(item) { return fmt.Errorf("Type[%d] 非法枚举值: %d", i, item) }
+	}
+	if s.Si != nil {
+		if err := s.Si.Validate(); err != nil { return fmt.Errorf("Si: %w", err) }
+	}
+	return nil
 }
 
 func (s *Recharge) Eq(other *Recharge) bool {
@@ -89,5 +102,12 @@ func (v RechargeList) Set(buf *bytes.Buffer) error { return setList(buf, v, SetR
 func (v *RechargeList) Get(buf *bytes.Buffer) error {
 	val, err := getList[*Recharge, RechargeList](buf, GetRecharge)
 	if err == nil { *v = val }; return err
+}
+func (v RechargeList) Validate() error {
+	for i, item := range v {
+		if item == nil { continue }
+		if err := item.Validate(); err != nil { return fmt.Errorf("RechargeList[%d]: %w", i, err) }
+	}
+	return nil
 }
 func (v RechargeList) Eq(other RechargeList) bool { return slices.EqualFunc(v, other, EqRecharge) }

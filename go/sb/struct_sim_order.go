@@ -82,11 +82,13 @@ func (s *SimOrder) Get(buf *bytes.Buffer) error {
 		if err != nil { return fmt.Errorf("GetSimOrder Status: %w", err) }
 		s.Status = OrderStatus(val)
 	}
+	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateSimOrder: %w", err) }
 	return nil
 }
 
 func (s *SimOrder) Set(buf *bytes.Buffer) error {
 	if s == nil { return nil }
+	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateSimOrder: %w", err) }
 	bits := make([]byte, uint8(math.Ceil(float64(11)/8.0)))
 	body := bytes.NewBuffer(nil)
 	if s.Id != 0 {
@@ -138,6 +140,12 @@ func (s *SimOrder) Set(buf *bytes.Buffer) error {
 	_, err := body.WriteTo(buf); return err
 }
 
+func (s *SimOrder) Validate() error {
+	if s == nil { return nil }
+	if s.Status != 0 && !IsOrderStatusValid(s.Status) { return fmt.Errorf("Status 非法枚举值: %d", s.Status) }
+	return nil
+}
+
 func (s *SimOrder) Eq(other *SimOrder) bool {
 	if s == other { return true }
 	if s == nil || other == nil { return false }
@@ -167,5 +175,12 @@ func (v SimOrderList) Set(buf *bytes.Buffer) error { return setList(buf, v, SetS
 func (v *SimOrderList) Get(buf *bytes.Buffer) error {
 	val, err := getList[*SimOrder, SimOrderList](buf, GetSimOrder)
 	if err == nil { *v = val }; return err
+}
+func (v SimOrderList) Validate() error {
+	for i, item := range v {
+		if item == nil { continue }
+		if err := item.Validate(); err != nil { return fmt.Errorf("SimOrderList[%d]: %w", i, err) }
+	}
+	return nil
 }
 func (v SimOrderList) Eq(other SimOrderList) bool { return slices.EqualFunc(v, other, EqSimOrder) }

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sb/internal/gen"
 	"sb/internal/util"
+	"strings"
 	"text/template"
 )
 
@@ -99,14 +100,14 @@ func (g *TsGenerator) Generate(schema *Schema) error {
 	structFiles := make([]string, 0, len(schema.Structs))
 	for _, s := range schema.Structs {
 		filename := "struct_" + util.SnakeCase(s.Name) + ".ts"
-		structFiles = append(structFiles, filename)
+		structFiles = append(structFiles, strings.TrimSuffix(filename, ".ts"))
 		path := filepath.Join(targetDir, filename)
 		if err := g.executeTemplate("_tpl/ts.struct.tpl", path, s); err != nil {
 			return err
 		}
 	}
 
-	allFiles := append([]string{"enum.ts"}, structFiles...)
+	allFiles := append([]string{"enum"}, structFiles...)
 	if err := g.executeTemplate("_tpl/ts._.tpl", filepath.Join(targetDir, "_.ts"), allFiles); err != nil {
 		return err
 	}

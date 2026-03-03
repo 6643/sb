@@ -174,11 +174,13 @@ func (s *Sim) Get(buf *bytes.Buffer) error {
 		if err != nil { return fmt.Errorf("GetSim Snapshot: %w", err) }
 		s.Snapshot = val
 	}
+	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateSim: %w", err) }
 	return nil
 }
 
 func (s *Sim) Set(buf *bytes.Buffer) error {
 	if s == nil { return nil }
+	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateSim: %w", err) }
 	bits := make([]byte, uint8(math.Ceil(float64(27)/8.0)))
 	body := bytes.NewBuffer(nil)
 	if s.Id != 0 {
@@ -291,6 +293,21 @@ func (s *Sim) Set(buf *bytes.Buffer) error {
 	_, err := body.WriteTo(buf); return err
 }
 
+func (s *Sim) Validate() error {
+	if s == nil { return nil }
+	if s.Type != 0 && !IsTypeValid(s.Type) { return fmt.Errorf("Type 非法枚举值: %d", s.Type) }
+	if s.Status != 0 && !IsItemStatusValid(s.Status) { return fmt.Errorf("Status 非法枚举值: %d", s.Status) }
+	if s.Operator != 0 && !IsSimOperatorValid(s.Operator) { return fmt.Errorf("Operator 非法枚举值: %d", s.Operator) }
+	for i, item := range s.PickPhone {
+		if !IsSimPickPhoneValid(item) { return fmt.Errorf("PickPhone[%d] 非法枚举值: %d", i, item) }
+	}
+	for i, item := range s.Info {
+		if item == nil { continue }
+		if err := item.Validate(); err != nil { return fmt.Errorf("Info[%d]: %w", i, err) }
+	}
+	return nil
+}
+
 func (s *Sim) Eq(other *Sim) bool {
 	if s == other { return true }
 	if s == nil || other == nil { return false }
@@ -336,5 +353,12 @@ func (v SimList) Set(buf *bytes.Buffer) error { return setList(buf, v, SetSim) }
 func (v *SimList) Get(buf *bytes.Buffer) error {
 	val, err := getList[*Sim, SimList](buf, GetSim)
 	if err == nil { *v = val }; return err
+}
+func (v SimList) Validate() error {
+	for i, item := range v {
+		if item == nil { continue }
+		if err := item.Validate(); err != nil { return fmt.Errorf("SimList[%d]: %w", i, err) }
+	}
+	return nil
 }
 func (v SimList) Eq(other SimList) bool { return slices.EqualFunc(v, other, EqSim) }

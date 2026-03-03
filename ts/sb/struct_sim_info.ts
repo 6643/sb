@@ -1,4 +1,4 @@
-import * as _ from "./_.ts"
+import * as _ from "./_"
 import * as Enum from "./enum"
 
 export interface SimInfo extends _.Serializable, _.Deserializable {

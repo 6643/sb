@@ -58,11 +58,13 @@ func (s *SimOrder2) Get(buf *bytes.Buffer) error {
 		if err != nil { return fmt.Errorf("GetSimOrder2 NewPhone: %w", err) }
 		s.NewPhone = val
 	}
+	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateSimOrder2: %w", err) }
 	return nil
 }
 
 func (s *SimOrder2) Set(buf *bytes.Buffer) error {
 	if s == nil { return nil }
+	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateSimOrder2: %w", err) }
 	bits := make([]byte, uint8(math.Ceil(float64(7)/8.0)))
 	body := bytes.NewBuffer(nil)
 	if s.Id != 0 {
@@ -98,6 +100,11 @@ func (s *SimOrder2) Set(buf *bytes.Buffer) error {
 	_, err := body.WriteTo(buf); return err
 }
 
+func (s *SimOrder2) Validate() error {
+	if s == nil { return nil }
+	return nil
+}
+
 func (s *SimOrder2) Eq(other *SimOrder2) bool {
 	if s == other { return true }
 	if s == nil || other == nil { return false }
@@ -123,5 +130,12 @@ func (v SimOrder2List) Set(buf *bytes.Buffer) error { return setList(buf, v, Set
 func (v *SimOrder2List) Get(buf *bytes.Buffer) error {
 	val, err := getList[*SimOrder2, SimOrder2List](buf, GetSimOrder2)
 	if err == nil { *v = val }; return err
+}
+func (v SimOrder2List) Validate() error {
+	for i, item := range v {
+		if item == nil { continue }
+		if err := item.Validate(); err != nil { return fmt.Errorf("SimOrder2List[%d]: %w", i, err) }
+	}
+	return nil
 }
 func (v SimOrder2List) Eq(other SimOrder2List) bool { return slices.EqualFunc(v, other, EqSimOrder2) }

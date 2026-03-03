@@ -48,11 +48,13 @@ func (s *SimInfo) Get(buf *bytes.Buffer) error {
 		if err != nil { return fmt.Errorf("GetSimInfo Zip: %w", err) }
 		s.Zip = val
 	}
+	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateSimInfo: %w", err) }
 	return nil
 }
 
 func (s *SimInfo) Set(buf *bytes.Buffer) error {
 	if s == nil { return nil }
+	if err := s.Validate(); err != nil { return fmt.Errorf("ValidateSimInfo: %w", err) }
 	bits := make([]byte, uint8(math.Ceil(float64(8)/8.0)))
 	body := bytes.NewBuffer(nil)
 	if s.Id != 0 {
@@ -78,6 +80,11 @@ func (s *SimInfo) Set(buf *bytes.Buffer) error {
 
 	if _, err := buf.Write(bits); err != nil { return fmt.Errorf("SetSimInfo write bitmask: %w", err) }
 	_, err := body.WriteTo(buf); return err
+}
+
+func (s *SimInfo) Validate() error {
+	if s == nil { return nil }
+	return nil
 }
 
 func (s *SimInfo) Eq(other *SimInfo) bool {
@@ -106,5 +113,12 @@ func (v SimInfoList) Set(buf *bytes.Buffer) error { return setList(buf, v, SetSi
 func (v *SimInfoList) Get(buf *bytes.Buffer) error {
 	val, err := getList[*SimInfo, SimInfoList](buf, GetSimInfo)
 	if err == nil { *v = val }; return err
+}
+func (v SimInfoList) Validate() error {
+	for i, item := range v {
+		if item == nil { continue }
+		if err := item.Validate(); err != nil { return fmt.Errorf("SimInfoList[%d]: %w", i, err) }
+	}
+	return nil
 }
 func (v SimInfoList) Eq(other SimInfoList) bool { return slices.EqualFunc(v, other, EqSimInfo) }

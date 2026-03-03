@@ -1,4 +1,4 @@
-import * as _ from "./_.ts"
+import * as _ from "./_"
 import * as Enum from "./enum"
 
 export interface SimOrder2 extends _.Serializable, _.Deserializable {

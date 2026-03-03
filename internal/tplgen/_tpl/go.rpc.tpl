@@ -31,7 +31,7 @@ type Client struct {
 func NewClient(baseURL string) *Client {
 	return &Client{
 		BaseURL: baseURL,
-		HTTP:    &http.Client{Timeout: 5 * time.Second},
+		HTTP:    &http.Client{},
 		Timeout: 5 * time.Second,
 		Retries: 3,
 		headers: make(map[string]string),
@@ -61,16 +61,22 @@ func (c *Client) do(ctx context.Context, path string, body []byte) ([]byte, RpcE
 	for i := 0; i <= c.Retries; i++ {
 		if i > 0 {
 			timer := time.NewTimer(time.Duration(i) * time.Second)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				return nil, RpcTimeout
-			case <-timer.C:
-			}
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, RpcTimeout
+		case <-timer.C:
 		}
+	}
 
-		req, reqErr := http.NewRequestWithContext(ctx, "POST", c.BaseURL+path, bytes.NewReader(body))
+		reqCtx := ctx
+		cancel := func() {}
+		if c.Timeout > 0 {
+			reqCtx, cancel = context.WithTimeout(ctx, c.Timeout)
+		}
+		req, reqErr := http.NewRequestWithContext(reqCtx, "POST", c.BaseURL+path, bytes.NewReader(body))
 		if reqErr != nil {
+			cancel()
 			return nil, RpcNoConn
 		}
 
@@ -79,6 +85,7 @@ func (c *Client) do(ctx context.Context, path string, body []byte) ([]byte, RpcE
 		}
 
 		resp, err = c.HTTP.Do(req)
+		cancel()
 		if err != nil {
 			if isTimeout(err) && i < c.Retries {
 				continue
@@ -101,7 +108,10 @@ func (c *Client) do(ctx context.Context, path string, body []byte) ([]byte, RpcE
 		return nil, RpcErrCode(resp.StatusCode)
 	}
 
-	b, _ := io.ReadAll(resp.Body)
+	b, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, RpcRespErr
+	}
 	return b, RpcOk
 }
 
