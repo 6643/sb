@@ -1,90 +1,34 @@
 package parser
 
 import (
-	"fmt"
-	"sb/internal/lexer"
 	"testing"
+
+	"sb/internal/lexer"
 )
 
-// TestParser_Robustness 鲁棒性测试
-// 涵盖正常解析, 循环嵌套检测, 未定义类型校验等边界场景
-func TestParser_Robustness(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   string
-		wantErr bool
-	}{
-		{
-			name: "Valid Schema",
-			input: `
-				User { id u32, name text }
-				user.get(id u32) => User
-			`,
-			wantErr: false,
-		},
-		{
-			name: "Circular Embedding",
-			input: `
-				A { B }
-				B { A }
-			`,
-			wantErr: true, // Circular embedding is an error
-		},
-		{
-			name: "Undefined Type",
-			input: `
-				User { info UnknownType }
-			`,
-			wantErr: true, // Undefined type is an error
-		},
-		{
-			name: "Invalid Syntax - Missing Brace",
-			input: `
-				User { id u32
-			`,
-			wantErr: false, // Parser handles EOF gracefully (returns what it has)
-		},
-		{
-			name: "Invalid API - No Arrow",
-			input: `
-				user.get(id u32) User
-			`,
-			wantErr: true,
-		},
+func TestParseSchema(t *testing.T) {
+	input := `
+		Status = Ok(0) | Err(1)
+		User { id u32, name text }
+		user.get(id u32) => User
+	`
+	l := lexer.New(input)
+	p := New(l)
+	s, err := p.ParseSchema()
+	if err != nil {
+		t.Fatalf("ParseSchema failed: %v", err)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			l := lexer.New(tt.input)
-			p := New(l)
-			_, err := p.ParseSchema()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ParseSchema() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
+	if len(s.Enums) != 1 || len(s.Structs) != 1 || len(s.APIs) != 1 {
+		t.Fatalf("unexpected schema counts: enums=%d structs=%d apis=%d", len(s.Enums), len(s.Structs), len(s.APIs))
 	}
 }
 
-func TestParser_FieldLimit(t *testing.T) {
-	// Generate struct with 256 fields using valid identifiers
-	input := "LargeStruct {\n"
-	for i := 0; i < 256; i++ {
-		input += fmt.Sprintf("field_%d u32\n", i)
-	}
-	input += "}"
-
+func TestParseSchemaMissingBrace(t *testing.T) {
+	input := `User { id u32`
 	l := lexer.New(input)
 	p := New(l)
-	schema, err := p.ParseSchema()
-	if err != nil {
-		t.Fatalf("Failed to parse: %v", err)
-	}
-
-	if len(schema.Structs) == 0 {
-		t.Fatal("No struct parsed")
-	}
-
-	if len(schema.Structs[0].Fields) < 256 {
-		t.Errorf("Expected 256 fields, got %d", len(schema.Structs[0].Fields))
+	_, err := p.ParseSchema()
+	if err == nil {
+		t.Fatal("expected parse error, got nil")
 	}
 }

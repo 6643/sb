@@ -2,30 +2,21 @@ package parser
 
 import (
 	"fmt"
+	"strconv"
+
 	"sb/internal/ast"
 	"sb/internal/lexer"
-	"strconv"
-	"strings"
 )
 
-// Parser 语法分析器
-// 采用递归下降 (Recursive Descent) 策略
+// Parser 负责把 token 流转换为 AST。
 type Parser struct {
 	l         *lexer.Lexer
 	curToken  lexer.Token
 	peekToken lexer.Token
-
-	// 符号表: 用于快速校验类型引用有效性
-	structNames map[string]bool
-	enumNames   map[string]bool
 }
 
 func New(l *lexer.Lexer) *Parser {
-	p := &Parser{
-		l:           l,
-		structNames: make(map[string]bool),
-		enumNames:   make(map[string]bool),
-	}
+	p := &Parser{l: l}
 	p.nextToken()
 	p.nextToken()
 	return p
@@ -36,756 +27,314 @@ func (p *Parser) nextToken() {
 	p.peekToken = p.l.NextToken()
 }
 
-// ParseSchema 解析完整的 Schema 文件
-// 包含两个阶段:
-// 1. 语法解析: 构建 AST 结构, 收集所有定义
-// 2. 类型语义分析 (resolveTypes): 校验类型引用, 展开嵌入结构体
+func (p *Parser) expectCurrent(tt lexer.TokenType, name string) error {
+	if p.curToken.Type == tt {
+		return nil
+	}
+	return fmt.Errorf("行 %d: 期望 %s, 实际 %q", p.curToken.Line, name, p.curToken.Literal)
+}
+
 func (p *Parser) ParseSchema() (*ast.Schema, error) {
-	schema := &ast.Schema{}
-	var lastNote string
+	s := &ast.Schema{}
+	pendingNote := ""
 
 	for p.curToken.Type != lexer.TokenEOF {
 		if p.curToken.Type == lexer.TokenError {
-			return nil, fmt.Errorf("lexing error: %s", p.curToken.Value)
+			return nil, fmt.Errorf("行 %d: %s", p.curToken.Line, p.curToken.Literal)
 		}
-
-		// 收集注释作为下一个定义的文档
-		if p.curToken.Type == lexer.TokenComment {
-			if lastNote != "" {
-				lastNote += "\n"
-			}
-			lastNote += p.curToken.Value
-			p.nextToken()
-			continue
-		}
-
-		if p.curToken.Type == lexer.TokenIdent {
-			if err := p.parseDefinition(schema, &lastNote); err != nil {
-				return nil, err
-			}
-			continue
-		}
-
-		return nil, fmt.Errorf("line %d: unexpected token %q", p.curToken.Line, p.curToken.Value)
-	}
-
-	// 语义分析阶段
-	if err := p.resolveTypes(schema); err != nil {
-		return nil, err
-	}
-	return schema, nil
-}
-
-func (p *Parser) parseDefinition(schema *ast.Schema, lastNote *string) error {
-
-	defer func() { *lastNote = "" }()
-
-	note := *lastNote
-
-
-
-	if p.peekToken.Type == lexer.TokenLBrace {
-
-		return p.parseAndAddStruct(schema, note)
-
-	}
-
-
-
-	if p.isEnumDefinition() {
-
-		return p.parseAndAddEnum(schema, note)
-
-	}
-
-
-
-	if p.isApiDefinition() {
-
-		return p.parseAndAddApi(schema, note)
-
-	}
-
-
-
-	return fmt.Errorf("行 %d: 未预期标识符 %q", p.curToken.Line, p.curToken.Value)
-
-}
-
-
-
-func (p *Parser) parseAndAddStruct(schema *ast.Schema, note string) error {
-
-	if p.isDefined(p.curToken.Value) {
-
-		return fmt.Errorf("行 %d: %s 重复定义", p.curToken.Line, p.curToken.Value)
-
-	}
-
-	s, err := p.parseStruct(note)
-
-	if err != nil {
-
-		return err
-
-	}
-
-	schema.Structs = append(schema.Structs, s)
-
-	p.structNames[s.Name] = true
-
-	return nil
-
-}
-
-
-
-func (p *Parser) parseAndAddEnum(schema *ast.Schema, note string) error {
-
-	if p.isDefined(p.curToken.Value) {
-
-		return fmt.Errorf("行 %d: %s 重复定义", p.curToken.Line, p.curToken.Value)
-
-	}
-
-	e, err := p.parseEnum(note)
-
-	if err != nil {
-
-		return err
-
-	}
-
-	schema.Enums = append(schema.Enums, e)
-
-	p.enumNames[e.Name] = true
-
-	return nil
-
-}
-
-
-
-func (p *Parser) parseAndAddApi(schema *ast.Schema, note string) error {
-
-	api, err := p.parseApi(note)
-
-	if err != nil {
-
-		return err
-
-	}
-
-	schema.Apis = append(schema.Apis, api)
-
-	return nil
-
-}
-
-
-
-func (p *Parser) isDefined(name string) bool {
-
-	return p.structNames[name] || p.enumNames[name]
-
-}
-
-
-
-func (p *Parser) isEnumDefinition() bool {
-
-	return p.peekToken.Type == lexer.TokenAssign || p.peekToken.Type == lexer.TokenPipe
-
-}
-
-
-
-func (p *Parser) isApiDefinition() bool {
-
-	return p.curToken.Type == lexer.TokenIdent && (p.peekToken.Type == lexer.TokenLParen || p.peekToken.Type == lexer.TokenDot)
-
-}
-
-
-
-func (p *Parser) parseStruct(note string) (ast.Struct, error) {
-
-	s := ast.Struct{Name: p.curToken.Value, Note: note}
-
-	p.nextToken() // 名称
-
-	p.nextToken() // {
-
-
-
-	for p.curToken.Type != lexer.TokenRBrace && p.curToken.Type != lexer.TokenEOF {
 
 		if p.curToken.Type == lexer.TokenComment {
-
+			if pendingNote == "" {
+				pendingNote = p.curToken.Literal
+			} else {
+				pendingNote += "\n" + p.curToken.Literal
+			}
 			p.nextToken()
-
 			continue
-
-		}
-
-		if p.curToken.Type == lexer.TokenComma {
-
-			p.nextToken() // 跳过可选逗号
-
-			continue
-
-		}
-
-
-
-		field, err := p.parseStructField()
-
-		if err != nil {
-
-			return s, err
-
-		}
-
-		s.Fields = append(s.Fields, field)
-
-	}
-
-	p.nextToken() // }
-
-	return s, nil
-
-}
-
-
-
-func (p *Parser) parseStructField() (ast.StructField, error) {
-
-	var f ast.StructField
-
-	startLine := p.curToken.Line
-
-
-
-	f.Name = p.curToken.Value
-
-	p.nextToken()
-
-
-
-	// 嵌入结构体情况: 名称实际上是类型
-
-	if p.curToken.Line != startLine {
-
-		f.Type = ast.Type{Name: f.Name}
-
-		f.Name = ""
-
-		return f, nil
-
-	}
-
-	
-
-	// 普通字段情况
-
-	if p.curToken.Type == lexer.TokenIdent || p.curToken.Type == lexer.TokenLBracket {
-
-		f.Type = p.parseType()
-
-		if p.curToken.Type == lexer.TokenIdent && (strings.HasPrefix(p.curToken.Value, "\"") || strings.HasPrefix(p.curToken.Value, "`")) {
-
-			f.Tag = strings.Trim(p.curToken.Value, "\"`")
-
-			p.nextToken()
-
-		}
-
-	} else {
-
-		// 嵌入兜底
-
-		f.Type = ast.Type{Name: f.Name}
-
-		f.Name = ""
-
-	}
-
-
-
-	if p.curToken.Type == lexer.TokenComment && p.curToken.Line == startLine {
-
-		f.Note = p.curToken.Value
-
-		p.nextToken()
-
-	}
-
-
-
-	return f, nil
-
-}
-
-
-
-func (p *Parser) parseType() ast.Type {
-
-	var t ast.Type
-
-	if p.curToken.Type != lexer.TokenLBracket {
-
-		t.Name = p.curToken.Value
-
-		p.nextToken()
-
-		return t
-
-	}
-
-
-
-	t.IsList = true
-
-	p.nextToken() // [
-
-	t.Name = p.curToken.Value
-
-	p.nextToken() // 名称
-
-	p.nextToken() // ]
-
-	return t
-
-}
-
-
-
-func (p *Parser) parseEnum(note string) (ast.Enum, error) {
-
-	e := ast.Enum{Name: p.curToken.Value, Note: note}
-
-	p.nextToken() // 名称
-
-	if p.curToken.Type == lexer.TokenAssign {
-
-		p.nextToken() // =
-
-	}
-
-
-
-	var lastID uint8 = 0
-
-	isFirst := true
-
-
-
-	for p.curToken.Type != lexer.TokenEOF {
-
-		if p.curToken.Type == lexer.TokenPipe {
-
-			p.nextToken()
-
-			continue
-
 		}
 
 		if p.curToken.Type != lexer.TokenIdent {
-
-			break
-
+			return nil, fmt.Errorf("行 %d: 未预期 token %q", p.curToken.Line, p.curToken.Literal)
 		}
 
+		note := pendingNote
+		pendingNote = ""
+		if p.peekToken.Type == lexer.TokenLBrace {
+			st, err := p.parseStruct(note)
+			if err != nil {
+				return nil, err
+			}
+			s.Structs = append(s.Structs, st)
+			continue
+		}
 
+		if p.peekToken.Type == lexer.TokenAssign || p.peekToken.Type == lexer.TokenPipe {
+			enum, err := p.parseEnum(note)
+			if err != nil {
+				return nil, err
+			}
+			s.Enums = append(s.Enums, enum)
+			continue
+		}
 
-		child, err := p.parseEnumChild(&lastID, &isFirst)
+		if p.peekToken.Type == lexer.TokenDot || p.peekToken.Type == lexer.TokenLParen {
+			api, err := p.parseAPI(note)
+			if err != nil {
+				return nil, err
+			}
+			s.APIs = append(s.APIs, api)
+			continue
+		}
 
+		return nil, fmt.Errorf("行 %d: 无法识别定义 %q", p.curToken.Line, p.curToken.Literal)
+	}
+
+	s.Note = pendingNote
+	return s, nil
+}
+
+func (p *Parser) parseStruct(note string) (ast.Struct, error) {
+	st := ast.Struct{Name: p.curToken.Literal, Note: note}
+
+	p.nextToken() // name 后一个 token
+	if err := p.expectCurrent(lexer.TokenLBrace, "{"); err != nil {
+		return st, err
+	}
+
+	p.nextToken()
+	for p.curToken.Type != lexer.TokenRBrace {
+		if p.curToken.Type == lexer.TokenEOF {
+			return st, fmt.Errorf("行 %d: 结构体 %s 缺少 }", p.curToken.Line, st.Name)
+		}
+		if p.curToken.Type == lexer.TokenComment || p.curToken.Type == lexer.TokenComma {
+			p.nextToken()
+			continue
+		}
+		if p.curToken.Type != lexer.TokenIdent {
+			return st, fmt.Errorf("行 %d: 结构体字段名非法 %q", p.curToken.Line, p.curToken.Literal)
+		}
+
+		field, err := p.parseField()
 		if err != nil {
-
-			return e, err
-
+			return st, err
 		}
+		st.Fields = append(st.Fields, field)
+	}
 
-		e.Children = append(e.Children, child)
+	p.nextToken() // 消费 }
+	return st, nil
+}
 
+func (p *Parser) parseField() (ast.Field, error) {
+	f := ast.Field{Name: p.curToken.Literal}
+	line := p.curToken.Line
+	p.nextToken()
 
+	if p.curToken.Line != line {
+		f.Type = ast.TypeRef{Name: f.Name}
+		f.Name = ""
+		f.Embedded = true
+		return f, nil
+	}
+
+	if p.curToken.Type == lexer.TokenIdent || p.curToken.Type == lexer.TokenLBracket {
+		t, err := p.parseType(false)
+		if err != nil {
+			return f, err
+		}
+		f.Type = t
+	} else if p.curToken.Type == lexer.TokenComma || p.curToken.Type == lexer.TokenComment || p.curToken.Type == lexer.TokenRBrace {
+		f.Type = ast.TypeRef{Name: f.Name}
+		f.Name = ""
+		f.Embedded = true
+	} else {
+		return f, fmt.Errorf("行 %d: 字段 %s 缺少类型", p.curToken.Line, f.Name)
+	}
+
+	if p.curToken.Type == lexer.TokenString && p.curToken.Line == line {
+		f.Tag = p.curToken.Literal
+		p.nextToken()
+	}
+
+	if p.curToken.Type == lexer.TokenComment && p.curToken.Line == line {
+		f.Note = p.curToken.Literal
+		p.nextToken()
+	}
+
+	return f, nil
+}
+
+func (p *Parser) parseEnum(note string) (ast.Enum, error) {
+	e := ast.Enum{Name: p.curToken.Literal, Note: note}
+	p.nextToken()
+	if p.curToken.Type == lexer.TokenAssign {
+		p.nextToken()
+	}
+
+	if p.curToken.Type != lexer.TokenIdent {
+		return e, fmt.Errorf("行 %d: 枚举 %s 至少需要一个成员", p.curToken.Line, e.Name)
+	}
+
+	for p.curToken.Type != lexer.TokenEOF {
+		if p.curToken.Type != lexer.TokenIdent {
+			break
+		}
+		member, err := p.parseEnumMember()
+		if err != nil {
+			return e, err
+		}
+		e.Members = append(e.Members, member)
 
 		if p.curToken.Type != lexer.TokenPipe {
-
 			break
-
 		}
+		p.nextToken()
+		if p.curToken.Type != lexer.TokenIdent {
+			return e, fmt.Errorf("行 %d: 枚举 %s 的 | 后缺少成员", p.curToken.Line, e.Name)
+		}
+	}
 
+	if len(e.Members) == 0 {
+		return e, fmt.Errorf("行 %d: 枚举 %s 至少需要一个成员", p.curToken.Line, e.Name)
 	}
 
 	return e, nil
-
 }
 
-
-
-func (p *Parser) parseEnumChild(lastID *uint8, isFirst *bool) (ast.EnumChild, error) {
-
-	child := ast.EnumChild{Name: p.curToken.Value}
-
-	childLine := p.curToken.Line
-
+func (p *Parser) parseEnumMember() (ast.EnumMemberRaw, error) {
+	m := ast.EnumMemberRaw{Name: p.curToken.Literal}
+	line := p.curToken.Line
 	p.nextToken()
-
-
 
 	if p.curToken.Type == lexer.TokenLParen {
-
-		p.nextToken() // (
-
-		id, err := strconv.ParseUint(p.curToken.Value, 10, 8)
-
+		p.nextToken()
+		if p.curToken.Type != lexer.TokenNumber {
+			return m, fmt.Errorf("行 %d: 枚举值必须为数字", p.curToken.Line)
+		}
+		parsed, err := strconv.ParseUint(p.curToken.Literal, 10, 8)
 		if err != nil {
-
-			return child, fmt.Errorf("行 %d: 无效枚举值 %q: %w", p.curToken.Line, p.curToken.Value, err)
-
+			return m, fmt.Errorf("行 %d: 无效枚举值 %q", p.curToken.Line, p.curToken.Literal)
 		}
-
-		child.ID = uint8(id)
-
-		*lastID = child.ID
-
-		p.nextToken() // 数值
-
-		p.nextToken() // )
-
-		*isFirst = false
-
-	} else {
-
-		if *isFirst {
-
-			child.ID = 0
-
-			*isFirst = false
-
-		} else {
-
-			if *lastID == 255 {
-
-				return child, fmt.Errorf("行 %d: 枚举值溢出", childLine)
-
-			}
-
-			*lastID++
-
-			child.ID = *lastID
-
-		}
-
-	}
-
-
-
-	if p.curToken.Type == lexer.TokenComment && p.curToken.Line == childLine {
-
-		child.Note = p.curToken.Value
+		v := uint8(parsed)
+		m.Value = &v
 
 		p.nextToken()
-
+		if err := p.expectCurrent(lexer.TokenRParen, ")"); err != nil {
+			return m, err
+		}
+		p.nextToken()
 	}
 
-	return child, nil
+	if p.curToken.Type == lexer.TokenComment && p.curToken.Line == line {
+		m.Note = p.curToken.Literal
+		p.nextToken()
+	}
 
+	return m, nil
 }
 
-
-
-func (p *Parser) parseApi(note string) (ast.Api, error) {
-
-	api := ast.Api{Note: note}
-
-	apiLine := p.curToken.Line
-
-	name := p.curToken.Value
-
+func (p *Parser) parseAPI(note string) (ast.API, error) {
+	api := ast.API{Note: note}
+	line := p.curToken.Line
+	name := p.curToken.Literal
 	p.nextToken()
 
-	
-
 	for p.curToken.Type == lexer.TokenDot {
-
 		p.nextToken()
-
-		name += "." + p.curToken.Value
-
+		if p.curToken.Type != lexer.TokenIdent {
+			return api, fmt.Errorf("行 %d: API 名称缺少段", p.curToken.Line)
+		}
+		name += "." + p.curToken.Literal
 		p.nextToken()
-
 	}
-
 	api.Name = name
 
+	if err := p.expectCurrent(lexer.TokenLParen, "("); err != nil {
+		return api, err
+	}
+	p.nextToken()
 
-
-	p.nextToken() // (
-
-	for p.curToken.Type != lexer.TokenRParen && p.curToken.Type != lexer.TokenEOF {
-
-		arg := ast.ApiArg{Name: p.curToken.Value}
-
+	for p.curToken.Type != lexer.TokenRParen {
+		if p.curToken.Type == lexer.TokenEOF {
+			return api, fmt.Errorf("行 %d: API %s 缺少 )", p.curToken.Line, api.Name)
+		}
+		if p.curToken.Type != lexer.TokenIdent {
+			return api, fmt.Errorf("行 %d: API 参数名非法 %q", p.curToken.Line, p.curToken.Literal)
+		}
+		arg := ast.APIArg{Name: p.curToken.Literal}
 		p.nextToken()
 
-		arg.Type = p.parseType()
-
+		t, err := p.parseType(false)
+		if err != nil {
+			return api, err
+		}
+		arg.Type = t
 		api.Args = append(api.Args, arg)
 
 		if p.curToken.Type == lexer.TokenComma {
-
 			p.nextToken()
-
+			if p.curToken.Type == lexer.TokenRParen {
+				return api, fmt.Errorf("行 %d: API 参数列表尾逗号非法", p.curToken.Line)
+			}
+			continue
 		}
-
+		if p.curToken.Type != lexer.TokenRParen {
+			return api, fmt.Errorf("行 %d: API 参数后需要 , 或 )", p.curToken.Line)
+		}
 	}
 
-	p.nextToken() // )
+	p.nextToken()
+	if err := p.expectCurrent(lexer.TokenArrow, "=>"); err != nil {
+		return api, err
+	}
+	p.nextToken()
 
-	p.nextToken() // =>
+	result, err := p.parseType(true)
+	if err != nil {
+		return api, err
+	}
+	api.Result = result
 
-
-
-	if p.curToken.Type == lexer.TokenIdent || p.curToken.Type == lexer.TokenLBracket {
-
-		api.Result = p.parseType()
-
-	} else if p.curToken.Value == "nil" {
-
-		api.Result = ast.Type{Name: "nil"}
-
+	if p.curToken.Type == lexer.TokenComment && p.curToken.Line == line {
+		api.Note = p.curToken.Literal
 		p.nextToken()
-
 	}
-
-
-
-	if p.curToken.Type == lexer.TokenComment && p.curToken.Line == apiLine {
-
-		api.Note = p.curToken.Value
-
-		p.nextToken()
-
-	}
-
-
 
 	return api, nil
-
 }
 
+func (p *Parser) parseType(allowNil bool) (ast.TypeRef, error) {
+	var t ast.TypeRef
 
-
-func (p *Parser) resolveTypes(s *ast.Schema) error {
-
-	if err := p.resolveStructFields(s); err != nil {
-
-		return err
-
-	}
-
-	if err := p.resolveApiArgs(s); err != nil {
-
-		return err
-
-	}
-
-	return p.expandEmbeddedStructs(s)
-
-}
-
-
-
-func (p *Parser) resolveStructFields(s *ast.Schema) error {
-
-	for i := range s.Structs {
-
-		for j := range s.Structs[i].Fields {
-
-			if err := p.resolveType(&s.Structs[i].Fields[j].Type); err != nil {
-
-				return fmt.Errorf("结构体 %s 字段 %s: %w", s.Structs[i].Name, s.Structs[i].Fields[j].Name, err)
-
-			}
-
+	if p.curToken.Type == lexer.TokenIdent {
+		if allowNil && p.curToken.Literal == "nil" {
+			t.Name = "nil"
+			p.nextToken()
+			return t, nil
 		}
-
+		t.Name = p.curToken.Literal
+		p.nextToken()
+		return t, nil
 	}
 
-	return nil
-
-}
-
-
-
-func (p *Parser) resolveApiArgs(s *ast.Schema) error {
-
-	for i := range s.Apis {
-
-		for j := range s.Apis[i].Args {
-
-			if err := p.resolveType(&s.Apis[i].Args[j].Type); err != nil {
-
-				return fmt.Errorf("api %s 参数 %s: %w", s.Apis[i].Name, s.Apis[i].Args[j].Name, err)
-
-			}
-
-		}
-
-		if err := p.resolveType(&s.Apis[i].Result); err != nil {
-
-			return fmt.Errorf("api %s 结果: %w", s.Apis[i].Name, err)
-
-		}
-
+	if p.curToken.Type != lexer.TokenLBracket {
+		return t, fmt.Errorf("行 %d: 非法类型 %q", p.curToken.Line, p.curToken.Literal)
 	}
 
-	return nil
-
-}
-
-
-
-func (p *Parser) resolveType(t *ast.Type) error {
-
-	if t.Name == "nil" || isBaseType(t.Name) {
-
-		t.Kind = ast.KindBase
-
-		return nil
-
+	t.IsList = true
+	p.nextToken()
+	if p.curToken.Type != lexer.TokenIdent {
+		return t, fmt.Errorf("行 %d: 数组类型缺少元素类型", p.curToken.Line)
+	}
+	if allowNil && p.curToken.Literal == "nil" {
+		return t, fmt.Errorf("行 %d: nil 不能作为数组元素类型", p.curToken.Line)
 	}
 
-	if p.structNames[t.Name] {
-
-		t.Kind = ast.KindStruct
-
-		return nil
-
+	t.Name = p.curToken.Literal
+	p.nextToken()
+	if err := p.expectCurrent(lexer.TokenRBracket, "]"); err != nil {
+		return t, err
 	}
-
-	if p.enumNames[t.Name] {
-
-		t.Kind = ast.KindEnum
-
-		return nil
-
-	}
-
-	return fmt.Errorf("未定义类型: %s", t.Name)
-
-}
-
-
-
-func isBaseType(name string) bool {
-
-	switch name {
-
-	case "i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64", 
-
-		 "f32", "f64", "bool", "text", "bin":
-
-		return true
-
-	}
-
-	return false
-
-}
-
-
-
-func (p *Parser) expandEmbeddedStructs(s *ast.Schema) error {
-
-	structMap := make(map[string]ast.Struct)
-
-	for _, st := range s.Structs {
-
-		structMap[st.Name] = st
-
-	}
-
-
-
-	visited := make(map[string]bool)
-
-	for i := range s.Structs {
-
-		clear(visited)
-
-		expanded, err := p.expandFields(s.Structs[i].Fields, structMap, visited, s.Structs[i].Name)
-
-		if err != nil {
-
-			return err
-
-		}
-
-		s.Structs[i].Fields = expanded
-
-	}
-
-	return nil
-
-}
-
-
-
-func (p *Parser) expandFields(fields []ast.StructField, structMap map[string]ast.Struct, visited map[string]bool, rootName string) ([]ast.StructField, error) {
-
-	if visited[rootName] {
-
-		return nil, fmt.Errorf("检测到循环嵌入: %s", rootName)
-
-	}
-
-	visited[rootName] = true
-
-	defer func() { visited[rootName] = false }()
-
-
-
-	var result []ast.StructField
-
-	for _, f := range fields {
-
-		if f.Name != "" {
-
-			result = append(result, f)
-
-			continue
-
-		}
-
-
-
-		base, ok := structMap[f.Type.Name]
-
-		if !ok {
-
-			// 由于 resolveTypes 理论上不可达
-
-			return nil, fmt.Errorf("未找到嵌入结构体 %s", f.Type.Name)
-
-		}
-
-
-
-		expanded, err := p.expandFields(base.Fields, structMap, visited, f.Type.Name)
-
-		if err != nil {
-
-			return nil, err
-
-		}
-
-		result = append(result, expanded...)
-
-	}
-
-	return result, nil
-
+	p.nextToken()
+	return t, nil
 }

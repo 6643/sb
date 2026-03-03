@@ -20,7 +20,7 @@ func {{$handlerName}}Handler(w http.ResponseWriter, r *http.Request) {
 
 	{{if ne $resData.Name "nil" -}}
 	result, status := {{.Name | SnakeCase}}(r.Context()
-		{{- range $i, $arg := .Args}}, {{if IsBaseType .Type}}{{GoLogicType .Type}}({{.Name}}){{else if IsEnum .Type}}{{if .Type.IsList}}{{.Name}}{{else}}{{PascalCase .Type.Name}}({{.Name}}){{end}}{{else if IsStruct .Type}}&{{.Name}}{{else}}{{.Name}}{{end}}{{end}})
+		{{- range $i, $arg := .Args}}, {{if IsBaseType .Type}}{{GoLogicType .Type}}({{.Name}}){{else if IsEnum .Type}}{{if .Type.IsList}}{{.Name}}{{else}}{{PascalCase .Type.Name}}({{.Name}}){{end}}{{else if IsStruct .Type}}{{if .Type.IsList}}{{.Name}}{{else}}&{{.Name}}{{end}}{{else}}{{.Name}}{{end}}{{end}})
 	if !checkStatus(w, status) { return }
 	{{if or (IsStruct $resData) (IsList $resData) -}}
 	sendResponse(w, result)
@@ -31,7 +31,7 @@ func {{$handlerName}}Handler(w http.ResponseWriter, r *http.Request) {
 	{{- end}}
 	{{- else -}}
 	status := {{.Name | SnakeCase}}(r.Context()
-		{{- range $i, $arg := .Args}}, {{if IsBaseType .Type}}{{GoLogicType .Type}}({{.Name}}){{else if IsEnum .Type}}{{if .Type.IsList}}{{.Name}}{{else}}{{PascalCase .Type.Name}}({{.Name}}){{end}}{{else if IsStruct .Type}}&{{.Name}}{{else}}{{.Name}}{{end}}{{end}})
+		{{- range $i, $arg := .Args}}, {{if IsBaseType .Type}}{{GoLogicType .Type}}({{.Name}}){{else if IsEnum .Type}}{{if .Type.IsList}}{{.Name}}{{else}}{{PascalCase .Type.Name}}({{.Name}}){{end}}{{else if IsStruct .Type}}{{if .Type.IsList}}{{.Name}}{{else}}&{{.Name}}{{end}}{{else}}{{.Name}}{{end}}{{end}})
 	if !checkStatus(w, status) { return }
 	w.WriteHeader(http.StatusOK)
 	{{- end}}
@@ -50,7 +50,12 @@ func composeMiddleware(mws ...Middleware) func(http.HandlerFunc) http.HandlerFun
 }
 
 {{range $module, $pkgApis := .Groups}}
-func Register{{$module | PascalCase}}(mux *http.ServeMux, mws ...Middleware) {
+{{- $moduleName := $module | PascalCase}}
+{{- if eq $moduleName "Api"}}
+func RegisterApi(mux *http.ServeMux, mws ...Middleware) {
+{{- else}}
+func Register{{$moduleName}}Api(mux *http.ServeMux, mws ...Middleware) {
+{{- end}}
 	mw := composeMiddleware(mws...)
 {{- range $pkgApis}}
 	mux.HandleFunc("POST /{{.Name}}", mw({{.Name | PascalCase}}Handler))

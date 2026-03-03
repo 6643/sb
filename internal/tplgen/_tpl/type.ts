@@ -274,6 +274,7 @@ export const getBin = (buf: Buffer): [Uint8Array, Error | null] => {
     return buf.read(len);
 };
 export const setBin = (buf: Buffer, value: Uint8Array): Error | null => {
+    if (value.length > 65535) return new Error(`bin length ${value.length} exceeds u16 max`);
     const err = setU16(buf, value.length);
     if (err !== null) return err;
     return buf.write(value);
@@ -297,8 +298,23 @@ export const setText = (buf: Buffer, value: string): Error | null => {
 };
 export const eqText = (a: string, b: string): boolean => a === b;
 
-export const getBoolList = (buf: Buffer): [boolean[], Error | null] => getList(buf, getBool);
-export const setBoolList = (buf: Buffer, v: boolean[]): Error | null => setList(buf, v, setBool);
+export const getBoolList = (buf: Buffer): [boolean[], Error | null] => {
+    const [count, err] = getU8(buf);
+    if (err !== null) return [[], err];
+    const [bits, errBits] = buf.read(Math.ceil(count / 8));
+    if (errBits !== null) return [[], errBits];
+    const list: boolean[] = new Array(count);
+    for (let i = 0; i < count; i++) list[i] = GetBit(bits, i);
+    return [list, null];
+};
+export const setBoolList = (buf: Buffer, v: boolean[]): Error | null => {
+    if (v.length > 255) return new Error(`list length ${v.length} exceeds u8 max`);
+    const err = setU8(buf, v.length);
+    if (err !== null) return err;
+    const bits = new Uint8Array(Math.ceil(v.length / 8));
+    for (let i = 0; i < v.length; i++) SetBit(bits, i, v[i]);
+    return buf.write(bits);
+};
 export const eqBoolList = (a: boolean[], b: boolean[]): boolean => eqList(a, b, eqBool);
 
 export const getI8List = (buf: Buffer): [number[], Error | null] => getList(buf, getI8);

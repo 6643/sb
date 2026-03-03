@@ -73,7 +73,7 @@ func RegisterApi(mux *http.ServeMux, mws ...Middleware) {
 	mux.HandleFunc("POST /get_bin", mw(GetBinHandler))
 }
 
-func RegisterUser(mux *http.ServeMux, mws ...Middleware) {
+func RegisterUserApi(mux *http.ServeMux, mws ...Middleware) {
 	mw := composeMiddleware(mws...)
 	mux.HandleFunc("POST /user.get_abc", mw(UserGetAbcHandler))
 	mux.HandleFunc("POST /user.get_abcd", mw(UserGetAbcdHandler))
