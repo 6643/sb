@@ -20,7 +20,6 @@ type SimInfo struct {
 
 func GetSimInfo(buf *bytes.Buffer, s *SimInfo) error {
 	if s == nil { return nil }
-	if buf.Len() == 0 { return nil }
 	bitSize := int(math.Ceil(float64(8) / 8.0))
 	if buf.Len() < bitSize { return fmt.Errorf("GetSimInfo bitmask: %d - %d", buf.Len(), bitSize) }
 	bits := buf.Next(bitSize)
@@ -53,7 +52,7 @@ func GetSimInfo(buf *bytes.Buffer, s *SimInfo) error {
 }
 
 func SetSimInfo(buf *bytes.Buffer, s *SimInfo) error {
-	if s == nil { return nil }
+	if s == nil { return fmt.Errorf("SetSimInfo: nil value") }
 	if err := ValidateSimInfo(s); err != nil { return fmt.Errorf("ValidateSimInfo: %w", err) }
 	bits := make([]byte, uint8(math.Ceil(float64(8)/8.0)))
 	body := bytes.NewBuffer(nil)
@@ -112,7 +111,7 @@ func GetSimInfoList(buf *bytes.Buffer) (SimInfoList, error) { return getList[*Si
 func SetSimInfoList(buf *bytes.Buffer, v SimInfoList) error { return setList(buf, v, SetSimInfo) }
 func ValidateSimInfoList(v SimInfoList) error {
 	for i, item := range v {
-		if item == nil { continue }
+		if item == nil { return fmt.Errorf("SimInfoList[%d]: nil item", i) }
 		if err := ValidateSimInfo(item); err != nil { return fmt.Errorf("SimInfoList[%d]: %w", i, err) }
 	}
 	return nil

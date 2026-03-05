@@ -39,7 +39,6 @@ type Sim struct {
 
 func GetSim(buf *bytes.Buffer, s *Sim) error {
 	if s == nil { return nil }
-	if buf.Len() == 0 { return nil }
 	bitSize := int(math.Ceil(float64(27) / 8.0))
 	if buf.Len() < bitSize { return fmt.Errorf("GetSim bitmask: %d - %d", buf.Len(), bitSize) }
 	bits := buf.Next(bitSize)
@@ -52,11 +51,13 @@ func GetSim(buf *bytes.Buffer, s *Sim) error {
 		val, err := GetType(buf)
 		if err != nil { return fmt.Errorf("GetSim Type: %w", err) }
 		s.Type = val
+		if !IsType(s.Type) { return fmt.Errorf("GetSim Type: 非法枚举值: %d", s.Type) }
 	}
 	if GetBit(bits, uint8(2)) {
 		val, err := GetItemStatus(buf)
 		if err != nil { return fmt.Errorf("GetSim Status: %w", err) }
 		s.Status = val
+		if !IsItemStatus(s.Status) { return fmt.Errorf("GetSim Status: 非法枚举值: %d", s.Status) }
 	}
 	if GetBit(bits, uint8(3)) {
 		val, err := GetU16(buf)
@@ -87,6 +88,7 @@ func GetSim(buf *bytes.Buffer, s *Sim) error {
 		val, err := GetSimOperator(buf)
 		if err != nil { return fmt.Errorf("GetSim Operator: %w", err) }
 		s.Operator = val
+		if !IsSimOperator(s.Operator) { return fmt.Errorf("GetSim Operator: 非法枚举值: %d", s.Operator) }
 	}
 	if GetBit(bits, uint8(9)) {
 		val, err := GetU16(buf)
@@ -179,7 +181,7 @@ func GetSim(buf *bytes.Buffer, s *Sim) error {
 }
 
 func SetSim(buf *bytes.Buffer, s *Sim) error {
-	if s == nil { return nil }
+	if s == nil { return fmt.Errorf("SetSim: nil value") }
 	if err := ValidateSim(s); err != nil { return fmt.Errorf("ValidateSim: %w", err) }
 	bits := make([]byte, uint8(math.Ceil(float64(27)/8.0)))
 	body := bytes.NewBuffer(nil)
@@ -349,7 +351,7 @@ func GetSimList(buf *bytes.Buffer) (SimList, error) { return getList[*Sim, SimLi
 func SetSimList(buf *bytes.Buffer, v SimList) error { return setList(buf, v, SetSim) }
 func ValidateSimList(v SimList) error {
 	for i, item := range v {
-		if item == nil { continue }
+		if item == nil { return fmt.Errorf("SimList[%d]: nil item", i) }
 		if err := ValidateSim(item); err != nil { return fmt.Errorf("SimList[%d]: %w", i, err) }
 	}
 	return nil

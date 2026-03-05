@@ -19,7 +19,6 @@ type SimOrder2 struct {
 
 func GetSimOrder2(buf *bytes.Buffer, s *SimOrder2) error {
 	if s == nil { return nil }
-	if buf.Len() == 0 { return nil }
 	bitSize := int(math.Ceil(float64(7) / 8.0))
 	if buf.Len() < bitSize { return fmt.Errorf("GetSimOrder2 bitmask: %d - %d", buf.Len(), bitSize) }
 	bits := buf.Next(bitSize)
@@ -63,7 +62,7 @@ func GetSimOrder2(buf *bytes.Buffer, s *SimOrder2) error {
 }
 
 func SetSimOrder2(buf *bytes.Buffer, s *SimOrder2) error {
-	if s == nil { return nil }
+	if s == nil { return fmt.Errorf("SetSimOrder2: nil value") }
 	if err := ValidateSimOrder2(s); err != nil { return fmt.Errorf("ValidateSimOrder2: %w", err) }
 	bits := make([]byte, uint8(math.Ceil(float64(7)/8.0)))
 	body := bytes.NewBuffer(nil)
@@ -129,7 +128,7 @@ func GetSimOrder2List(buf *bytes.Buffer) (SimOrder2List, error) { return getList
 func SetSimOrder2List(buf *bytes.Buffer, v SimOrder2List) error { return setList(buf, v, SetSimOrder2) }
 func ValidateSimOrder2List(v SimOrder2List) error {
 	for i, item := range v {
-		if item == nil { continue }
+		if item == nil { return fmt.Errorf("SimOrder2List[%d]: nil item", i) }
 		if err := ValidateSimOrder2(item); err != nil { return fmt.Errorf("SimOrder2List[%d]: %w", i, err) }
 	}
 	return nil

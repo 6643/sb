@@ -148,7 +148,7 @@ type Bin []byte
 func GetBin(buf *bytes.Buffer) ([]byte, error) {
 	l, err := GetU16(buf)
 	if err != nil { return nil, err }
-	if uint16(buf.Len()) < l { return nil, fmt.Errorf("not enough data") }
+	if buf.Len() < int(l) { return nil, fmt.Errorf("not enough data") }
 	res := make([]byte, l)
 	copy(res, buf.Next(int(l)))
 	return res, nil

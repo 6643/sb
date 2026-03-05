@@ -1,0 +1,10 @@
+Level = Low(1) | Mid(2) | High(3)
+
+BlobWrap {
+    text_value text
+    bin_value bin
+    nums [u8]
+    level Level
+}
+
+round(payload BlobWrap) => BlobWrap

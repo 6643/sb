@@ -1,5 +1,4 @@
 package sb
-
 import (
 	"bytes"
 	"slices"

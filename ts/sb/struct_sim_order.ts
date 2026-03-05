@@ -114,7 +114,7 @@ export const getSimOrder = (buf: _.Buffer): [SimOrder, Error | null] => {
         const [v, err] = _.getU8(buf);
         if (err !== null) return [s, err];
         s.status = v as any;
-        if ((s.status as any) !== 0 && !_.IsOrderStatus(s.status as any)) return [s, new Error("get SimOrder Status: invalid enum value")];
+        if (!_.IsOrderStatus(s.status as any)) return [s, new Error("get SimOrder Status: invalid enum value")];
     }
     return [s, null];
 }

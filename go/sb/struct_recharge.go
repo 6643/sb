@@ -16,7 +16,6 @@ type Recharge struct {
 
 func GetRecharge(buf *bytes.Buffer, s *Recharge) error {
 	if s == nil { return nil }
-	if buf.Len() == 0 { return nil }
 	bitSize := int(math.Ceil(float64(4) / 8.0))
 	if buf.Len() < bitSize { return fmt.Errorf("GetRecharge bitmask: %d - %d", buf.Len(), bitSize) }
 	bits := buf.Next(bitSize)
@@ -45,7 +44,7 @@ func GetRecharge(buf *bytes.Buffer, s *Recharge) error {
 }
 
 func SetRecharge(buf *bytes.Buffer, s *Recharge) error {
-	if s == nil { return nil }
+	if s == nil { return fmt.Errorf("SetRecharge: nil value") }
 	if err := ValidateRecharge(s); err != nil { return fmt.Errorf("ValidateRecharge: %w", err) }
 	bits := make([]byte, uint8(math.Ceil(float64(4)/8.0)))
 	body := bytes.NewBuffer(nil)
@@ -102,7 +101,7 @@ func GetRechargeList(buf *bytes.Buffer) (RechargeList, error) { return getList[*
 func SetRechargeList(buf *bytes.Buffer, v RechargeList) error { return setList(buf, v, SetRecharge) }
 func ValidateRechargeList(v RechargeList) error {
 	for i, item := range v {
-		if item == nil { continue }
+		if item == nil { return fmt.Errorf("RechargeList[%d]: nil item", i) }
 		if err := ValidateRecharge(item); err != nil { return fmt.Errorf("RechargeList[%d]: %w", i, err) }
 	}
 	return nil

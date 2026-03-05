@@ -3,14 +3,14 @@ import * as Enum from "./enum"
 
 export interface {{.Name | PascalCase}} extends _.Serializable, _.Deserializable {
     {{- range .Fields}}
-    {{.Name | CamelCase}}: {{if .Type.IsList}}{{if IsEnum .Type}}Enum.{{end}}{{if not (IsBaseType .Type)}}{{if not (IsEnum .Type)}}_.{{end}}{{end}}{{TsType .Type}}[]{{else}}{{if IsEnum .Type}}Enum.{{end}}{{if not (IsBaseType .Type)}}{{if not (IsEnum .Type)}}_.{{end}}{{end}}{{TsType .Type}}{{end}};
+    {{.Name | CamelCase}}: {{if .Type.IsList}}{{if IsEnum .Type}}Enum.{{end}}{{if not (IsBaseType .Type)}}{{if not (IsEnum .Type)}}_.{{end}}{{end}}{{TsType .Type}}[]{{else}}{{if IsEnum .Type}}Enum.{{end}}{{if not (IsBaseType .Type)}}{{if not (IsEnum .Type)}}_.{{end}}{{end}}{{TsType .Type}}{{if and (not .Type.IsList) (IsStruct .Type)}} | null{{end}}{{end}};
     {{- end}}
 }
 
 export const new{{.Name | PascalCase}} = (): {{.Name | PascalCase}} => {
     const s = {
         {{- range .Fields}}
-        {{.Name | CamelCase}}: {{if .Type.IsList}}[]{{else}}{{if IsBaseType .Type}}{{TsValue .Type.Name}}{{else if IsEnum .Type}}0{{else}}_.new{{TsType .Type}}(){{end}}{{end}},
+        {{.Name | CamelCase}}: {{if .Type.IsList}}[]{{else}}{{if IsBaseType .Type}}{{TsValue .Type.Name}}{{else if IsEnum .Type}}0{{else}}null{{end}}{{end}},
         {{- end}}
     } as any as {{.Name | PascalCase}};
     s.set = (buf: _.Buffer) => set{{.Name | PascalCase}}(buf, s);
@@ -70,7 +70,7 @@ export const get{{.Name | PascalCase}} = (buf: _.Buffer): [{{.Name | PascalCase}
         const [v, err] = _.getU8(buf);
         if (err !== null) return [s, err];
         s.{{$field.Name | CamelCase}} = v as any;
-        if ((s.{{$field.Name | CamelCase}} as any) !== 0 && !_.Is{{.Type.Name | PascalCase}}(s.{{$field.Name | CamelCase}} as any)) return [s, new Error("get {{$.Name | PascalCase}} {{$field.Name | PascalCase}}: invalid enum value")];
+        if (!_.Is{{.Type.Name | PascalCase}}(s.{{$field.Name | CamelCase}} as any)) return [s, new Error("get {{$.Name | PascalCase}} {{$field.Name | PascalCase}}: invalid enum value")];
         {{- end}}
         {{- else}}
         {{- if .Type.IsList}}
@@ -135,7 +135,7 @@ export const set{{.Name | PascalCase}} = (buf: _.Buffer, s: {{.Name | PascalCase
         _.SetBit(bits, {{$i}}, true);
     }
     {{- else}}
-    if (s.{{$field.Name | CamelCase}} !== null) {
+    if (s.{{$field.Name | CamelCase}} !== null && s.{{$field.Name | CamelCase}} !== undefined) {
         const err = _.set{{.Type.Name | PascalCase}}(body, s.{{$field.Name | CamelCase}});
         if (err !== null) return err;
         _.SetBit(bits, {{$i}}, true);

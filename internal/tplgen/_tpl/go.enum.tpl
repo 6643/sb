@@ -1,10 +1,12 @@
 package {{.Package}}
 
+{{- if .Enums}}
 import (
 	"bytes"
 	"slices"
 	"unsafe"
 )
+{{- end}}
 
 {{range .Enums}}
 {{$enumName := .Name | PascalCase}}

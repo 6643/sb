@@ -109,20 +109,33 @@ func RegisterUserApi(mux *http.ServeMux, mws ...Middleware) {
 
 // --- 内部辅助函数 ---
 
+const defaultMaxReqBytes int64 = 4 * 1024 * 1024
+
 func checkStatus(w http.ResponseWriter, status RpcErrCode) bool {
 	if status == RpcOk { return true }
 	w.WriteHeader(int(status)); return false
 }
 
 func parseRequest(w http.ResponseWriter, r *http.Request, args ...Getter) bool {
-	if len(args) == 0 { return true }
-	body, err := io.ReadAll(r.Body); if err != nil { w.WriteHeader(http.StatusBadRequest); return false }
-	if err := GetAll(bytes.NewBuffer(body), args...); err != nil { w.WriteHeader(http.StatusBadRequest); return false }
+	if len(args) == 0 {
+		body, err := io.ReadAll(io.LimitReader(r.Body, 1)); if err != nil { w.WriteHeader(http.StatusBadRequest); return false }
+		if len(body) != 0 { w.WriteHeader(http.StatusBadRequest); return false }
+		return true
+	}
+	readLimit := defaultMaxReqBytes + 1
+	body, err := io.ReadAll(io.LimitReader(r.Body, readLimit)); if err != nil { w.WriteHeader(http.StatusBadRequest); return false }
+	if int64(len(body)) > defaultMaxReqBytes { w.WriteHeader(http.StatusRequestEntityTooLarge); return false }
+	buf := bytes.NewBuffer(body)
+	if err := GetAll(buf, args...); err != nil { w.WriteHeader(http.StatusBadRequest); return false }
+	if buf.Len() != 0 { w.WriteHeader(http.StatusBadRequest); return false }
 	return true
 }
 
 func sendResponse(w http.ResponseWriter, setter Setter) {
 	var buf bytes.Buffer
 	if err := SetAll(&buf, setter); err != nil { w.WriteHeader(http.StatusInternalServerError); return }
-	w.Write(buf.Bytes())
+	if w.Header().Get("Content-Type") == "" {
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
+	if _, err := w.Write(buf.Bytes()); err != nil { w.WriteHeader(http.StatusInternalServerError); return }
 }

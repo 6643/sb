@@ -117,13 +117,13 @@ export const getSim = (buf: _.Buffer): [Sim, Error | null] => {
         const [v, err] = _.getU8(buf);
         if (err !== null) return [s, err];
         s.type = v as any;
-        if ((s.type as any) !== 0 && !_.IsType(s.type as any)) return [s, new Error("get Sim Type: invalid enum value")];
+        if (!_.IsType(s.type as any)) return [s, new Error("get Sim Type: invalid enum value")];
     }
     if (_.GetBit(bits, 2)) {
         const [v, err] = _.getU8(buf);
         if (err !== null) return [s, err];
         s.status = v as any;
-        if ((s.status as any) !== 0 && !_.IsItemStatus(s.status as any)) return [s, new Error("get Sim Status: invalid enum value")];
+        if (!_.IsItemStatus(s.status as any)) return [s, new Error("get Sim Status: invalid enum value")];
     }
     if (_.GetBit(bits, 3)) {
         const [v, err] = _.getU16(buf);
@@ -154,7 +154,7 @@ export const getSim = (buf: _.Buffer): [Sim, Error | null] => {
         const [v, err] = _.getU8(buf);
         if (err !== null) return [s, err];
         s.operator = v as any;
-        if ((s.operator as any) !== 0 && !_.IsSimOperator(s.operator as any)) return [s, new Error("get Sim Operator: invalid enum value")];
+        if (!_.IsSimOperator(s.operator as any)) return [s, new Error("get Sim Operator: invalid enum value")];
     }
     if (_.GetBit(bits, 9)) {
         const [v, err] = _.getU16(buf);

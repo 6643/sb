@@ -5,7 +5,7 @@ export interface RechargeA extends _.Serializable, _.Deserializable {
     id: number;
     type: Enum.OrderStatus[];
     phone: string[];
-    si: _.SimInfo;
+    si: _.SimInfo | null;
     aid: number;
 }
 
@@ -14,7 +14,7 @@ export const newRechargeA = (): RechargeA => {
         id: 0,
         type: [],
         phone: [],
-        si: _.newSimInfo(),
+        si: null,
         aid: 0,
     } as any as RechargeA;
     s.set = (buf: _.Buffer) => setRechargeA(buf, s);
@@ -91,7 +91,7 @@ export const setRechargeA = (buf: _.Buffer, s: RechargeA): Error | null => {
         if (err !== null) return err;
         _.SetBit(bits, 2, true);
     }
-    if (s.si !== null) {
+    if (s.si !== null && s.si !== undefined) {
         const err = _.setSimInfo(body, s.si);
         if (err !== null) return err;
         _.SetBit(bits, 3, true);

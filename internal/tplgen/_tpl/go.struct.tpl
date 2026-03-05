@@ -15,7 +15,6 @@ type {{.Name | PascalCase}} struct {
 
 func Get{{.Name | PascalCase}}(buf *bytes.Buffer, s *{{.Name | PascalCase}}) error {
 	if s == nil { return nil }
-	if buf.Len() == 0 { return nil }
 	bitSize := int(math.Ceil(float64({{len .Fields}}) / 8.0))
 	if buf.Len() < bitSize { return fmt.Errorf("Get{{$.Name | PascalCase}} bitmask: %d - %d", buf.Len(), bitSize) }
 	bits := buf.Next(bitSize)
@@ -39,6 +38,7 @@ func Get{{.Name | PascalCase}}(buf *bytes.Buffer, s *{{.Name | PascalCase}}) err
 		val, err := Get{{.Type.Name | PascalCase}}(buf)
 		if err != nil { return fmt.Errorf("Get{{$.Name | PascalCase}} {{.Name | PascalCase}}: %w", err) }
 		s.{{$field.Name | PascalCase}} = val
+		if !Is{{.Type.Name | PascalCase}}(s.{{$field.Name | PascalCase}}) { return fmt.Errorf("Get{{$.Name | PascalCase}} {{.Name | PascalCase}}: 非法枚举值: %d", s.{{$field.Name | PascalCase}}) }
 		{{- end}}
 		{{- else}}
 		{{- if .Type.IsList}}
@@ -60,7 +60,7 @@ func Get{{.Name | PascalCase}}(buf *bytes.Buffer, s *{{.Name | PascalCase}}) err
 }
 
 func Set{{.Name | PascalCase}}(buf *bytes.Buffer, s *{{.Name | PascalCase}}) error {
-	if s == nil { return nil }
+	if s == nil { return fmt.Errorf("Set{{$.Name | PascalCase}}: nil value") }
 	if err := Validate{{$.Name | PascalCase}}(s); err != nil { return fmt.Errorf("Validate{{$.Name | PascalCase}}: %w", err) }
 	bits := make([]byte, uint8(math.Ceil(float64({{len .Fields}})/8.0)))
 	body := bytes.NewBuffer(nil)
@@ -175,7 +175,7 @@ func Get{{.Name | PascalCase}}List(buf *bytes.Buffer) ({{.Name | PascalCase}}Lis
 func Set{{.Name | PascalCase}}List(buf *bytes.Buffer, v {{.Name | PascalCase}}List) error { return setList(buf, v, Set{{.Name | PascalCase}}) }
 func Validate{{.Name | PascalCase}}List(v {{.Name | PascalCase}}List) error {
 	for i, item := range v {
-		if item == nil { continue }
+		if item == nil { return fmt.Errorf("{{.Name | PascalCase}}List[%d]: nil item", i) }
 		if err := Validate{{.Name | PascalCase}}(item); err != nil { return fmt.Errorf("{{.Name | PascalCase}}List[%d]: %w", i, err) }
 	}
 	return nil

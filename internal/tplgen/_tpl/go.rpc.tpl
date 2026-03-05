@@ -5,6 +5,8 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -18,6 +20,7 @@ const (
 	RpcRespErr   RpcErrCode = 500
 	RpcNotAuth   RpcErrCode = 401
 	RpcNotExist  RpcErrCode = 404
+	defaultMaxRespBytes int64 = 4 * 1024 * 1024
 )
 
 type Client struct {
@@ -25,30 +28,40 @@ type Client struct {
 	HTTP    *http.Client
 	Timeout time.Duration
 	Retries int
+	MaxRespBytes int64
 	headers map[string]string
+	headersMu sync.RWMutex
 }
 
 func NewClient(baseURL string) *Client {
+	baseURL = strings.TrimRight(baseURL, "/")
 	return &Client{
 		BaseURL: baseURL,
 		HTTP:    &http.Client{},
 		Timeout: 5 * time.Second,
 		Retries: 3,
+		MaxRespBytes: defaultMaxRespBytes,
 		headers: make(map[string]string),
 	}
 }
 
 func SetClientHeader(c *Client, key, value string) {
 	if c == nil { return }
+	c.headersMu.Lock()
+	defer c.headersMu.Unlock()
 	if c.headers == nil { c.headers = make(map[string]string) }
 	c.headers[key] = value
 }
 func GetClientHeader(c *Client, key string) string {
 	if c == nil { return "" }
+	c.headersMu.RLock()
+	defer c.headersMu.RUnlock()
 	return c.headers[key]
 }
 func RemoveClientHeader(c *Client, key string) {
 	if c == nil { return }
+	c.headersMu.Lock()
+	defer c.headersMu.Unlock()
 	delete(c.headers, key)
 }
 
@@ -66,11 +79,17 @@ func isTimeout(err error) bool {
 
 func doClient(c *Client, ctx context.Context, path string, body []byte) ([]byte, RpcErrCode) {
 	if c == nil { return nil, RpcNoConn }
-	if c.HTTP == nil { c.HTTP = &http.Client{} }
+	if ctx == nil { ctx = context.Background() }
+	httpClient := c.HTTP
+	if httpClient == nil { httpClient = &http.Client{} }
+	maxRetries := c.Retries
+	if maxRetries < 0 { maxRetries = 0 }
+	maxRespBytes := c.MaxRespBytes
+	if maxRespBytes <= 0 { maxRespBytes = defaultMaxRespBytes }
 	var resp *http.Response
 	var err error
 
-	for i := 0; i <= c.Retries; i++ {
+	for i := 0; i <= maxRetries; i++ {
 		if i > 0 {
 			timer := time.NewTimer(time.Duration(i) * time.Second)
 		select {
@@ -92,14 +111,23 @@ func doClient(c *Client, ctx context.Context, path string, body []byte) ([]byte,
 			return nil, RpcNoConn
 		}
 
+		c.headersMu.RLock()
+		headers := make(map[string]string, len(c.headers))
 		for k, v := range c.headers {
+			headers[k] = v
+		}
+		c.headersMu.RUnlock()
+		for k, v := range headers {
 			req.Header.Set(k, v)
 		}
+		if req.Header.Get("Content-Type") == "" {
+			req.Header.Set("Content-Type", "application/octet-stream")
+		}
 
-		resp, err = c.HTTP.Do(req)
+		resp, err = httpClient.Do(req)
 		cancel()
 		if err != nil {
-			if isTimeout(err) && i < c.Retries {
+			if isTimeout(err) && i < maxRetries {
 				continue
 			}
 			if isTimeout(err) {
@@ -108,22 +136,26 @@ func doClient(c *Client, ctx context.Context, path string, body []byte) ([]byte,
 			return nil, RpcNoConn
 		}
 
-		if resp.StatusCode == http.StatusRequestTimeout && i < c.Retries {
+		if resp.StatusCode == http.StatusRequestTimeout && i < maxRetries {
 			resp.Body.Close()
 			continue
 		}
 		break
 	}
+	if resp == nil { return nil, RpcNoConn }
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, RpcErrCode(resp.StatusCode)
 	}
 
-	b, readErr := io.ReadAll(resp.Body)
+	readLimit := maxRespBytes
+	if readLimit < (1<<63 - 1) { readLimit++ }
+	b, readErr := io.ReadAll(io.LimitReader(resp.Body, readLimit))
 	if readErr != nil {
 		return nil, RpcRespErr
 	}
+	if readLimit > maxRespBytes && int64(len(b)) > maxRespBytes { return nil, RpcRespErr }
 	return b, RpcOk
 }
 
@@ -133,6 +165,24 @@ func doClient(c *Client, ctx context.Context, path string, body []byte) ([]byte,
 func Call{{.Name | PascalCase}}(c *Client, ctx context.Context{{range .Args}}, {{.Name | CamelCase}} {{GoLogicType .Type}}{{end}}) ({{if eq $resData.Name "nil"}}errCode RpcErrCode{{else}}result {{GoLogicType .Result}}, errCode RpcErrCode{{end}}) {
 	var buf bytes.Buffer
 	{{- if .Args}}
+	{{- range .Args}}
+	{{- if and (IsStruct .Type) (not .Type.IsList)}}
+	if {{.Name | CamelCase}} == nil {
+		return {{if eq $resData.Name "nil"}}RpcReqErr{{else}}result, RpcReqErr{{end}}
+	}
+	{{- end}}
+	{{- if IsEnum .Type}}
+	{{- if .Type.IsList}}
+	if !Is{{.Type.Name | PascalCase}}List(({{.Type.Name | PascalCase}}List)({{.Name | CamelCase}})) {
+		return {{if eq $resData.Name "nil"}}RpcReqErr{{else}}result, RpcReqErr{{end}}
+	}
+	{{- else}}
+	if !Is{{.Type.Name | PascalCase}}({{.Name | CamelCase}}) {
+		return {{if eq $resData.Name "nil"}}RpcReqErr{{else}}result, RpcReqErr{{end}}
+	}
+	{{- end}}
+	{{- end}}
+	{{- end}}
 	if err := SetAll(&buf{{range .Args}}, func(buf *bytes.Buffer) error {
 		{{- if IsBaseType .Type}}
 		return Set{{.Type.Name | PascalCase}}{{if .Type.IsList}}List{{end}}(buf, {{.Name | CamelCase}})
@@ -146,13 +196,14 @@ func Call{{.Name | PascalCase}}(c *Client, ctx context.Context{{range .Args}}, {
 	}
 	{{- end}}
 
-	{{if eq $resData.Name "nil"}}_{{else}}body{{end}}, status := doClient(c, ctx, "/{{.Name}}", buf.Bytes())
+	body, status := doClient(c, ctx, "/{{.Name}}", buf.Bytes())
 	if status != RpcOk {
 		return {{if eq $resData.Name "nil"}}status{{else}}result, status{{end}}
 	}
 
 	{{if ne $resData.Name "nil" -}}
-	if err := GetAll(bytes.NewBuffer(body), func(buf *bytes.Buffer) error {
+	respBuf := bytes.NewBuffer(body)
+	if err := GetAll(respBuf, func(buf *bytes.Buffer) error {
 		val, err := {{if and (IsStruct .Result) (not .Result.IsList)}}Read{{.Result.Name | PascalCase}}{{else}}Get{{.Result.Name | PascalCase}}{{if .Result.IsList}}List{{end}}{{end}}(buf)
 		if err != nil { return err }
 		result = val
@@ -160,8 +211,15 @@ func Call{{.Name | PascalCase}}(c *Client, ctx context.Context{{range .Args}}, {
 	}); err != nil {
 		return result, RpcRespErr
 	}
+	if respBuf.Len() != 0 { return result, RpcRespErr }
+	{{- if and (IsEnum .Result) .Result.IsList}}
+	if !Is{{.Result.Name | PascalCase}}List(({{.Result.Name | PascalCase}}List)(result)) { return result, RpcRespErr }
+	{{- else if IsEnum .Result}}
+	if !Is{{.Result.Name | PascalCase}}(result) { return result, RpcRespErr }
+	{{- end}}
 	return result, status
 	{{- else -}}
+	if len(body) != 0 { return RpcRespErr }
 	return status
 	{{- end}}
 }

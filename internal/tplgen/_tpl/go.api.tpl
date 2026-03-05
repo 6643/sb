@@ -2,6 +2,7 @@
 {{- $innerFuncName := .Api.Name | SnakeCase -}}
 {{- $retType := GoLogicType $resultData -}}
 {{- $hasRet := ne $resultData.Name "nil" -}}
+{{- $retIsNilable := or $resultData.IsList (IsStruct $resultData) -}}
 
 package {{.Package}}
 
@@ -10,5 +11,5 @@ import (
 )
 
 func {{$innerFuncName}}(ctx context.Context{{range .Api.Args}}, {{.Name}} {{GoLogicType .Type}}{{end}}) ({{if $hasRet}}result {{$retType}}, {{end}}errCode RpcErrCode) {
-	return {{if $hasRet}}{{GoValue .Api.Result.Name}}, {{end}}RpcRespErr
+	return {{if $hasRet}}{{if $retIsNilable}}nil{{else}}{{GoValue .Api.Result.Name}}{{end}}, {{end}}RpcRespErr
 }

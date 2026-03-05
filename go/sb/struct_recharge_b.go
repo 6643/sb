@@ -17,7 +17,6 @@ type RechargeB struct {
 
 func GetRechargeB(buf *bytes.Buffer, s *RechargeB) error {
 	if s == nil { return nil }
-	if buf.Len() == 0 { return nil }
 	bitSize := int(math.Ceil(float64(5) / 8.0))
 	if buf.Len() < bitSize { return fmt.Errorf("GetRechargeB bitmask: %d - %d", buf.Len(), bitSize) }
 	bits := buf.Next(bitSize)
@@ -51,7 +50,7 @@ func GetRechargeB(buf *bytes.Buffer, s *RechargeB) error {
 }
 
 func SetRechargeB(buf *bytes.Buffer, s *RechargeB) error {
-	if s == nil { return nil }
+	if s == nil { return fmt.Errorf("SetRechargeB: nil value") }
 	if err := ValidateRechargeB(s); err != nil { return fmt.Errorf("ValidateRechargeB: %w", err) }
 	bits := make([]byte, uint8(math.Ceil(float64(5)/8.0)))
 	body := bytes.NewBuffer(nil)
@@ -113,7 +112,7 @@ func GetRechargeBList(buf *bytes.Buffer) (RechargeBList, error) { return getList
 func SetRechargeBList(buf *bytes.Buffer, v RechargeBList) error { return setList(buf, v, SetRechargeB) }
 func ValidateRechargeBList(v RechargeBList) error {
 	for i, item := range v {
-		if item == nil { continue }
+		if item == nil { return fmt.Errorf("RechargeBList[%d]: nil item", i) }
 		if err := ValidateRechargeB(item); err != nil { return fmt.Errorf("RechargeBList[%d]: %w", i, err) }
 	}
 	return nil

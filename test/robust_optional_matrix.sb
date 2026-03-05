@@ -1,0 +1,15 @@
+Kind = A(1) | B(2)
+
+Child {
+    id u32
+}
+
+Matrix {
+    single Child
+    many [Child]
+    kind Kind
+    kinds [Kind]
+}
+
+submit(m Matrix) => nil
+fetch() => Matrix

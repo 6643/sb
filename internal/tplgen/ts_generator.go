@@ -121,6 +121,11 @@ func (g *TsGenerator) Generate(schema *Schema) error {
 	}); err != nil {
 		return err
 	}
+	if err := g.executeTemplate("_tpl/ts.test.tpl", filepath.Join(targetDir, "rpc_smoke.test.ts"), map[string]any{
+		"Apis": schema.Apis,
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 
