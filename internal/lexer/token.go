@@ -10,6 +10,7 @@ const (
 	TokenNumber
 	TokenString
 	TokenComment
+	TokenNewLine  // \n or \r\n
 	TokenLBrace   // {
 	TokenRBrace   // }
 	TokenLParen   // (

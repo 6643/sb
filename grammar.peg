@@ -1,0 +1,109 @@
+# SB Schema 语法 (PEG)
+#
+# 规则来源: `aaa.sb`.
+# 风格约束: `<-` 纵向对齐, alternatives 使用逐行 `/`.
+
+Schema              <- WS* (Element WS*)* EOF
+
+Element             <- CommentLine
+                    / Definition
+
+Definition          <- StructDef
+                    / EnumDef
+                    / ApiDef
+
+StructDef           <- Ident HWS* LBrace StructBody RBrace
+# struct 字段规则: 每行最多一个字段. 逗号必须独占一行. 字段后仅允许可选注释, 然后换行或 `}`.
+StructBody          <- (WS* StructLine)*
+StructLine          <- CommentLine
+                    / StructCommaLine
+                    / StructFieldLine
+StructCommaLine     <- HWS* Comma HWS* NewLine
+StructFieldLine     <- WS* StructField StructFieldLineEnd
+StructFieldLineEnd  <- HWS* InlineComment? HWS* NewLine
+                    / HWS* InlineComment? HWS* &(RBrace)
+StructField         <- NormalField
+                    / EmbeddedField
+
+NormalField         <- Ident HWS TypeRef FieldTag? InlineComment?
+EmbeddedField       <- Ident !(HWS TypeStart) InlineComment?
+FieldTag            <- HWS DQString
+
+EnumDef             <- Ident HWS* Assign HWS* EnumMember (WS* Pipe WS* EnumMember)*
+EnumMember          <- Ident EnumValue? InlineComment?
+EnumValue           <- WS* LParen WS* Number WS* RParen
+
+ApiDef              <- ApiName HWS* LParen WS* ApiArgs? WS* RParen WS* Arrow WS* ResultType
+ApiName             <- Ident (HWS* Dot HWS* Ident)?
+ApiArgs             <- ApiArg (WS* Comma WS* ApiArg)*
+ApiArg              <- Ident HWS TypeRef
+ResultType          <- NilType
+                    / TypeRef
+
+TypeRef             <- ListType
+                    / BaseType
+                    / UserTypeName
+ListType            <- LBracket WS* NonNilTypeName WS* RBracket
+NonNilTypeName      <- BaseType
+                    / UserTypeName
+TypeStart           <- LBracket
+                    / IdentStart
+UserTypeName        <- !NilType Ident
+
+NilType             <- "nil" !IdentPart
+BaseType            <- "i8" !IdentPart
+                    / "u8" !IdentPart
+                    / "i16" !IdentPart
+                    / "u16" !IdentPart
+                    / "i32" !IdentPart
+                    / "u32" !IdentPart
+                    / "i64" !IdentPart
+                    / "u64" !IdentPart
+                    / "f32" !IdentPart
+                    / "f64" !IdentPart
+                    / "bool" !IdentPart
+                    / "text" !IdentPart
+                    / "bin" !IdentPart
+
+CommentLine         <- HWS* "//" CommentText? NewLine
+InlineComment       <- HWS* "//" CommentText?
+CommentText         <- (!NewLine .)*
+
+DQString            <- DQ DQChar* DQ
+DQChar              <- !DQ .
+
+Number              <- "255"
+                    / "25" [0-4]
+                    / "2" [0-4] [0-9]
+                    / "1" [0-9] [0-9]
+                    / [1-9] [0-9]?
+                    / "0"
+
+Ident               <- IdentStart IdentPart*
+IdentStart          <- [A-Za-z_]
+IdentPart           <- [A-Za-z0-9_]
+
+HWS                 <- [ \t]+
+WS                  <- (HWS / NewLine)+
+NewLine             <- "\r\n"
+                    / "\n"
+
+LBrace              <- "{"
+RBrace              <- "}"
+LParen              <- "("
+RParen              <- ")"
+LBracket            <- "["
+RBracket            <- "]"
+Assign              <- "="
+Pipe                <- "|"
+Comma               <- ","
+Dot                 <- "."
+Arrow               <- "=>"
+DQ                  <- "\""
+EOF                 <- !.
+
+# 仍需语义阶段配合的约束:
+# 1. 名称唯一性: struct 字段名, enum 成员名, api 名称的唯一性.
+# 2. 类型已声明: `TypeRef` 中自定义类型需要在全局定义表中存在.
+# 3. 枚举值冲突: 显式值重复, 隐式值分配与显式值冲突.
+# 4. 行级绑定: 字段 tag 与 inline comment 仅绑定同一行字段.

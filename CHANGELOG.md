@@ -1,5 +1,270 @@
 # Changelog
 
+## [2026-03-06 03:14:18] [type: docs] [scope: docs]
+- [在 `docs/peg_consistency.md` 新增“验证现状”章节, 明确当前环境无法执行 `go test`]
+- [补充 `go/` 目录用途说明, 避免将其误解为 Go 工具链]
+- [标注当前一致性结论基于规则对照与静态审查]
+
+## [2026-03-06 03:09:55] [type: docs] [scope: docs]
+- [补齐 `docs/peg_consistency.md` 的测试索引遗漏项]
+- [新增 `TestParseEnumNegativeValueRejected` 与 `TestParseStructCommentLineNotInlineFieldNote` 条目]
+- [本次仅文档索引完善, 不涉及实现与语义变更]
+
+## [2026-03-06 03:08:06] [type: docs] [scope: docs]
+- [将 `docs/peg_consistency.md` 的嵌套列表改为单层扁平列表, 统一文档结构风格]
+- [保持原有信息不变, 仅调整呈现方式以降低维护和评审成本]
+- [本次仅文档格式变更, 不涉及 lexer/parser/grammar 语义]
+
+## [2026-03-06 03:05:03] [type: docs] [scope: docs]
+- [新增 `docs/peg_consistency.md`, 汇总 PEG 与 lexer/parser 的一致性现状]
+- [列出仍需语义阶段处理的约束边界: 唯一性, 类型存在性, 枚举值冲突, 依赖关系]
+- [补充关键回归测试索引, 便于后续验证和评审]
+
+## [2026-03-06 03:02:28] [type: fix] [scope: grammar.peg]
+- [将 `CommentLine` 前导空白从 `WS*` 收敛为 `HWS*`, 明确仅允许行内空白]
+- [消除 `WS*` 可跨行吞并导致的注释行入口歧义, 与 parser 的换行分支模型保持一致]
+- [本次仅文法规约收敛, 不涉及 lexer/parser 实现]
+
+## [2026-03-06 03:00:27] [type: fix] [scope: parser]
+- [为 `parseStruct` 注释分支补充 EOF 守卫, 统一执行“注释行必须以换行结束”约束]
+- [修复结构体内末尾注释无换行时的错误语义偏差, 不再退化为 `结构体缺少 }`]
+- [新增 parser 用例覆盖 `User {\\n// only comment` 非法场景]
+
+## [2026-03-06 02:56:44] [type: fix] [scope: lexer]
+- [移除 `internal/lexer/lexer.go` 中未使用的 `unicode` 导入]
+- [消除潜在编译错误 `imported and not used`, 恢复词法模块基础可编译性]
+- [本次仅清理构建阻塞点, 不涉及词法语义变更]
+
+## [2026-03-06 02:54:33] [type: fix] [scope: parser]
+- [同步修正 `TestParseEnumNegativeValueRejected` 断言, 匹配负数在 lexer 阶段失败的新行为]
+- [将期望从 `无效枚举值` 调整为 `未预期字符 '-'`, 避免测试语义与实现脱节]
+- [本次仅更新测试断言与记录, 不涉及运行时逻辑]
+
+## [2026-03-06 02:52:47] [type: fix] [scope: lexer]
+- [将数字词法从 `unicode.IsDigit` 收敛为 ASCII `0-9`, 与 `grammar.peg` 的 `[0-9]` 规则一致]
+- [`NextToken/readNumber` 统一改为 ASCII 数字判定, 杜绝非 ASCII 数字被误识别]
+- [新增 lexer 用例覆盖全角数字输入 `１２`, 锁定返回 `TokenError`]
+
+## [2026-03-06 02:51:37] [type: fix] [scope: parser]
+- [移除 `parseAPI` 中未使用的局部变量 `line`, 消除编译期未使用变量风险]
+- [本次仅清理编译阻塞点, 不涉及语义行为变更]
+- [为后续 `go test` 恢复基础可编译条件]
+
+## [2026-03-06 02:48:04] [type: fix] [scope: lexer]
+- [收紧数字词法规则, 移除 `-` 前缀数字识别, 与 `grammar.peg` 的非负 `Number` 约束一致]
+- [`readNumber` 改为仅消费 `[0-9]+`, 负数字面量前移到词法阶段失败]
+- [新增 lexer 用例覆盖 `-1` 输入, 锁定返回 `TokenError`]
+
+## [2026-03-06 02:43:04] [type: fix] [scope: lexer]
+- [将 `skipSpaces` 收敛为仅跳过 ASCII `space/tab`, 不再使用 `unicode.IsSpace`]
+- [消除非 ASCII 空白字符被静默吞掉的宽松行为, 与 `grammar.peg` 的 `HWS` 约束对齐]
+- [新增 lexer 用例覆盖 `NBSP`(`\\u00a0`) 不应被跳过, 应返回 `TokenError`]
+
+## [2026-03-06 02:39:55] [type: fix] [scope: lexer]
+- [将标识符词法规则收紧为 ASCII: `[A-Za-z_][A-Za-z0-9_]*`, 与 `grammar.peg` 一致]
+- [移除 `unicode.IsLetter/IsDigit` 在标识符判定中的宽松行为, 避免非 ASCII 标识符绕过 PEG 约束]
+- [新增 lexer 用例覆盖中文标识符输入, 锁定返回 `TokenError`]
+
+## [2026-03-06 02:38:27] [type: fix] [scope: parser]
+- [按 PEG 收紧注释行规则, 末尾无换行的 `//` 注释不再被接受]
+- [在 `ParseSchema` 的注释分支增加 EOF 守卫, 返回 `注释行必须以换行结束`]
+- [新增 parser 用例覆盖 `// only comment`(无尾换行) 非法场景]
+
+## [2026-03-06 02:34:31] [type: fix] [scope: parser]
+- [收紧枚举显式值格式, 拒绝带前导零的数字(如 `01`), 与 `grammar.peg` 的 `Number` 规则一致]
+- [在 `parseEnumMember` 中新增前导零守卫, 统一复用 `无效枚举值` 报错语义]
+- [新增 parser 用例覆盖 `Status = Ok(01)` 非法场景]
+
+## [2026-03-06 02:32:53] [type: fix] [scope: grammar.peg,parser]
+- [修复 `TypeRef <- ... / Ident` 对 `nil` 的误匹配, 新增 `UserTypeName <- !NilType Ident`]
+- [将 `TypeRef/NonNilTypeName` 的自定义类型分支统一改为 `UserTypeName`, 明确排除关键字 `nil`]
+- [新增 parser 用例覆盖 `User { v nil }` 非法场景, 锁定 `nil 仅允许作为 API 返回类型` 报错]
+
+## [2026-03-06 02:29:30] [type: fix] [scope: grammar.peg,parser]
+- [将 `InlineComment` 从 `WS*` 收敛为 `HWS*`, 明确 inline 注释只能与声明同一行]
+- [消除 `WS*` 可跨行导致的文法歧义, 与 parser 的同一行绑定行为对齐]
+- [新增 parser 用例覆盖 struct 字段后跨行注释不应绑定为字段 note]
+
+## [2026-03-06 02:26:08] [type: fix] [scope: grammar.peg,parser]
+- [将 `Number` 规则进一步收敛为 `0-255`, 与枚举值 `uint8` 实现保持一致]
+- [语法层显式约束上限, 避免 `256+` 延后到语义阶段才失败]
+- [新增 parser 用例覆盖 `Status = Ok(256)` 非法场景, 锁定 `无效枚举值` 报错]
+
+## [2026-03-06 02:24:16] [type: fix] [scope: parser]
+- [修复 `parseType(false)` 对 `[nil]` 的误放行, 字段/参数位置不再接受 `nil` 作为数组元素类型]
+- [将数组元素 `nil` 拒绝逻辑改为与 `allowNil` 无关, 全场景统一返回 `nil 不能作为数组元素类型`]
+- [新增 parser 用例覆盖 `User { items [nil] }` 非法场景]
+
+## [2026-03-06 02:22:45] [type: fix] [scope: grammar.peg,parser]
+- [将 `Number` 语法从可选负号收敛为非负整数, 与枚举值 `uint8` 语义一致]
+- [新增 parser 回归用例覆盖 `Status = Ok(-1)` 非法场景, 锁定 `无效枚举值` 报错]
+- [本次仅修正文法约束与测试覆盖, 不改解析实现]
+
+## [2026-03-06 02:19:25] [type: fix] [scope: parser]
+- [收紧 `parseType` 对 `nil` 的接受范围, 仅允许在 `API` 返回类型位置使用]
+- [参数/字段位置命中 `nil` 时返回专用错误 `nil 仅允许作为 API 返回类型`]
+- [新增 parser 用例覆盖 `user.set(v nil) => u8` 非法场景]
+
+## [2026-03-06 02:16:18] [type: fix] [scope: lexer]
+- [修复 `readComment` 在单独 `\\r` 上的越界吞并问题, 注释读取在 `\\r` 或 `\\n` 都会停止]
+- [新增 `TestCommentStopsAtCR`, 锁定 `// note\\rabc` 不会把 `\\rabc` 吞进注释]
+- [与已收敛的换行规范保持一致, 单独 `\\r` 继续按非法输入处理]
+
+## [2026-03-06 02:12:47] [type: fix] [scope: lexer,grammar.peg]
+- [收敛换行规范为仅支持 `\\n` 与 `\\r\\n`, 删除单独 `\\r` 兼容路径]
+- [lexer 仅在 `\\n` 或 `\\r\\n` 产出 `TokenNewLine`, 单独 `\\r` 返回 `TokenError`]
+- [grammar.peg 同步移除 `NewLine` 的 `\\r` 分支, 并将 `WS` 改为 `(HWS / NewLine)+` 防止绕过]
+
+## [2026-03-06 02:09:10] [type: docs] [scope: grammar.peg]
+- [补齐 `NewLine` 规则, 增加对单独 `\\r` 的匹配, 与 lexer 当前行为对齐]
+- [保持 `\\r\\n` 和 `\\n` 规则不变, 仅修正文法覆盖面]
+- [本次仅文档语法变更, 不涉及 parser/lexer 实现]
+
+## [2026-03-06 02:07:53] [type: fix] [scope: parser]
+- [修正 `TestParseSchema` 基线样例, 移除已废弃的结构体字段行尾逗号写法]
+- [将示例输入改为多行字段合法形态, 与当前 `逗号独占行` 规则一致]
+- [本次仅调整测试数据与记录, 不涉及解析逻辑]
+
+## [2026-03-06 02:05:14] [type: fix] [scope: parser]
+- [新增结构体逗号独占行正向回归用例, 明确 `id u32` + `,` + `name text` 为合法写法]
+- [与已收紧的“字段行尾逗号非法”规则形成正反对照, 防止后续误收敛]
+- [本次仅补测试与记录, 不改解析实现]
+
+## [2026-03-06 02:01:30] [type: fix] [scope: parser,grammar.peg]
+- [将结构体逗号规则收敛为仅允许独占行, 禁止字段行尾逗号 `id u32,`]
+- [parser 在字段行尾命中 `,` 时统一返回 `逗号必须独占一行`, 与 `StructCommaLine` 语义对齐]
+- [grammar.peg 移除 `StructFieldLineEnd` 中 `Comma?` 并新增回归用例覆盖字段行尾逗号非法场景]
+
+## [2026-03-06 01:56:21] [type: fix] [scope: parser]
+- [修复 `parseAPI` 尾注释判定副作用, 不再把 API 结束后的独立注释行误判为尾注释]
+- [保留结果类型同一行尾注释拒绝策略, 继续要求 API 注释写在定义前]
+- [新增 parser 用例覆盖 `api -> 换行注释 -> 下一个 api` 的头注释继承场景]
+
+## [2026-03-06 01:51:54] [type: fix] [scope: parser]
+- [收紧 `parseAPI` 尾部注释判定, 不再依赖 API 名称行号]
+- [结果类型后只要紧跟注释即报错 `API 注释必须写在定义前`, 与 `grammar.peg` 的 `ApiDef` 对齐]
+- [新增 parser 用例覆盖 `=>` 换行后结果类型同一行尾注释非法场景]
+
+## [2026-03-06 01:46:25] [type: fix] [scope: parser]
+- [补充结构体逗号行级约束回归用例, 覆盖 `User { id u32, name text }` 非法场景]
+- [锁定错误文案 `逗号必须独占一行`, 防止后续回退为泛化报错]
+- [与 parser 已落盘的 `StructCommaLine` 行模型保持一致]
+
+## [2026-03-06 01:42:47] [type: fix] [scope: parser]
+- [收紧 `parseEnum` 与 `parseAPI` 头部换行容忍度, 禁止名称与关键分隔符跨行]
+- [`enum` 名称与 `=` 必须同一行, `api` 名称与 `(` 必须同一行, 与 `grammar.peg` 的 `HWS*` 约束对齐]
+- [新增 parser 内部用例覆盖 `Status\\n= Ok` 与 `user\\n(id u8) => u8` 非法场景]
+
+## [2026-03-06 01:39:22] [type: docs] [scope: grammar.peg]
+- [将 `StructDef/EnumDef/ApiDef/ApiName` 头部间隔从 `WS*` 收敛为 `HWS*`, 明确同一行约束]
+- [将 `StructFieldLineEnd` 与 `StructCommaLine` 的行尾空白约束收敛为 `HWS*`, 避免换行被空白规则吞并]
+- [统一 `grammar.peg` 对行内空白与换行边界的表达, 与 parser 当前行为保持一致]
+
+## [2026-03-06 01:35:06] [type: docs] [scope: grammar.peg]
+- [重写 `StructBody` 语法为显式行模型, 新增 `StructFieldLine/StructFieldLineEnd` 规则]
+- [在 PEG 中明确“结构体字段每行最多一个”, 字段行仅允许可选逗号与行内注释]
+- [新增 `NewLine` 或 `&(RBrace)` 行尾约束, 与 parser 当前“一字段一行”行为保持一致]
+
+## [2026-03-06 01:30:09] [type: fix] [scope: parser]
+- [新增结构体字段行尾守卫, 强制 `struct` 每个字段独占一行]
+- [当同一行出现连续字段定义时返回专用错误: `结构体 <Name> 字段必须独占一行`]
+- [新增 parser 用例覆盖 `User { id u32 name text }` 非法场景]
+
+## [2026-03-06 01:27:34] [type: fix] [scope: parser]
+- [新增 parser 侧 `TokenNewLine` 消费逻辑, 恢复顶层/struct/enum/api 在显式换行 token 下的可解析性]
+- [修正 `parseField` 对换行结束字段的判定, 避免 `TokenNewLine` 导致嵌入字段误报缺少类型]
+- [补充 parser 回归用例, 覆盖 enum 多行成员, struct 多行字段, api 多行参数场景]
+
+## [2026-03-06 01:22:33] [type: fix] [scope: lexer]
+- [新增 `TokenNewLine`, 将换行从被动吞掉改为显式 token 输出, 支持 `\\n/\\r/\\r\\n`]
+- [`skipWhitespace` 收敛为仅跳过非换行空白, 为 PEG 行级规则提供词法基础]
+- [新增 lexer 用例覆盖 LF 与 CRLF 的 `TokenNewLine` 产出及行号推进]
+
+## [2026-03-06 01:17:14] [type: fix] [scope: parser]
+- [新增枚举成员逗号分隔专用报错, `Status = Ok, Err` 明确提示 `成员之间仅允许 |`]
+- [在 `parseEnum` 中前置识别 `TokenComma`, 避免退化为后续泛化错误]
+- [新增 parser 用例覆盖逗号分隔非法场景并锁定错误文案]
+
+## [2026-03-06 01:13:14] [type: fix] [scope: parser]
+- [将 `parseEnum` 内部逻辑改为强制要求 `=` 分隔符, 移除可选兼容分支]
+- [即使未来绕过顶层入口直接调用 `parseEnum`, 仍会稳定返回 `枚举定义必须包含 =`]
+- [新增 parser 内部回归用例 `Status Ok`, 锁定无 `=` 时的错误语义]
+
+## [2026-03-06 01:10:24] [type: fix] [scope: parser]
+- [新增结构体字段 `tag` 误用场景专用报错: 字段名后直接字符串时提示 `缺少类型, 不允许直接写 tag`]
+- [在 `parseField` 中前置识别 `TokenString` 分支, 避免退化为泛化缺少类型错误]
+- [新增 parser 用例覆盖 `User { id \"_id\" }` 非法定义]
+
+## [2026-03-06 01:08:17] [type: fix] [scope: parser]
+- [新增枚举成员缺少分隔符 `|` 的专用报错, 覆盖同一行 `Status = Ok Err` 场景]
+- [在 `parseEnum` 中前移错误识别, 避免后续退化为泛化顶层定义错误]
+- [新增 parser 用例锁定 `成员之间缺少 |` 报错文案]
+
+## [2026-03-06 01:05:20] [type: fix] [scope: parser,grammar.peg]
+- [将 API 名称规则收敛为 1-2 段, 仅支持 `a` 或 `a.b`]
+- [parser 新增三段名称拒绝逻辑, 对 `a.b.c` 返回 `API 名称仅支持 1-2 段`]
+- [新增 parser 用例覆盖单段通过, 双段通过, 三段失败]
+
+## [2026-03-06 00:59:53] [type: fix] [scope: parser]
+- [新增 API 缺少 `=>` 的专用报错, 从通用期望提示改为 `API 定义缺少 =>`]
+- [补充 parser 用例覆盖 `user.get_count(page u8) u8` 非法定义场景]
+- [保持 PEG 约束不变, 仅提升错误定位准确性]
+
+## [2026-03-06 00:55:41] [type: fix] [scope: parser]
+- [新增枚举省略 `=` 的专用报错, 从泛化提示改为 `枚举定义必须包含 =`]
+- [保留严格 PEG 约束行为, 仅改进错误可读性与定位效率]
+- [更新 parser 测试断言, 锁定错误文案避免回退]
+
+## [2026-03-06 00:50:50] [type: fix] [scope: lexer]
+- [按 PEG 约束移除反引号字符串支持, lexer 仅将双引号识别为 `TokenString`]
+- [新增 lexer 用例: 双引号字符串解析通过, 反引号字符串返回 `TokenError`]
+- [统一实现与 `grammar.peg` 的字段 tag 字符串规则, 消除文法与实现偏差]
+
+## [2026-03-06 00:40:07] [type: fix] [scope: parser]
+- [顶层枚举定义改为严格要求 `=` 连接符, 移除 `Name | Member...` 兼容入口]
+- [新增 parser 用例: `Status = Ok | Err` 通过, `Status | Ok | Err` 拒绝]
+- [使解析行为与 `grammar.peg` 中 `EnumDef <- Ident WS* Assign ...` 规则保持一致]
+
+## [2026-03-06 00:10:30] [type: fix] [scope: parser,grammar.peg]
+- [将 API 语法改为仅接受头部注释, `ApiDef` 去除尾部 `InlineComment`]
+- [解析阶段新增 API 尾部注释拒绝逻辑, 发现同一行注释时直接报错]
+- [新增 parser 用例覆盖: API 头部多行注释通过, API 尾部注释失败]
+
+## [2026-03-05 23:58:54] [type: docs] [scope: grammar.peg]
+- [恢复 `BaseType` 为框架完整基础类型集合, 不再仅限 `aaa.sb` 示例中出现的子集]
+- [新增 `i8/i16/i32/i64/u64/f32/f64` 规则分支, 与现有 `u8/u16/u32/bool/text/bin` 合并]
+- [本次仅修正语法文档覆盖范围, 不涉及 parser/lexer 逻辑改动]
+
+## [2026-03-05 23:55:24] [type: docs] [scope: grammar.peg]
+- [以 `aaa.sb` 为唯一语法来源重整 `grammar.peg`, 移除 `SchemaPure` 与 pure 系列规则]
+- [统一规则排版为 `<-` 对齐与逐行 `/` 分支风格, 提升规则一致性]
+- [收敛类型与字符串规则到 `aaa.sb` 覆盖范围, 并保留语义阶段约束说明]
+
+## [2026-03-05 23:44:50] [type: docs] [scope: grammar.peg]
+- [按统一对齐风格重排 `grammar.peg`, 使 `<-` 纵向对齐并统一空白格式]
+- [将含 alternatives 的规则统一改为逐行 `/` 分支写法, 贴合约定示例风格]
+- [将过长规则拆分为可读块并保持语义不变, 仅做格式层改动]
+
+## [2026-03-05 23:34:36] [type: docs] [scope: grammar.peg]
+- [新增 `SchemaPure` 纯 PEG 入口, 与兼容入口 `Schema` 并存]
+- [新增 `StructDefPure/EnumDefPure/ApiDefPure/TypeRefPure` 规则, 去除跨定义引用与嵌入字段依赖]
+- [将"无法纯 PEG 约束"说明限定到兼容模式, 并补充 `SchemaPure` 约束边界说明]
+
+## [2026-03-05 23:26:58] [type: docs] [scope: grammar.peg]
+- [将 `grammar.peg` 全部规则改为单行定义风格, 消除换行 alternatives 写法]
+- [新增"无法仅用 PEG 完整约束"示例清单, 明确名称唯一性与跨定义引用等边界]
+- [新增"完全 PEG 约束"改造建议, 说明需削减语义能力或采用 PEG+语义分析两阶段]
+
+## [2026-03-05 23:15:10] [type: docs] [scope: grammar.peg]
+- [将 `grammar.peg` 中注释与说明文本统一改为中文, 语法规则本体保持不变]
+- [保留 PEG 难表达语义约束说明, 改为中文表述以降低阅读门槛]
+- [不涉及 lexer/parser 实现变更, 仅文档可读性优化]
+
+## [2026-03-05 23:08:19] [type: docs] [scope: grammar.peg]
+- [新增 `grammar.peg`, 给出 `sb` schema 的 PEG 语法定义, 覆盖 enum/struct/api/type/comment/string 等核心结构]
+- [规则内容对齐当前 `internal/lexer` 与 `internal/parser` 行为, 便于语法对照与扩展评审]
+- [补充 PEG 难表达的行级语义约束注释, 明确 trailing comma 与 inline 绑定等边界]
+
 ## [2026-03-05 22:51:40] [type: refactor] [scope: test/run_go_bun_tests.sh]
 - [移除 `run_smoke_case` 中已废弃的 `smoke_import.test.ts` 兜底分支, 删除动态写入与执行逻辑]
 - [将未知 smoke case 改为显式失败(`unsupported case`), 防止静默走弱校验路径]

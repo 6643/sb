@@ -118,9 +118,18 @@ SimOrder{
     status OrderStatus
 }
 
-user.get_abc() => OrderStatus //获取用户的id
-user.get_abcd(page u8, size u8) =>  OrderStatus //获取abcd
-user.set_sim_info(info SimInfo) => nil //设置sim信息
+//获取用户的id
+user.get_abc() => OrderStatus
 
-get_count(page u8) => u8 //获取数量
-get_bin(page u8) => bin //获取bin
+//获取abcd
+user.get_abcd(page u8, size u8) =>  OrderStatus
+
+//设置sim信息
+//无返回值
+user.set_sim_info(info SimInfo) => nil
+
+//获取数量
+get_count(page u8) => u8
+
+//获取bin
+get_bin(page u8) => bin

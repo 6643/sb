@@ -3,7 +3,6 @@ package lexer
 import (
 	"fmt"
 	"strings"
-	"unicode"
 )
 
 // Lexer 负责把输入文本转换为 token 流。
@@ -18,19 +17,22 @@ func New(input string) *Lexer {
 }
 
 func (l *Lexer) NextToken() Token {
-	l.skipWhitespace()
+	l.skipSpaces()
 	if l.pos >= len(l.input) {
 		return Token{Type: TokenEOF, Line: l.line}
 	}
 
 	ch := l.input[l.pos]
+	if ch == '\n' || (ch == '\r' && l.peek() == '\n') {
+		return l.readNewLine()
+	}
 	if isIdentStart(ch) {
 		return l.readIdent()
 	}
-	if unicode.IsDigit(ch) || (ch == '-' && unicode.IsDigit(l.peek())) {
+	if ch >= '0' && ch <= '9' {
 		return l.readNumber()
 	}
-	if ch == '"' || ch == '`' {
+	if ch == '"' {
 		return l.readString(ch)
 	}
 	if ch == '/' && l.peek() == '/' {
@@ -80,15 +82,10 @@ func (l *Lexer) peek() rune {
 	return l.input[l.pos+1]
 }
 
-func (l *Lexer) skipWhitespace() {
+func (l *Lexer) skipSpaces() {
 	for l.pos < len(l.input) {
 		ch := l.input[l.pos]
-		if ch == '\n' {
-			l.pos++
-			l.line++
-			continue
-		}
-		if unicode.IsSpace(ch) {
+		if ch == ' ' || ch == '\t' {
 			l.pos++
 			continue
 		}
@@ -96,12 +93,24 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
+func (l *Lexer) readNewLine() Token {
+	line := l.line
+	if l.input[l.pos] == '\r' {
+		l.pos += 2
+		l.line++
+		return Token{Type: TokenNewLine, Literal: "\r\n", Line: line}
+	}
+	l.pos++
+	l.line++
+	return Token{Type: TokenNewLine, Literal: "\n", Line: line}
+}
+
 func isIdentStart(ch rune) bool {
-	return unicode.IsLetter(ch) || ch == '_'
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_'
 }
 
 func isIdentPart(ch rune) bool {
-	return unicode.IsLetter(ch) || unicode.IsDigit(ch) || ch == '_'
+	return isIdentStart(ch) || (ch >= '0' && ch <= '9')
 }
 
 func (l *Lexer) readIdent() Token {
@@ -114,10 +123,7 @@ func (l *Lexer) readIdent() Token {
 
 func (l *Lexer) readNumber() Token {
 	start := l.pos
-	if l.input[l.pos] == '-' {
-		l.pos++
-	}
-	for l.pos < len(l.input) && unicode.IsDigit(l.input[l.pos]) {
+	for l.pos < len(l.input) && l.input[l.pos] >= '0' && l.input[l.pos] <= '9' {
 		l.pos++
 	}
 	return Token{Type: TokenNumber, Literal: string(l.input[start:l.pos]), Line: l.line}
@@ -148,7 +154,7 @@ func (l *Lexer) readComment() Token {
 	line := l.line
 	l.pos += 2
 	start := l.pos
-	for l.pos < len(l.input) && l.input[l.pos] != '\n' {
+	for l.pos < len(l.input) && l.input[l.pos] != '\n' && l.input[l.pos] != '\r' {
 		l.pos++
 	}
 	return Token{Type: TokenComment, Literal: strings.TrimSpace(string(l.input[start:l.pos])), Line: line}
