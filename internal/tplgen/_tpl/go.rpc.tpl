@@ -162,7 +162,7 @@ func doClient(c *Client, ctx context.Context, path string, body []byte) ([]byte,
 {{range .Apis}}
 {{- $resData := .Result -}}
 // Call{{.Name | PascalCase}} {{.Note}}
-func Call{{.Name | PascalCase}}(c *Client, ctx context.Context{{range .Args}}, {{.Name | CamelCase}} {{GoLogicType .Type}}{{end}}) ({{if eq $resData.Name "nil"}}errCode RpcErrCode{{else}}result {{GoLogicType .Result}}, errCode RpcErrCode{{end}}) {
+func Call{{.Name | PascalCase}}(c *Client, ctx context.Context{{range .Args}}, {{.Name | CamelCase}} {{if and (IsEnum .Type) .Type.IsList}}{{.Type.Name | PascalCase}}List{{else}}{{GoLogicType .Type}}{{end}}{{end}}) ({{if eq $resData.Name "nil"}}errCode RpcErrCode{{else}}result {{GoLogicType .Result}}, errCode RpcErrCode{{end}}) {
 	var buf bytes.Buffer
 	{{- if .Args}}
 	{{- range .Args}}

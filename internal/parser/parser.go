@@ -287,6 +287,9 @@ func (p *Parser) parseEnumMember() (ast.EnumMemberRaw, error) {
 
 	if p.curToken.Type == lexer.TokenLParen {
 		p.nextToken()
+		if p.curToken.Type == lexer.TokenError {
+			return m, fmt.Errorf("行 %d: %s", p.curToken.Line, p.curToken.Literal)
+		}
 		if p.curToken.Type != lexer.TokenNumber {
 			return m, fmt.Errorf("行 %d: 枚举值必须为数字", p.curToken.Line)
 		}

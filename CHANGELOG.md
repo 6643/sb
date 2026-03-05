@@ -1,5 +1,30 @@
 # Changelog
 
+## [2026-03-06 03:34:42] [type: fix] [scope: test]
+- [将 `test/harness` 下 3 个 Go 联测源文件改为 `.go.txt` 模板, 避免被根目录 `go test ./...` 直接编译]
+- [更新 `test/run_go_bun_tests.sh` 复制路径, 运行时仍生成 `*_integration_test.go` 参与联测]
+- [更新 `test/README.md` 目录说明, 明确 harness 文件为测试模板]
+
+## [2026-03-06 03:28:33] [type: fix] [scope: test]
+- [补齐 `test/harness/robust_core_go_test.go`, 恢复 core 场景 Go 联测注入源文件]
+- [补齐 `test/harness/robust_size_limits_go_test.go` 与 `test/harness/robust_optional_matrix_go_test.go`]
+- [修复 `run_go_bun_tests.sh` 复制 harness 阶段 `cp: cannot stat` 失败]
+
+## [2026-03-06 03:25:05] [type: fix] [scope: parser,tplgen]
+- [在 `parseEnumMember` 增加 `TokenError` 直通分支, 枚举值位置遇到非法字符时保留词法错误文本]
+- [修复 Go RPC 模板中 `enum list` 参数签名类型, 统一生成为 `TypeNameList` 而非切片逻辑类型]
+- [对齐 `internal/parser` 与 `internal/tplgen` 回归测试预期, 消除当前 `go test ./...` 两处失败]
+
+## [2026-03-06 03:20:01] [type: docs] [scope: docs]
+- [在 `docs/peg_consistency.md` 新增“完成判定”章节]
+- [补齐交付闭环核对项: 验证结论, 测试清单, 风险清单, 变更记录]
+- [本次仅文档收口, 不涉及实现变更]
+
+## [2026-03-06 03:17:00] [type: docs] [scope: docs]
+- [在 `docs/peg_consistency.md` 新增“下一步验证建议”章节]
+- [补充 Go 工具链恢复后的标准验证动作: `go test ./...` 与 `./test/run_go_bun_tests.sh`]
+- [新增失败定位路径说明, 指向文档中的关键回归测试索引]
+
 ## [2026-03-06 03:14:18] [type: docs] [scope: docs]
 - [在 `docs/peg_consistency.md` 新增“验证现状”章节, 明确当前环境无法执行 `go test`]
 - [补充 `go/` 目录用途说明, 避免将其误解为 Go 工具链]

@@ -75,7 +75,7 @@ module sbtest
 go 1.22
 EOF
 
-    cp "$TEST_DIR/harness/robust_core_go_test.go" "$go_dir/sb/robust_core_integration_test.go"
+    cp "$TEST_DIR/harness/robust_core_go_test.go.txt" "$go_dir/sb/robust_core_integration_test.go"
 
     echo "[core] go test"
     (cd "$go_dir" && go test ./... -count=1)
@@ -104,7 +104,7 @@ go 1.22
 EOF
 
     if [ "$case_name" = "robust_size_limits" ]; then
-        cp "$TEST_DIR/harness/robust_size_limits_go_test.go" "$go_dir/sb/robust_size_limits_integration_test.go"
+        cp "$TEST_DIR/harness/robust_size_limits_go_test.go.txt" "$go_dir/sb/robust_size_limits_integration_test.go"
 
         echo "[smoke] robust_size_limits go test"
         (cd "$go_dir" && go test ./... -count=1)
@@ -115,7 +115,7 @@ EOF
     fi
 
     if [ "$case_name" = "robust_optional_matrix" ]; then
-        cp "$TEST_DIR/harness/robust_optional_matrix_go_test.go" "$go_dir/sb/robust_optional_matrix_integration_test.go"
+        cp "$TEST_DIR/harness/robust_optional_matrix_go_test.go.txt" "$go_dir/sb/robust_optional_matrix_integration_test.go"
 
         echo "[smoke] robust_optional_matrix go test"
         (cd "$go_dir" && go test ./... -count=1)

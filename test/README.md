@@ -7,9 +7,9 @@
 - `robust_core.sb`: 主联测 schema, 覆盖 enum/struct/nil 返回/尾随字节/非法枚举等场景.
 - `robust_size_limits.sb`: 大小边界 schema, 配套 Go+Bun 语义联测.
 - `robust_optional_matrix.sb`: 可空与嵌套矩阵 schema, 配套 Go+Bun 语义联测.
-- `harness/robust_core_go_test.go`: Go 端集成测试.
-- `harness/robust_size_limits_go_test.go`: `robust_size_limits` Go 语义测试.
-- `harness/robust_optional_matrix_go_test.go`: `robust_optional_matrix` Go 语义测试.
+- `harness/robust_core_go_test.go.txt`: Go 端集成测试模板, 由脚本复制为 `*_integration_test.go`.
+- `harness/robust_size_limits_go_test.go.txt`: `robust_size_limits` Go 语义测试模板.
+- `harness/robust_optional_matrix_go_test.go.txt`: `robust_optional_matrix` Go 语义测试模板.
 - `run_go_bun_tests.sh`: 一键生成并执行 Go+Bun 联测.
 
 ## 运行方式
