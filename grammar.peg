@@ -13,24 +13,25 @@ Definition          <- StructDef
                     / ApiDef
 
 StructDef           <- Ident HWS* LBrace StructBody RBrace
-# struct 字段规则: 每行最多一个字段. 逗号必须独占一行. 字段后仅允许可选注释, 然后换行或 `}`.
+# struct 字段规则: 每行最多一个字段. 逗号必须独占一行. 字段注释必须写在字段前的注释行, 可多行. 嵌入字段必须显式写为 `...TypeName`.
 StructBody          <- (WS* StructLine)*
 StructLine          <- CommentLine
                     / StructCommaLine
                     / StructFieldLine
 StructCommaLine     <- HWS* Comma HWS* NewLine
 StructFieldLine     <- WS* StructField StructFieldLineEnd
-StructFieldLineEnd  <- HWS* InlineComment? HWS* NewLine
-                    / HWS* InlineComment? HWS* &(RBrace)
+StructFieldLineEnd  <- HWS* NewLine
+                    / HWS* &(RBrace)
 StructField         <- NormalField
                     / EmbeddedField
 
-NormalField         <- Ident HWS TypeRef FieldTag? InlineComment?
-EmbeddedField       <- Ident !(HWS TypeStart) InlineComment?
+NormalField         <- Ident HWS TypeRef FieldTag?
+EmbeddedField       <- Ellipsis Ident
 FieldTag            <- HWS DQString
 
+# enum 规则: 仅支持定义前整体注释, 不支持成员注释.
 EnumDef             <- Ident HWS* Assign HWS* EnumMember (WS* Pipe WS* EnumMember)*
-EnumMember          <- Ident EnumValue? InlineComment?
+EnumMember          <- Ident EnumValue?
 EnumValue           <- WS* LParen WS* Number WS* RParen
 
 ApiDef              <- ApiName HWS* LParen WS* ApiArgs? WS* RParen WS* Arrow WS* ResultType
@@ -97,6 +98,7 @@ RBracket            <- "]"
 Assign              <- "="
 Pipe                <- "|"
 Comma               <- ","
+Ellipsis            <- "..."
 Dot                 <- "."
 Arrow               <- "=>"
 DQ                  <- "\""
@@ -106,4 +108,5 @@ EOF                 <- !.
 # 1. 名称唯一性: struct 字段名, enum 成员名, api 名称的唯一性.
 # 2. 类型已声明: `TypeRef` 中自定义类型需要在全局定义表中存在.
 # 3. 枚举值冲突: 显式值重复, 隐式值分配与显式值冲突.
-# 4. 行级绑定: 字段 tag 与 inline comment 仅绑定同一行字段.
+# 4. 注释绑定策略: 字段注释仅允许头顶注释行绑定; enum 仅支持定义前整体注释.
+# 5. struct 嵌入策略: 嵌入字段必须显式写为 `...TypeName`.

@@ -5,12 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"sb/internal/gen"
-	"sb/internal/ir"
-	"sb/internal/lexer"
-	"sb/internal/parser"
-	"sb/internal/semantic"
-	"sb/internal/tplgen"
+	sbint "sb/internal"
 )
 
 func main() {
@@ -38,28 +33,28 @@ func run() error {
 		return err
 	}
 
-	cfg := gen.Config{GoDir: *goDir, TsDir: *tsDir, GoTag: *goTag}
-	if err := tplgen.Generate(schema, cfg); err != nil {
+	cfg := sbint.Config{GoDir: *goDir, TsDir: *tsDir, GoTag: *goTag}
+	if err := sbint.Generate(schema, cfg); err != nil {
 		return fmt.Errorf("模板后端生成失败: %w", err)
 	}
 
 	return nil
 }
 
-func parseAndResolve(schemaPath string) (*ir.Schema, error) {
+func parseAndResolve(schemaPath string) (*sbint.IRSchema, error) {
 	content, err := os.ReadFile(schemaPath)
 	if err != nil {
 		return nil, fmt.Errorf("读取 schema 文件失败: %w", err)
 	}
 
-	l := lexer.New(string(content))
-	p := parser.New(l)
+	l := sbint.New(string(content))
+	p := sbint.NewParser(l)
 	astSchema, err := p.ParseSchema()
 	if err != nil {
 		return nil, fmt.Errorf("解析失败: %w", err)
 	}
 
-	resolved, err := semantic.Resolve(astSchema)
+	resolved, err := sbint.Resolve(astSchema)
 	if err != nil {
 		return nil, fmt.Errorf("语义校验失败: %w", err)
 	}

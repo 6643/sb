@@ -1,102 +1,218 @@
 # SB (Simple Binary) 代码生成器
 
-SB 是一个高性能的二进制序列化协议和 RPC 代码生成工具。它通过解析自定义的 `.sb` 描述文件，为 **Go** 和 **TypeScript** 生成对等的、强类型的编解码逻辑和 API 调用接口。
+SB 是一个面向 Go 和 TypeScript 的二进制协议与 RPC 代码生成工具. 输入是自定义的 `.sb` 描述文件, 输出是对等的类型定义, 编解码逻辑, RPC 客户端, Go API handler 和 Markdown 文档.
 
-## 1. 核心特性
+## 1. 项目定位
 
-*   **极致性能**: 采用紧凑的二进制格式进行序列化，比 JSON 更小、更快。
-*   **统一的错误处理**: 
-    *   **TypeScript 无异常设计**: 完全移除 `throw`，采用与 Go 一致的 `[data, err]` 多返回值模式。
-    *   **HTTP 状态码驱动**: 废弃泛型包裹类，直接通过标准的 HTTP 状态码映射业务错误。
-*   **语义化继承**: 结构体支持嵌入（Embedding）方式实现字段复用，保持代码简洁。
-*   **现代化 TS 规范**: 全量采用箭头函数，Buffer 操作配合严格的边界检查，确保前端环境下的安全性。
-*   **文档自动生成**: 在生成代码的同时，自动输出 Markdown 格式的 API 文档。
-*   **API 手改保护**: `api.*.go` 使用指纹检测，未手改文件可自动更新，手改文件会跳过覆盖。
+- 目标: 用固定 schema 生成强类型二进制协议与 RPC 代码.
+- 优先级: 正确性 > 可维护性 > 性能 > 开发速度.
+- 当前实现: 生成主链路已统一到 `sb/internal` 根包, 代码生成不再依赖模板文件.
+- 适用场景: 内部服务通信, 前后端对等协议, 小到中等体积的结构化二进制数据.
 
 ## 2. 快速开始
 
-### 安装与运行
-确保你已经安装了 Go 环境，在项目根目录下执行：
+### 2.1 运行命令
+
+确保本机已安装 Go, 然后在项目根目录执行:
 
 ```bash
 go run . <input.sb> [flags]
 ```
 
-### 命令行参数
-*   `-go`: Go 代码输出目录（默认 `./go`）。
-*   `-ts`: TypeScript 代码输出目录（默认 `./ts`）。
-*   `-tag`: 为 Go 结构体生成的额外 Tag（例如 `bson,json`）。
+示例:
 
-**示例命令：**
 ```bash
 go run . -go ./go -ts ./ts -tag bson,json aaa.sb
 ```
 
-### 生成目录约定（Go）
-* `go/sb`: 协议类型、编解码、RPC 客户端、API handler 与 `api.*.go` 逻辑文件。
-* `api.*.go` 可手动改写，生成器通过指纹检测保护已手改文件不被覆盖。
+### 2.2 命令行参数
 
-## 3. `.sb` 语法规范
+- `-go`: Go 代码输出目录, 默认 `./go`
+- `-ts`: TypeScript 代码输出目录, 默认 `./ts`
+- `-tag`: 为 Go 结构体追加 tag, 例如 `bson,json`
+
+### 2.3 生成目录约定
+
+- `go/sb`: Go 协议类型, 运行时, 编解码, RPC 客户端, API handler, `api.*.go`
+- `ts/sb`: TypeScript 类型, 运行时, 编解码, RPC 客户端
+- `go/sb/DOC.md`: 自动生成的 Markdown API 文档
+- `api.*.go`: 可手改逻辑文件, 生成器使用指纹保护已改文件不被覆盖
+
+## 3. `.sb` 语法
 
 ### 3.1 基础类型与长度限制
-| 类型 | 说明 | 长度/范围限制 |
+
+| 类型 | 说明 | 长度或范围 |
 | :--- | :--- | :--- |
 | `u8-u64` | 无符号整数 | 8 到 64 位 |
 | `i8-i64` | 有符号整数 | 8 到 64 位 |
-| `f32, f64` | 浮点数 | - |
+| `f32`, `f64` | 浮点数 | - |
 | `bool` | 布尔值 | - |
-| `text` | 字符串 | 最大 **65535** 字节 (u16) |
-| `bin` | 二进制数据 | 最大 **65535** 字节 (u16) |
-| `[T]` | 数组/切片 | 最大 **255** 个元素 (u8) |
+| `text` | UTF-8 字符串 | 最大 `65535` 字节, 使用 `u16` 前缀 |
+| `bin` | 二进制数据 | 最大 `4294967295` 字节, 使用 `u32` 前缀 |
+| `[T]` | 数组或切片 | 最大 `65535` 个元素, 使用 `u16` 前缀 |
 
-### 3.2 枚举 (Enums)
-支持简单的枚举值或带指定数值的变体：
+说明:
+
+- `text` 的上限按 UTF-8 字节数计算, 不是字符数.
+- 默认 RPC 请求和响应上限仍由运行时控制, 当前默认值是 `4MB`.
+
+### 3.2 通用规则
+
+- 标识符只允许 ASCII, 规则是 `[A-Za-z_][A-Za-z0-9_]*`
+- 行内空白只支持 `space` 和 `tab`
+- 换行只支持 `\n` 或 `\r\n`
+- 字符串只支持双引号 `"..."`
+- `nil` 只允许作为 API 返回类型
+- `[nil]` 非法
+
+### 3.3 注释规则
+
+- 只支持 `//` 单行注释
+- 文件级, 枚举级, 结构体级, API 级注释都写在定义前
+- 结构体字段注释只允许写在字段前的独立注释行, 支持多行合并
+- 枚举只支持定义前整体注释, 不支持成员注释
+- API 不支持尾部注释
+
+示例:
+
 ```sb
 // 账户状态
-AccountStatus = Offline | Online | Deleted
+Status = Offline | Online | Deleted
 
-// 带数值的错误码定义
-Status = Ok(0) | Err(1) | Forbidden(403)
+User {
+  // 用户唯一 ID
+  // 会映射到 Go tag
+  id u32 "_id"
+  name text
+}
 ```
 
-### 3.3 结构体 (Structs)
-支持字段注释、Tag 定义以及结构体嵌入：
+### 3.4 枚举
+
+```sb
+// 带显式值的枚举
+Status = Ok(0) | Err(1) | Forbidden(255)
+```
+
+约束:
+
+- 枚举定义必须包含 `=`
+- 成员分隔只允许 `|`
+- 显式值范围是 `0-255`
+- 禁止负数和前导零
+- 同一个枚举内, 显式值不能重复
+
+### 3.5 结构体
+
 ```sb
 User {
-    id   u32 "_id" // 映射到 Go 的 tag
-    name text
+  id u32
+  name text
 }
 
-// 继承 User 字段
 Admin {
-    User
-    role text
+  ...User
+  role text
 }
 ```
 
-### 3.4 API 定义
-API 支持命名空间，并映射为不同语言的 Handler 或 Method：
+约束:
+
+- 字段必须一行一个
+- 逗号必须独占一行
+- `tag` 只允许写在字段类型之后
+- 嵌入字段必须显式写为 `...TypeName`
+- 结构体字段顺序就是当前协议编码顺序
+
+### 3.6 API
+
 ```sb
 // 命名空间.方法名(参数) => 返回类型
 user.get_info(id u32) => UserInfo
+set_flag(enabled bool) => nil
 ```
-*   返回 `nil` 表示无 Body 返回。
-*   Go 端会生成逻辑接口 `user_get_info` 和 HTTP 处理函数 `UserGetInfo`。
 
-## 4. 跨语言开发规范
+约束:
 
-### Go 语言
-*   **标准错误**: 返回原生的 `error` 接口。
-*   **自动化 Handler**: 生成的 RPC 代码会自动处理参数的反序列化和结果的序列化。
+- API 名称只支持 `a` 或 `a.b`
+- 返回 `nil` 表示无 body 返回
+- Go 端会生成逻辑接口和 HTTP handler
+- TypeScript 端会生成对应的 RPC 调用方法
 
-### TypeScript 语言
-*   **[data, err] 模式**: 调用任何 API 或序列化函数都返回元组。
-    ```typescript
-    const [info, err] = await api.user_get_info(123);
-    if (err) {
-        console.error("请求失败", err.code);
-        return;
-    }
-    console.log(info.name);
-    ```
-*   **零值保证**: 当 `err` 不为空时，`data` 永远是该类型的安全零值（如 `0`, `""`, `[]`）。
+## 4. 规则边界
+
+### 4.1 语法阶段已覆盖规则
+
+当前 `lexer + parser` 已对齐的核心规则如下:
+
+- 标识符, 空白, 换行, 双引号字符串
+- 枚举必须包含 `=`
+- 枚举成员分隔只允许 `|`
+- 枚举显式值范围 `0-255`, 禁止负数和前导零
+- 枚举不支持成员注释
+- 结构体字段必须一行一个
+- 结构体逗号必须独占一行
+- 结构体嵌入必须写成 `...TypeName`
+- 结构体字段注释必须写在字段前
+- API 名称只支持 `a` 或 `a.b`
+- API 不支持尾部注释
+- `nil` 只允许作为 API 返回类型
+- `[nil]` 非法
+
+### 4.2 仍在语义阶段处理的规则
+
+以下规则不属于 PEG 或 parser 语法本身, 由语义阶段处理:
+
+- 名称唯一性: 结构体字段名, 枚举成员名, API 名称冲突
+- 类型存在性: 自定义类型是否已声明
+- 枚举值冲突: 显式值重复, 显式值与隐式分配冲突
+- 跨定义依赖关系: 引用完整性和循环依赖策略
+
+## 5. 生成约定
+
+### 5.1 Go
+
+- 错误类型使用原生 `error`
+- 生成 RPC handler, 请求解析和响应编码逻辑
+- 运行时提供 `GetBin(buf)` 和 `GetBinView(buf)`
+- `GetBinView(buf)` 是可选借用接口, 返回切片只在底层 `buf` 未继续消费或复用前有效
+
+### 5.2 TypeScript
+
+- 不使用 `throw` 作为主错误流
+- API 和序列化函数统一返回 `[data, err]`
+- 当 `err` 非空时, `data` 仍返回该类型的安全零值
+- 生成代码兼容严格模式下的显式类型检查
+
+## 6. 验证与测试
+
+常用命令:
+
+```bash
+go test ./...
+go run . -go ./go -ts ./ts -tag bson,json aaa.sb
+```
+
+关键回归测试入口:
+
+- [lexer_scanner_test.go](/._/tool/sb/internal/lexer_scanner_test.go): 词法规则与非法字符边界
+- [parser_schema_test.go](/._/tool/sb/internal/parser_schema_test.go): `.sb` 语法规则, 注释规则, 嵌入规则, 枚举规则
+- [semantic_resolver_test.go](/._/tool/sb/internal/semantic_resolver_test.go): 语义展开与枚举值冲突
+- [tpl_template_regression_test.go](/._/tool/sb/internal/tpl_template_regression_test.go): Go/TS/DOC 生成回归
+- [legacy_go_generator_test.go](/._/tool/sb/internal/legacy_go_generator_test.go): 旧 Go 生成器兼容回归
+- [legacy_ts_generator_test.go](/._/tool/sb/internal/legacy_ts_generator_test.go): 旧 TS 生成器兼容回归
+
+## 7. 已知限制
+
+- 当前协议没有 `field id`, 字段顺序变更会直接改变 wire format
+- 当前不支持 `map` 类型
+- `enum` 不支持成员注释
+- `text` 仍按字节长度限制, 不是按字符数限制
+- `bin` 虽然使用 `u32` 长度前缀, 但默认 RPC 包体上限仍受运行时配置约束
+
+## 8. 维护约定
+
+- 结构变更, 协议变更, 生成器修复都必须更新 [CHANGELOG.md](/._/tool/sb/CHANGELOG.md)
+- 新记录插入 `CHANGELOG.md` 标题后, 禁止追加到底部
+- 主文档以本文件为准, 不再维护独立的 PEG 说明文档

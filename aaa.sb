@@ -27,60 +27,87 @@ SimPickPhone = No | Yes | Active(3) | Abcc(4)
 //运营商
 SimOperator = Zz(2) | Lt(3) | Yd | Dx | Gd | Xx | A(11) | B(12)
 
-//订单状态
-OrderStatus = Pending //待处理
-            | Closed  //已关闭
-            | Canceled //已取消
-            | Shipped //已发货
-            | Delivered //已送达
-            | Actived //已激活
-            | Settled //已结算
+// 订单状态
+// Pending      待处理
+// Closed       已关闭
+// Canceled     已取消
+// Shipped      已发货
+// Delivered    已送达
+// Actived      已激活
+// Settled      已结算
+OrderStatus = Pending
+            | Closed
+            | Canceled
+            | Shipped
+            | Delivered
+            | Actived
+            | Settled
 
 Recharge {
-    id u32 "_id" // abcd
+    // abcd
+    id u32 "_id"
     type [OrderStatus]
     phone [text]
     si SimInfo
 }
 
 RechargeA {
-    Recharge
+    ...Recharge
     aid u32
 }
 
 RechargeB {
-    Recharge
+    ...Recharge
     bid u32
 }
 
 Sim{
-    id  u32 "_id" // SIM卡ID
+    // SIM卡ID
+    id  u32 "_id"
     type Type
     status  ItemStatus
-    commission u16 // 佣金
-    supplier  u32 // 供应商ID
-    aff  u32 // 推广员ID
-    contract_duration  u8 // 合约期(月), 0:长期
+    // 佣金
+    commission u16
+    // 供应商ID
+    supplier  u32
+    // 推广员ID
+    aff  u32
+    // 合约期(月), 0:长期
+    contract_duration  u8
     name  text
-    operator  SimOperator // 运营商
-    monthly  u16 // 月租
-    flow_universal  u16 // 通用流量
-    flow_directional  u16 // 定向流量
-    can_move_flow  bool // 流量是否结转
-    call_month  u16 // 每月通话(分钟)
+    // 运营商
+    operator  SimOperator
+    // 月租
+    monthly  u16
+    // 通用流量
+    flow_universal  u16
+    // 定向流量
+    flow_directional  u16
+    // 流量是否结转
+    can_move_flow  bool
+    // 每月通话(分钟)
+    call_month  u16
     call_price  u16
-    sms_month  u16 // 每月短信(条)
+    // 每月短信(条)
+    sms_month  u16
     sms_price  u16
     min_age  u8
     max_age  u8
-    attribution  u32 // 归属地, 0:随机, 1:收货地
-    pick_phone  [SimPickPhone] // 选号
-    first_charge_link  text // 首充渠道
-    first_charge_money  text  // 首充金额
-    first_charge_return  text // 首充返额
-    ban_city  [u32] // 禁发区域
+    // 归属地, 0:随机, 1:收货地
+    attribution  u32
+    // 选号
+    pick_phone  [SimPickPhone]
+    // 首充渠道
+    first_charge_link  text
+    // 首充金额
+    first_charge_money  text
+    // 首充返额
+    first_charge_return  text
+    // 禁发区域
+    ban_city  [u32]
     info  [SimInfo]
-    snapshot  [text] // 套餐截图
+    // 套餐截图
+    snapshot  [text]
 }
 
 SimInfo{
@@ -95,26 +122,40 @@ SimInfo{
 }
 
 SimOrder2{
-    id  u32 // SIM卡ID
-    name  text  // 办理人姓名
-    phone  text    // 联系电话
-    id_no  text // 身份证号
-    city_code  u32 // 所在城市
-    address  text   // 详细地址
-    new_phone  text // 新手机号码
+    // SIM卡ID
+    id  u32
+    // 办理人姓名
+    name  text
+    // 联系电话
+    phone  text
+    // 身份证号
+    id_no  text
+    // 所在城市
+    city_code  u32
+    // 详细地址
+    address  text
+    // 新手机号码
+    new_phone  text
 }
 
 SimOrder{
     id  u32
     account_id u32
     item_id u32
-    name  text  // 办理人姓名
-    phone  text    // 联系电话
-    id_no  text // 身份证号
-    city_code  u32 // 所在城市
-    address  text   // 详细地址
-    new_phone  text // 新手机号码
-    commission u16 // 佣金
+    // 办理人姓名
+    name  text
+    // 联系电话
+    phone  text
+    // 身份证号
+    id_no  text
+    // 所在城市
+    city_code  u32
+    // 详细地址
+    address  text
+    // 新手机号码
+    new_phone  text
+    // 佣金
+    commission u16
     status OrderStatus
 }
 

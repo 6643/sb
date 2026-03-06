@@ -1,5 +1,157 @@
 # Changelog
 
+## [2026-03-06 20:24:48] [type: docs] [scope: readme,docs]
+- 重组 README.md 为单一主手册, 合并原 peg 一致性说明, 统一快速开始, 语法规则, 规则边界, 生成约定与验证入口
+- 删除 docs/peg_consistency.md, 修正文档中的旧路径与过时环境说明, 以当前 internal 根包结构为准
+
+## [2026-03-06 19:57:59] [type: fix] [scope: internal,tplgen]
+- [修正 `Tpl*` 批量重命名残留的字符串副作用, 恢复 `Content-Type` 头名、文档表头 `Type` 和 `Register*Api` 函数名]
+- [同步更新根包 `tpl_*` 回归断言, 并再次通过 `go test ./...` 与真实生成命令验证]
+
+## [2026-03-06 19:53:28] [type: refactor] [scope: internal,tplgen]
+- [将 `internal/tplgen` 全量迁移到 `internal/` 根包, 新文件统一改为 `tpl_*` 命名]
+- [将模板后端模型统一改为 `Tpl*` 前缀, 消除与 AST、IR 根类型冲突, 并更新 `main.go` 直接调用根包 `Generate`]
+
+## [2026-03-06 19:39:57] [type: refactor] [scope: internal,legacy-ts]
+- [将 `internal/gen/tsgen` 迁移到 `internal/` 根包, 新文件名为 `legacy_ts_generator.go` 与 `legacy_ts_generator_test.go`]
+- [将旧 TypeScript 生成器入口和辅助函数统一改为 `LegacyTs` 前缀, 并在迁移完成后清理空目录 `internal/gen`]
+
+## [2026-03-06 19:37:23] [type: refactor] [scope: internal,legacy-go]
+- [将 `internal/gen/gogen` 迁移到 `internal/` 根包, 新文件名为 `legacy_go_generator.go` 与 `legacy_go_generator_test.go`]
+- [将旧 Go 生成器入口和辅助函数统一改为 `LegacyGo` 前缀, 消除与后续 TS 旧生成器打平后的命名冲突]
+
+## [2026-03-06 19:34:40] [type: refactor] [scope: internal,gen]
+- [将 `internal/gen/config.go` 与 `internal/gen/note.go` 迁移到 `internal/` 根包, 新文件名为 `gen_config.go` 与 `gen_note.go`]
+- [更新 `tplgen`、`main.go` 以及旧 `gogen/tsgen` 对 `Config` 和注释渲染 helper 的引用路径]
+
+## [2026-03-06 19:32:17] [type: refactor] [scope: internal,semantic]
+- [将 `internal/semantic` 迁移到 `internal/` 根包, 新文件名为 `semantic_resolver.go` 与 `semantic_resolver_test.go`]
+- [更新 `main.go` 调用路径为根包 `Resolve`, 保持语义解析和展开逻辑不变]
+
+## [2026-03-06 19:23:03] [type: refactor] [scope: internal,parser]
+- [将 `internal/parser` 迁移到 `internal/` 根包, 新文件名为 `parser_schema.go` 与 `parser_schema_test.go`]
+- [将解析器构造函数从 `New` 重命名为 `NewParser`, 解决与词法器 `New` 的根包命名冲突, 同步更新 `main.go`]
+
+## [2026-03-06 19:16:44] [type: refactor] [scope: internal,lexer]
+- [将 `internal/lexer` 的 `Token`、`Lexer` 与测试迁移到 `internal/` 根包, 新文件名分别为 `lexer_tokens.go`、`lexer_scanner.go`、`lexer_scanner_test.go`]
+- [更新 `parser`、`parser_test` 与 `main.go` 对词法器的 import 路径, 保持词法行为与测试覆盖不变]
+
+## [2026-03-06 18:31:06] [type: refactor] [scope: internal,ir]
+- [将 `internal/ir/ir.go` 迁移到 `internal/ir_types.go`, 并将 IR 类型统一重命名为 `IR*` 前缀以避免与 AST 根类型冲突]
+- [更新 `semantic`、`tplgen`、旧 `gen` 与 `main.go` 对 IR 模型的 import 路径和类型引用]
+
+## [2026-03-06 18:31:06] [type: refactor] [scope: internal,ast]
+- [将 `internal/ast/ast.go` 迁移到 `internal/ast_types.go`, 继续推进 `internal/` 根包平铺]
+- [更新 `parser` 与 `semantic` 对 AST 类型的 import 路径, 保持 AST 结构与解析语义不变]
+
+## [2026-03-06 18:21:27] [type: refactor] [scope: internal,util]
+- [将 `internal/util/naming.go` 迁移到 `internal/util_naming.go`, 建立 `internal/` 根包的首个平铺文件]
+- [更新 `tplgen` 与旧 `gen` 路径对 `SnakeCase`、`PascalCase`、`CamelCase`、`APIGroup` 的 import 引用]
+
+## [2026-03-06 18:01:18] [type: feat] [scope: tplgen,go]
+- [为 Go 运行时新增可选 `GetBinView` 借用接口, 保持现有 `GetBin` 继续返回独立拷贝]
+- [补充 `type.go` 生成回归断言并在 README 中明确借用切片的生命周期约束]
+
+## [2026-03-06 17:45:06] [type: refactor] [scope: protocol,tplgen]
+- [调整 wire format 长度前缀: `list` 改为 `u16`, `text` 保持 `u16`, `bin` 升为 `u32`, 同步 Go/TS 运行时生成逻辑]
+- [补充 `tplgen` 回归断言并将 `robust_size_limits` 样例列表长度提升到 `256`, 覆盖旧 `u8` 上限之外的场景]
+- [更新 `README.md` 协议长度说明并通过真实生成命令与 `go test ./...` 全量回归]
+
+## [2026-03-06 17:07:17] [type: refactor] [scope: tplgen]
+- [删除 `runtime_sources.go` 中的 Go/TS 运行时大字符串常量, 改为 `renderGoRuntimeSource` 与 `renderTsRuntimeSource` builder 输出]
+- [保持 `type.go` 与 `type.ts` 生成内容稳定, 并继续通过真实生成命令与全量 Go 回归]
+
+## [2026-03-06 16:47:01] [type: refactor] [scope: tplgen]
+- [移除 `internal/tplgen/_tpl/*`、`text/template` 与 `embed` 依赖, 将 Go/TS/DOC 生成统一重构为字符串拼接实现]
+- [保留 API 指纹覆盖策略与文档输出能力, 新增 `source_writer`、静态运行时源码与纯代码渲染器]
+- [重生成 `go/sb` 与 `ts/sb` 产物并通过 `go test ./...` 与真实 `go run . -go ./go -ts ./ts -tag bson,json aaa.sb` 回归]
+
+## [2026-03-06 14:59:16] [type: fix] [scope: tplgen,ts]
+- [修正 `ts.rpc.tpl` 与 `ts.enum.tpl` 的空白控制, 消除生成的 TS 注释首行多缩进、语句拼接同一行和枚举闭括号前多余空行]
+- [补充模板回归断言, 固化 `rpc.ts` 与 `enum.ts` 的稳定输出格式]
+
+## [2026-03-06 14:46:13] [type: fix] [scope: tplgen,ts]
+- [修正 `ts.struct.tpl` 对可空 struct 字段生成的 `eq` 逻辑, 先做空值一致性判断再做深比较]
+- [修复 `struct_recharge_b.ts` 等生成文件将 `Struct | null` 直接传给 `eqStruct` 导致的 TypeScript `TS2345` 报错]
+
+## [2026-03-06 14:18:27] [type: fix] [scope: tplgen,ts]
+- [为 `ts.rpc.tpl` 生成的 `_.setAll` 闭包参数补显式类型 `_.Buffer`, 消除 `TS7006` 隐式 `any` 报错]
+- [补充模板回归断言并重生成 `ts/sb/rpc.ts`, 对齐 TypeScript 严格模式要求]
+
+## [2026-03-06 14:02:19] [type: fix] [scope: internal/gen]
+- [为旧的 `gogen` 与 `tsgen` 路径补充多行 note 安全渲染 helper, 避免多行说明直接打坏生成代码]
+- [将 enum、struct、rpc 注释输出改为逐行安全注释, 并新增旧生成器回归测试]
+
+## [2026-03-06 13:08:26] [type: fix] [scope: tplgen]
+- [为 Go、TypeScript 与文档模板新增多行 note 安全渲染函数, 统一将多行说明展开为合法注释或 Markdown 内容]
+- [修复 `enum.go`、`rpc.go`、`enum.ts`、`rpc.ts` 与 `DOC.md` 在多行 note 下生成非法内容的问题, 并补充模板回归测试]
+
+## [2026-03-06 12:58:06] [type: fix] [scope: aaa.sb]
+- [将 `aaa.sb` 中 struct 字段的行尾注释前移为字段头顶注释, 对齐当前语法约束]
+- [保持字段顺序与业务含义不变, 仅调整注释位置以恢复 schema 可解析性]
+
+## [2026-03-06 12:50:57] [type: fix] [scope: lexer,parser,grammar,docs]
+- [将 struct 嵌入语法从隐式裸类型切换为显式 `...TypeName`, 新增 `Ellipsis` 词法单元与对应 PEG 规则]
+- [收敛 parser: 仅接受 `...TypeName` 嵌入, 旧写法 `User` 在 struct 中改为按缺少类型报错]
+- [补齐 lexer/parser 回归测试与文档示例, 同步 `README.md`、`docs/peg_consistency.md` 与 `aaa.sb`]
+
+## [2026-03-06 12:36:05] [type: docs] [scope: docs]
+- [补齐 `docs/peg_consistency.md` 回归测试索引遗漏项: `TestParseEnumCommentAfterPipeRejected`]
+- [对齐 enum 成员注释禁用规则的分支测试与文档索引]
+
+## [2026-03-06 12:06:19] [type: fix] [scope: parser,test]
+- [新增 `TestParseEnumCommentAfterPipeRejected`, 固化 `|` 后注释同样按成员注释非法处理]
+- [补齐 enum 成员注释禁用规则的分支回归覆盖]
+
+## [2026-03-06 12:03:35] [type: docs] [scope: readme]
+- [在 README 的枚举章节补充约束说明: enum 仅支持定义前整体注释, 不支持成员注释]
+- [降低新用户按旧成员注释写法编写 schema 的误用风险]
+
+## [2026-03-06 12:00:08] [type: docs] [scope: docs]
+- [在 `docs/peg_consistency.md` 回归测试索引补充 `TestParseEnumHeaderCommentAccepted`]
+- [对齐文档索引与 parser 最新正向回归用例]
+
+## [2026-03-06 11:58:14] [type: fix] [scope: parser,test]
+- [新增 `TestParseEnumHeaderCommentAccepted`, 固化 enum 定义前整体注释可解析并绑定到 `Enum.Note`]
+- [补齐“禁成员注释”后的正向回归覆盖, 避免后续误伤整体注释能力]
+
+## [2026-03-06 11:56:50] [type: docs] [scope: readme]
+- [修正 README 枚举示例, 移除成员注释写法, 对齐“enum 仅支持定义前整体注释”规则]
+- [消除 README 示例与 grammar/parser 行为冲突]
+
+## [2026-03-06 11:55:33] [type: docs] [scope: docs]
+- [修正 `docs/peg_consistency.md` 枚举注释规则描述为“仅支持定义前整体注释, 不支持成员注释”]
+- [消除文档规则与最新 grammar/parser 行为冲突]
+
+## [2026-03-06 11:54:21] [type: docs] [scope: docs]
+- [同步 `docs/peg_consistency.md` 回归测试索引名, 将 enum 成员注释用例更新为 `TestParseEnumMemberHeadCommentRejected`]
+- [消除文档索引与 parser 实际测试函数名不一致问题]
+
+## [2026-03-06 11:51:48] [type: fix] [scope: parser]
+- [收敛 `parseEnum` 注释策略: 枚举仅支持定义前整体注释, 禁止成员头顶注释与成员行尾注释]
+- [统一枚举成员注释错误提示为 `枚举仅支持定义前整体注释, 不支持成员注释`]
+- [同步 parser 用例: 成员头顶注释与成员行尾注释均应被拒绝]
+
+## [2026-03-06 11:45:07] [type: docs] [scope: readme,docs,grammar]
+- [更新 README 的 struct/enum 示例, 改为头顶注释行写法, 移除行尾注释示例]
+- [更新 `docs/peg_consistency.md` 已对齐规则与回归测试索引, 对齐最新注释约束与测试名]
+- [更新 `grammar.peg` 末尾语义约束注释, 移除过期的 inline 绑定描述]
+
+## [2026-03-06 11:41:51] [type: fix] [scope: semantic]
+- [新增语义用例: 同一 enum 中显式成员值重复应报 `成员 ID 重复`]
+- [新增语义用例: 不同 enum 之间允许使用相同成员值]
+- [将 enum 值唯一性范围固化为“单 enum 作用域”]
+
+## [2026-03-06 11:09:20] [type: fix] [scope: parser,grammar]
+- [枚举成员注释改为仅支持头顶注释行绑定, 支持连续多行 `//` 合并为成员注释]
+- [禁止枚举成员行尾注释, 命中时返回 `枚举成员注释必须独占一行并写在成员前`]
+- [同步 `grammar.peg` enum 成员注释约束与 parser 测试用例]
+
+## [2026-03-06 11:04:52] [type: fix] [scope: parser,grammar]
+- [结构体字段注释改为仅支持头顶注释行绑定, 支持连续多行 `//` 合并为字段注释]
+- [禁止结构体字段行尾注释, 命中时返回 `字段注释必须独占一行并写在字段前`]
+- [同步 `grammar.peg` 字段注释约束与 parser 测试用例]
+
 ## [2026-03-06 03:34:42] [type: fix] [scope: test]
 - [将 `test/harness` 下 3 个 Go 联测源文件改为 `.go.txt` 模板, 避免被根目录 `go test ./...` 直接编译]
 - [更新 `test/run_go_bun_tests.sh` 复制路径, 运行时仍生成 `*_integration_test.go` 参与联测]
