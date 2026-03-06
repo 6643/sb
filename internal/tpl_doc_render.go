@@ -84,30 +84,47 @@ func renderDoc(schema *TplSchema) string {
 	w.Line("### Go Server")
 	w.Line("```go")
 	w.Line("import (")
+	w.Line("    \"fmt\"")
 	w.Line("    \"net/http\"")
+	w.Line("    \"time\"")
 	w.Line("    \"your_project/sb\"")
 	w.Line(")")
 	w.Blank()
 	w.Line("func main() {")
 	w.Line("    mux := http.NewServeMux()")
 	w.Line("    ")
-	w.Line("    // Register API handlers (default middleware is optional)")
+	w.Line("    // Request-level timeout propagates to business logic and downstream calls.")
+	w.Line("    rpcTimeout := 3 * time.Second")
+	w.Line("    ")
+	w.Line("    // Connection-level timeouts protect the HTTP transport.")
+	w.Line("    server := &http.Server{")
+	w.Line("        Addr:              \":8080\",")
+	w.Line("        Handler:           mux,")
+	w.Line("        ReadHeaderTimeout: 2 * time.Second,")
+	w.Line("        ReadTimeout:       5 * time.Second,")
+	w.Line("        WriteTimeout:      8 * time.Second,")
+	w.Line("        IdleTimeout:       30 * time.Second,")
+	w.Line("    }")
+	w.Line("    ")
+	w.Line("    // Register API handlers (middleware is optional)")
 	groups := groupAPIs(schema.Apis)
 	keys := orderedGroupKeys(groups)
 	if len(keys) == 0 {
-		w.Line("    sb.RegisterApi(mux)")
+		w.Line("    sb.RegisterApi(mux, sb.TimeoutMiddleware(rpcTimeout))")
 	} else {
 		for _, key := range keys {
 			funcName := "Register" + PascalCase(key) + "Api"
 			if PascalCase(key) == "Api" {
 				funcName = "RegisterApi"
 			}
-			w.Linef("    sb.%s(mux)", funcName)
+			w.Linef("    sb.%s(mux, sb.TimeoutMiddleware(rpcTimeout))", funcName)
 		}
 	}
 	w.Blank()
-	w.Line("    fmt.Println(\"Server starting on :8080\")")
-	w.Line("    http.ListenAndServe(\":8080\", mux)")
+	w.Line("    fmt.Println(\"Server starting on\", server.Addr)")
+	w.Line("    if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {")
+	w.Line("        panic(err)")
+	w.Line("    }")
 	w.Line("}")
 	w.Line("```")
 	w.Blank()

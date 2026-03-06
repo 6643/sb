@@ -562,9 +562,17 @@ func TestGoApiHandlersValidateEnumAndStructArgs(t *testing.T) {
 		t.Fatalf("read api._.go failed: %v", err)
 	}
 	apiText := string(apiContent)
+	assertContains(t, apiText, "\"context\"")
+	assertContains(t, apiText, "\"time\"")
 	assertContains(t, apiText, "if !IsSimOperator(operator)")
 	assertContains(t, apiText, "if !IsSimOperatorList(operators)")
 	assertContains(t, apiText, "if err := ValidateSim(sim); err != nil")
+	assertContains(t, apiText, "func TimeoutMiddleware(timeout time.Duration) Middleware {")
+	assertContains(t, apiText, "ctx, cancel := context.WithTimeout(r.Context(), timeout)")
+	assertContains(t, apiText, "h(w, r.WithContext(ctx))")
+	assertContains(t, apiText, "func normalizeHandlerStatus(ctx context.Context, status RpcErrCode) RpcErrCode {")
+	assertContains(t, apiText, "if ctx.Err() == context.DeadlineExceeded { return RpcTimeout }")
+	assertContains(t, apiText, "status = normalizeHandlerStatus(r.Context(), status)")
 	assertContains(t, apiText, "const defaultMaxReqBytes int64 = 4 * 1024 * 1024")
 	assertContains(t, apiText, "func parseRequest(w http.ResponseWriter, r *http.Request, args ...Getter) bool")
 	assertContains(t, apiText, "body, err := io.ReadAll(io.LimitReader(r.Body, 1))")
@@ -758,6 +766,14 @@ func TestTemplateGeneratorRendersMultilineNotesSafely(t *testing.T) {
 	docText := string(doc)
 	assertContains(t, docText, "| user_set_sim_info | info sim_info<br> | Void | 设置sim信息<br>无返回值 |")
 	assertContains(t, docText, "> 订单状态\n> Pending      待处理\n> Closed       已关闭")
+	assertContains(t, docText, "rpcTimeout := 3 * time.Second")
+	assertContains(t, docText, "server := &http.Server{")
+	assertContains(t, docText, "ReadHeaderTimeout: 2 * time.Second,")
+	assertContains(t, docText, "ReadTimeout:       5 * time.Second,")
+	assertContains(t, docText, "WriteTimeout:      8 * time.Second,")
+	assertContains(t, docText, "IdleTimeout:       30 * time.Second,")
+	assertContains(t, docText, "sb.RegisterUserApi(mux, sb.TimeoutMiddleware(rpcTimeout))")
+	assertContains(t, docText, "if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {")
 }
 
 func TestTemplateGeneratorSkipsRewritingUnchangedFiles(t *testing.T) {

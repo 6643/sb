@@ -1,5 +1,14 @@
 # Changelog
 
+## [2026-03-07 00:58:43] [type: docs] [scope: docs,readme]
+- [将 Go 服务端示例更新为“两层超时”推荐配置: `http.Server` 连接级超时 + `TimeoutMiddleware` 请求级超时]
+- [补充模板回归断言，固化 `DOC.md` 中 `http.Server` 超时字段、`rpcTimeout` 变量和 `ListenAndServe` 示例]
+
+## [2026-03-07 00:44:00] [type: feat] [scope: tplgen,go,docs]
+- [为生成的 Go 服务端路由新增 `TimeoutMiddleware`，通过 request context 为 handler 与业务函数注入可配置超时 deadline]
+- [handler 在业务返回 `RpcOk` 但 request context 已超时时统一改写为 `RpcTimeout`，避免超时后仍返回成功状态]
+- [更新模板回归、运行时行为测试与文档示例，补充服务端超时控制的用法说明]
+
 ## [2026-03-07 00:08:48] [type: refactor] [scope: internal,legacy,tplgen]
 - [新增统一的生成产物目录写入器，收敛目录创建、按内容写盘、仅首次写入与指纹受控覆盖逻辑，减少 Go/TS 新旧生成器中的重复文件策略代码]
 - [将模板生成器、legacy 生成器与文档输出统一切到公共写入器，保持 API stub 的人工修改保护语义不变]

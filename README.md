@@ -175,6 +175,8 @@ set_flag(enabled bool) => nil
 
 - 错误类型使用原生 `error`
 - 生成 RPC handler, 请求解析和响应编码逻辑
+- 路由注册支持可选 middleware, 内置 `TimeoutMiddleware` 可为服务端请求注入超时 deadline
+- 推荐服务端采用两层超时: `http.Server` 的连接级超时配合 `TimeoutMiddleware` 的请求级超时
 - 运行时提供 `GetBin(buf)` 和 `GetBinView(buf)`
 - `GetBinView(buf)` 是可选借用接口, 返回切片只在底层 `buf` 未继续消费或复用前有效
 
