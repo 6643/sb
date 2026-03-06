@@ -3,7 +3,6 @@ package internal
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -11,30 +10,30 @@ import (
 
 // Generate 生成 Go 代码。
 func GenerateLegacyGo(schema *IRSchema, cfg Config) error {
-	targetDir := filepath.Join(cfg.GoDir, "sb")
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
-		return fmt.Errorf("create go dir %s: %w", targetDir, err)
+	dir, err := newGeneratedDir(filepath.Join(cfg.GoDir, "sb"))
+	if err != nil {
+		return err
 	}
 
-	if err := legacyGoGenerateTypeFile(targetDir); err != nil {
+	if err := legacyGoGenerateTypeFile(dir); err != nil {
 		return err
 	}
-	if err := legacyGoGenerateEnumFile(targetDir, schema.Enums); err != nil {
+	if err := legacyGoGenerateEnumFile(dir, schema.Enums); err != nil {
 		return err
 	}
-	if err := legacyGoGenerateStructFiles(targetDir, schema.Structs, cfg.GoTag); err != nil {
+	if err := legacyGoGenerateStructFiles(dir, schema.Structs, cfg.GoTag); err != nil {
 		return err
 	}
-	if err := legacyGoGenerateAPIStubFiles(targetDir, schema.APIs); err != nil {
+	if err := legacyGoGenerateAPIStubFiles(dir, schema.APIs); err != nil {
 		return err
 	}
-	if err := legacyGoGenerateRPCFile(targetDir, schema.APIs); err != nil {
+	if err := legacyGoGenerateRPCFile(dir, schema.APIs); err != nil {
 		return err
 	}
 	return nil
 }
 
-func legacyGoGenerateTypeFile(targetDir string) error {
+func legacyGoGenerateTypeFile(dir *generatedDir) error {
 	content := `package sb
 
 type RpcErrCode int
@@ -49,15 +48,15 @@ const (
 	RpcNotExist RpcErrCode = 404
 )
 `
-	return os.WriteFile(filepath.Join(targetDir, "type.go"), []byte(content), 0644)
+	return dir.Write("type.go", []byte(content), 0644)
 }
 
-func legacyGoGenerateEnumFile(targetDir string, enums []IREnum) error {
+func legacyGoGenerateEnumFile(dir *generatedDir, enums []IREnum) error {
 	var b bytes.Buffer
 	b.WriteString("package sb\n\n")
 	if len(enums) == 0 {
 		b.WriteString("// No enums defined.\n")
-		return os.WriteFile(filepath.Join(targetDir, "enum.go"), b.Bytes(), 0644)
+		return dir.Write("enum.go", b.Bytes(), 0644)
 	}
 
 	for _, e := range enums {
@@ -79,10 +78,10 @@ func legacyGoGenerateEnumFile(targetDir string, enums []IREnum) error {
 		b.WriteString(")\n\n")
 	}
 
-	return os.WriteFile(filepath.Join(targetDir, "enum.go"), b.Bytes(), 0644)
+	return dir.Write("enum.go", b.Bytes(), 0644)
 }
 
-func legacyGoGenerateStructFiles(targetDir string, structs []IRStruct, goTag string) error {
+func legacyGoGenerateStructFiles(dir *generatedDir, structs []IRStruct, goTag string) error {
 	for _, st := range structs {
 		var b bytes.Buffer
 		fmt.Fprintln(&b, "package sb")
@@ -109,23 +108,16 @@ func legacyGoGenerateStructFiles(targetDir string, structs []IRStruct, goTag str
 		fmt.Fprintln(&b, "}")
 
 		filename := "struct_" + SnakeCase(st.Name) + ".go"
-		if err := os.WriteFile(filepath.Join(targetDir, filename), b.Bytes(), 0644); err != nil {
+		if err := dir.Write(filename, b.Bytes(), 0644); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func legacyGoGenerateAPIStubFiles(targetDir string, apis []IRAPI) error {
+func legacyGoGenerateAPIStubFiles(dir *generatedDir, apis []IRAPI) error {
 	for _, api := range apis {
 		filename := "api." + api.Name + ".go"
-		path := filepath.Join(targetDir, filename)
-		if _, err := os.Stat(path); err == nil {
-			continue
-		} else if !os.IsNotExist(err) {
-			return err
-		}
-
 		var b bytes.Buffer
 		fmt.Fprintln(&b, "package sb")
 		fmt.Fprintln(&b)
@@ -145,14 +137,14 @@ func legacyGoGenerateAPIStubFiles(targetDir string, apis []IRAPI) error {
 			fmt.Fprintln(&b, "}")
 		}
 
-		if err := os.WriteFile(path, b.Bytes(), 0644); err != nil {
+		if err := dir.WriteIfAbsent(filename, b.Bytes(), 0644); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func legacyGoGenerateRPCFile(targetDir string, apis []IRAPI) error {
+func legacyGoGenerateRPCFile(dir *generatedDir, apis []IRAPI) error {
 	var b bytes.Buffer
 	fmt.Fprintln(&b, "package sb")
 	fmt.Fprintln(&b)
@@ -207,7 +199,7 @@ func legacyGoGenerateRPCFile(targetDir string, apis []IRAPI) error {
 		}
 	}
 
-	return os.WriteFile(filepath.Join(targetDir, "rpc.go"), b.Bytes(), 0644)
+	return dir.Write("rpc.go", b.Bytes(), 0644)
 }
 
 func legacyGoLogicArgs(args []IRAPIArg) string {

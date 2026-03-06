@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,9 +21,20 @@ func groupAPIs(apis []TplApi) map[string][]TplApi {
 }
 
 func writeDocFile(baseDir string, data []byte) error {
-	path := filepath.Join(baseDir, "sb", "DOC.md")
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	dir, err := newGeneratedDir(filepath.Join(baseDir, "sb"))
+	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	return dir.Write("DOC.md", data, 0644)
+}
+
+func writeFileIfChanged(path string, data []byte, perm os.FileMode) error {
+	existing, err := os.ReadFile(path)
+	if err == nil && bytes.Equal(existing, data) {
+		return nil
+	}
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return os.WriteFile(path, data, perm)
 }

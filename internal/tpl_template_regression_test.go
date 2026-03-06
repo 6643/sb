@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestTsRPCUsesSetterClosuresForAllArgKinds(t *testing.T) {
@@ -757,6 +758,103 @@ func TestTemplateGeneratorRendersMultilineNotesSafely(t *testing.T) {
 	docText := string(doc)
 	assertContains(t, docText, "| user_set_sim_info | info sim_info<br> | Void | 设置sim信息<br>无返回值 |")
 	assertContains(t, docText, "> 订单状态\n> Pending      待处理\n> Closed       已关闭")
+}
+
+func TestTemplateGeneratorSkipsRewritingUnchangedFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := Config{
+		GoDir: filepath.Join(tmpDir, "go"),
+		TsDir: filepath.Join(tmpDir, "ts"),
+	}
+
+	schema := &TplSchema{
+		Structs: []TplStruct{
+			{
+				Name: "sim_info",
+				Fields: []TplStructField{
+					{Name: "id", Type: TplType{Name: "u32", Kind: TplKindBase}},
+				},
+			},
+		},
+		Enums: []TplEnum{
+			{
+				Name: "sim_operator",
+				Children: []TplEnumChild{
+					{ID: 1, Name: "cmcc"},
+				},
+			},
+		},
+		Apis: []TplApi{
+			{
+				Name: "sim.get",
+				Args: []TplApiArg{
+					{Name: "id", Type: TplType{Name: "u32", Kind: TplKindBase}},
+				},
+				Result: TplType{Name: "sim_info", Kind: TplKindStruct},
+			},
+		},
+	}
+
+	goGen := NewGoGenerator(cfg)
+	if err := goGen.Generate(schema); err != nil {
+		t.Fatalf("generate go failed: %v", err)
+	}
+	tsGen := NewTsGenerator(cfg)
+	if err := tsGen.Generate(schema); err != nil {
+		t.Fatalf("generate ts failed: %v", err)
+	}
+	if err := generateDoc(schema, cfg); err != nil {
+		t.Fatalf("generate doc failed: %v", err)
+	}
+
+	paths := []string{
+		filepath.Join(cfg.GoDir, "sb", "type.go"),
+		filepath.Join(cfg.GoDir, "sb", "enum.go"),
+		filepath.Join(cfg.GoDir, "sb", "struct_sim_info.go"),
+		filepath.Join(cfg.GoDir, "sb", "api._.go"),
+		filepath.Join(cfg.GoDir, "sb", "rpc.go"),
+		filepath.Join(cfg.GoDir, "sb", "DOC.md"),
+		filepath.Join(cfg.TsDir, "sb", "type.ts"),
+		filepath.Join(cfg.TsDir, "sb", "enum.ts"),
+		filepath.Join(cfg.TsDir, "sb", "struct_sim_info.ts"),
+		filepath.Join(cfg.TsDir, "sb", "_.ts"),
+		filepath.Join(cfg.TsDir, "sb", "rpc.ts"),
+		filepath.Join(cfg.TsDir, "sb", "rpc_smoke.test.ts"),
+		filepath.Join(cfg.TsDir, "sb", "DOC.md"),
+	}
+
+	stableTime := time.Date(2000, time.January, 2, 3, 4, 5, 0, time.UTC)
+	wantTimes := make(map[string]time.Time, len(paths))
+	for _, path := range paths {
+		if err := os.Chtimes(path, stableTime, stableTime); err != nil {
+			t.Fatalf("set file time for %s failed: %v", path, err)
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("stat %s failed: %v", path, err)
+		}
+		wantTimes[path] = info.ModTime()
+	}
+
+	if err := goGen.Generate(schema); err != nil {
+		t.Fatalf("regenerate go failed: %v", err)
+	}
+	if err := tsGen.Generate(schema); err != nil {
+		t.Fatalf("regenerate ts failed: %v", err)
+	}
+	if err := generateDoc(schema, cfg); err != nil {
+		t.Fatalf("regenerate doc failed: %v", err)
+	}
+
+	for _, path := range paths {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("stat %s after regenerate failed: %v", path, err)
+		}
+		if !info.ModTime().Equal(wantTimes[path]) {
+			t.Fatalf("expected %s mod time to stay %s, got %s", path, wantTimes[path], info.ModTime())
+		}
+	}
 }
 
 func assertContains(t *testing.T, text, want string) {

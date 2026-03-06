@@ -3,7 +3,6 @@ package internal
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -11,30 +10,30 @@ import (
 
 // Generate 生成 TypeScript 代码。
 func GenerateLegacyTs(schema *IRSchema, cfg Config) error {
-	targetDir := filepath.Join(cfg.TsDir, "sb")
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
-		return fmt.Errorf("create ts dir %s: %w", targetDir, err)
+	dir, err := newGeneratedDir(filepath.Join(cfg.TsDir, "sb"))
+	if err != nil {
+		return err
 	}
 
-	if err := legacyTsGenerateTypeFile(targetDir); err != nil {
+	if err := legacyTsGenerateTypeFile(dir); err != nil {
 		return err
 	}
-	if err := legacyTsGenerateEnumFile(targetDir, schema.Enums); err != nil {
+	if err := legacyTsGenerateEnumFile(dir, schema.Enums); err != nil {
 		return err
 	}
-	if err := legacyTsGenerateStructFile(targetDir, schema.Structs); err != nil {
+	if err := legacyTsGenerateStructFile(dir, schema.Structs); err != nil {
 		return err
 	}
-	if err := legacyTsGenerateRPCFile(targetDir, schema.APIs); err != nil {
+	if err := legacyTsGenerateRPCFile(dir, schema.APIs); err != nil {
 		return err
 	}
-	if err := legacyTsGenerateIndexFile(targetDir); err != nil {
+	if err := legacyTsGenerateIndexFile(dir); err != nil {
 		return err
 	}
 	return nil
 }
 
-func legacyTsGenerateTypeFile(targetDir string) error {
+func legacyTsGenerateTypeFile(dir *generatedDir) error {
 	content := `export enum RpcErrCode {
 	Ok = 200,
 	NoConn = 0,
@@ -45,14 +44,14 @@ func legacyTsGenerateTypeFile(targetDir string) error {
 	NotExist = 404,
 }
 `
-	return os.WriteFile(filepath.Join(targetDir, "type.ts"), []byte(content), 0644)
+	return dir.Write("type.ts", []byte(content), 0644)
 }
 
-func legacyTsGenerateEnumFile(targetDir string, enums []IREnum) error {
+func legacyTsGenerateEnumFile(dir *generatedDir, enums []IREnum) error {
 	var b bytes.Buffer
 	if len(enums) == 0 {
 		b.WriteString("// No enums defined.\n")
-		return os.WriteFile(filepath.Join(targetDir, "enum.ts"), b.Bytes(), 0644)
+		return dir.Write("enum.ts", b.Bytes(), 0644)
 	}
 
 	for _, e := range enums {
@@ -73,10 +72,10 @@ func legacyTsGenerateEnumFile(targetDir string, enums []IREnum) error {
 		b.WriteString("}\n\n")
 	}
 
-	return os.WriteFile(filepath.Join(targetDir, "enum.ts"), b.Bytes(), 0644)
+	return dir.Write("enum.ts", b.Bytes(), 0644)
 }
 
-func legacyTsGenerateStructFile(targetDir string, structs []IRStruct) error {
+func legacyTsGenerateStructFile(dir *generatedDir, structs []IRStruct) error {
 	var b bytes.Buffer
 	b.WriteString("import * as Enum from \"./enum\"\n\n")
 
@@ -99,10 +98,10 @@ func legacyTsGenerateStructFile(targetDir string, structs []IRStruct) error {
 		b.WriteString("})\n\n")
 	}
 
-	return os.WriteFile(filepath.Join(targetDir, "struct.ts"), b.Bytes(), 0644)
+	return dir.Write("struct.ts", b.Bytes(), 0644)
 }
 
-func legacyTsGenerateRPCFile(targetDir string, apis []IRAPI) error {
+func legacyTsGenerateRPCFile(dir *generatedDir, apis []IRAPI) error {
 	var b bytes.Buffer
 	b.WriteString("import { RpcErrCode } from \"./type\"\n")
 	b.WriteString("import * as Enum from \"./enum\"\n")
@@ -153,12 +152,12 @@ func legacyTsGenerateRPCFile(targetDir string, apis []IRAPI) error {
 		}
 	}
 
-	return os.WriteFile(filepath.Join(targetDir, "rpc.ts"), b.Bytes(), 0644)
+	return dir.Write("rpc.ts", b.Bytes(), 0644)
 }
 
-func legacyTsGenerateIndexFile(targetDir string) error {
+func legacyTsGenerateIndexFile(dir *generatedDir) error {
 	content := "export * from \"./type\"\nexport * from \"./enum\"\nexport * from \"./struct\"\nexport * from \"./rpc\"\n"
-	return os.WriteFile(filepath.Join(targetDir, "_.ts"), []byte(content), 0644)
+	return dir.Write("_.ts", []byte(content), 0644)
 }
 
 func legacyTsRPCArgs(args []IRAPIArg) (string, []string) {
