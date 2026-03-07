@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-func TestTsV2GeneratorWritesSchemaFile(t *testing.T) {
+func TestTsGeneratorWritesSchemaFile(t *testing.T) {
 	tmpDir := t.TempDir()
-	g := NewTsV2Generator(Config{TsDir: tmpDir})
+	g := NewTsGenerator(Config{TsDir: tmpDir})
 
 	schema := &TplSchema{
 		Enums: []TplEnum{
@@ -52,19 +52,23 @@ func TestTsV2GeneratorWritesSchemaFile(t *testing.T) {
 	}
 
 	if err := g.Generate(schema); err != nil {
-		t.Fatalf("generate ts v2 failed: %v", err)
+		t.Fatalf("generate ts failed: %v", err)
 	}
 
-	typeContent, err := os.ReadFile(filepath.Join(tmpDir, "sbv2", "type.ts"))
+	typeContent, err := os.ReadFile(filepath.Join(tmpDir, "sb", "type.ts"))
 	if err != nil {
 		t.Fatalf("read type.ts failed: %v", err)
 	}
 	typeText := string(typeContent)
 	assertContains(t, typeText, "export class BitWriter")
+	assertContains(t, typeText, "export const readHeader = (data: Uint8Array, widths: readonly number[], kind: string): [number[], Err] => {")
+	assertContains(t, typeText, "export const writeHeader = (widths: readonly number[], values: readonly number[]): [Uint8Array, Err] => {")
 	assertContains(t, typeText, "export const getBitmapListCompact")
+	assertContains(t, typeText, "export const getZeroValueListCompact = <T>(")
+	assertContains(t, typeText, "export const setZeroValueListCompact = <T>(")
 	assertContains(t, typeText, "export const textState")
 
-	enumContent, err := os.ReadFile(filepath.Join(tmpDir, "sbv2", "enum.ts"))
+	enumContent, err := os.ReadFile(filepath.Join(tmpDir, "sb", "enum.ts"))
 	if err != nil {
 		t.Fatalf("read enum.ts failed: %v", err)
 	}
@@ -73,21 +77,26 @@ func TestTsV2GeneratorWritesSchemaFile(t *testing.T) {
 	assertContains(t, enumText, "export const NormalizeSimOperator")
 	assertContains(t, enumText, "export const getSimOperatorListBody")
 
-	structContent, err := os.ReadFile(filepath.Join(tmpDir, "sbv2", "struct_sim.ts"))
+	structContent, err := os.ReadFile(filepath.Join(tmpDir, "sb", "struct_sim.ts"))
 	if err != nil {
 		t.Fatalf("read struct_sim.ts failed: %v", err)
 	}
 	structText := string(structContent)
-	assertContains(t, structText, "const header = new rt.BitWriter(")
-	assertContains(t, structText, "rt.getBitmapListCompact<number>(buf, tagsState")
+	assertContains(t, structText, "const simHeaderWidths = [1, 2, 1, 1, 2, 2, 2] as const;")
+	assertContains(t, structText, "const [headerStates, errHeaderState] = rt.readHeader(header, simHeaderWidths, \"Sim header\");")
+	assertContains(t, structText, "const [header, errHeader] = rt.writeHeader(simHeaderWidths, headerStates);")
+	assertNotContains(t, structText, "new rt.BitWriter(")
+	assertNotContains(t, structText, "new rt.BitReader(")
+	assertContains(t, structText, "rt.getZeroValueListCompact<number>(buf, tagsState, 0, rt.getU32)")
 	assertContains(t, structText, "_.getSimInfoListBody(buf, infosState)")
 	assertContains(t, structText, "rt.setTextListCompact(buf, titlesState, s.titles)")
+	assertContains(t, structText, "rt.setZeroValueListCompact<number>(buf, tagsState, s.tags, 0, rt.setU32)")
 
-	if _, err := os.Stat(filepath.Join(tmpDir, "sbv2", "struct_api_user_get_count_req.ts")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(tmpDir, "sb", "struct_api_user_get_count_req.ts")); !os.IsNotExist(err) {
 		t.Fatalf("expected legacy api wrapper file removed, got err=%v", err)
 	}
 
-	rpcContent, err := os.ReadFile(filepath.Join(tmpDir, "sbv2", "rpc.ts"))
+	rpcContent, err := os.ReadFile(filepath.Join(tmpDir, "sb", "rpc.ts"))
 	if err != nil {
 		t.Fatalf("read rpc.ts failed: %v", err)
 	}
@@ -97,7 +106,7 @@ func TestTsV2GeneratorWritesSchemaFile(t *testing.T) {
 	assertNotContains(t, rpcText, "newApiUserGetCountReq")
 	assertNotContains(t, rpcText, "readApiUserGetCountResp")
 
-	smokeContent, err := os.ReadFile(filepath.Join(tmpDir, "sbv2", "rpc_smoke.test.ts"))
+	smokeContent, err := os.ReadFile(filepath.Join(tmpDir, "sb", "rpc_smoke.test.ts"))
 	if err != nil {
 		t.Fatalf("read rpc_smoke.test.ts failed: %v", err)
 	}

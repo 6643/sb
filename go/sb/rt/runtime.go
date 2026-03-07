@@ -1,4 +1,4 @@
-package v2
+package rt
 
 import (
 	"bytes"
@@ -18,6 +18,82 @@ func HeaderSize(bitCount int) int {
 		return 0
 	}
 	return (bitCount + 7) / 8
+}
+
+func headerBitCount(widths []uint8) (int, error) {
+	bitCount := 0
+	for i, width := range widths {
+		if width == 0 || width > 8 {
+			return 0, fmt.Errorf("header field[%d] invalid width: %d", i, width)
+		}
+		bitCount += int(width)
+	}
+	return bitCount, nil
+}
+
+func ReadHeader(data []byte, widths []uint8, out []uint8, kind string) error {
+	if len(widths) != len(out) {
+		return fmt.Errorf("%s widths/out length mismatch: %d != %d", kind, len(widths), len(out))
+	}
+	bitCount, err := headerBitCount(widths)
+	if err != nil {
+		return fmt.Errorf("%s: %w", kind, err)
+	}
+	headerSize := HeaderSize(bitCount)
+	if len(data) < headerSize {
+		return fmt.Errorf("%s not enough data: %d - %d", kind, len(data), headerSize)
+	}
+	data = data[:headerSize]
+	if err := ValidatePaddingZero(data, bitCount, kind); err != nil {
+		return err
+	}
+	reader := NewBitReader(data, bitCount)
+	for i, width := range widths {
+		value, err := reader.ReadBits(int(width))
+		if err != nil {
+			return fmt.Errorf("%s field[%d]: %w", kind, i, err)
+		}
+		out[i] = value
+	}
+	return nil
+}
+
+func WriteHeader(dst []byte, widths []uint8, values []uint8) error {
+	if len(widths) != len(values) {
+		return fmt.Errorf("header widths/values length mismatch: %d != %d", len(widths), len(values))
+	}
+	bitCount, err := headerBitCount(widths)
+	if err != nil {
+		return err
+	}
+	headerSize := HeaderSize(bitCount)
+	if len(dst) < headerSize {
+		return fmt.Errorf("header dst too small: %d - %d", len(dst), headerSize)
+	}
+	dst = dst[:headerSize]
+	for i := range dst {
+		dst[i] = 0
+	}
+	bitOffset := 0
+	for i, width := range widths {
+		value := values[i]
+		maxValue := uint8(0xFF)
+		if width < 8 {
+			maxValue = (1 << width) - 1
+		}
+		if value > maxValue {
+			return fmt.Errorf("header field[%d] value %d exceeds %d-bit max %d", i, value, width, maxValue)
+		}
+		for shift := int(width) - 1; shift >= 0; shift-- {
+			if (value>>shift)&1 == 1 {
+				byteIndex := bitOffset / 8
+				bitIndex := 7 - (bitOffset % 8)
+				dst[byteIndex] |= 1 << bitIndex
+			}
+			bitOffset++
+		}
+	}
+	return nil
 }
 
 func bitmapSize(count int) int {

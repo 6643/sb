@@ -62,33 +62,33 @@ func TestGeneratedDirSyncFingerprintOnlyUpdatesManagedFiles(t *testing.T) {
 	}
 
 	path := filepath.Join(dir.root, "api.demo.go")
-	bodyV1 := []byte("package sb\n\nfunc demo() {}\n")
-	if err := dir.SyncFingerprint("api.demo.go", bodyV1, 0644); err != nil {
-		t.Fatalf("sync fingerprint v1 failed: %v", err)
+	initialBody := []byte("package sb\n\nfunc demo() {}\n")
+	if err := dir.SyncFingerprint("api.demo.go", initialBody, 0644); err != nil {
+		t.Fatalf("sync fingerprint initial failed: %v", err)
 	}
 
-	contentV1, err := os.ReadFile(path)
+	initialContent, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read fingerprinted file failed: %v", err)
 	}
-	if !bytes.Equal(contentV1, withFingerprint(bodyV1)) {
-		t.Fatalf("expected initial fingerprinted content, got %q", string(contentV1))
+	if !bytes.Equal(initialContent, withFingerprint(initialBody)) {
+		t.Fatalf("expected initial fingerprinted content, got %q", string(initialContent))
 	}
 
-	bodyV2 := []byte("package sb\n\nfunc demo() { println(\"v2\") }\n")
-	if err := dir.SyncFingerprint("api.demo.go", bodyV2, 0644); err != nil {
-		t.Fatalf("sync fingerprint v2 failed: %v", err)
+	updatedBody := []byte("package sb\n\nfunc demo() { println(\"updated\") }\n")
+	if err := dir.SyncFingerprint("api.demo.go", updatedBody, 0644); err != nil {
+		t.Fatalf("sync fingerprint update failed: %v", err)
 	}
 
-	contentV2, err := os.ReadFile(path)
+	updatedContent, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read updated fingerprinted file failed: %v", err)
 	}
-	if !bytes.Equal(contentV2, withFingerprint(bodyV2)) {
-		t.Fatalf("expected managed file to update to new fingerprinted content, got %q", string(contentV2))
+	if !bytes.Equal(updatedContent, withFingerprint(updatedBody)) {
+		t.Fatalf("expected managed file to update to new fingerprinted content, got %q", string(updatedContent))
 	}
 
-	manualEdit := append([]byte{}, contentV2...)
+	manualEdit := append([]byte{}, updatedContent...)
 	manualEdit = append(manualEdit, []byte("// manual edit\n")...)
 	if err := os.WriteFile(path, manualEdit, 0644); err != nil {
 		t.Fatalf("write manual edit failed: %v", err)

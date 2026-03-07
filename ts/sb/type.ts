@@ -1,547 +1,685 @@
+const _textEncoder = new TextEncoder();
+const _textDecoder = new TextDecoder();
+
+export const StateZero = 0;
+export const StateU8 = 1;
+export const StateU16 = 2;
+export const StateU24 = 3;
+
 export class Buffer {
     private _bytes: Uint8Array;
     private _view: DataView;
-    private _read_offset: number;
-    private _write_offset: number;
+    private _readOffset: number;
+    private _writeOffset: number;
 
     constructor(bytes?: Uint8Array) {
         if (bytes) {
             this._bytes = bytes;
             this._view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-            this._read_offset = 0;
-            this._write_offset = bytes.length;
-        } else {
-            const initialCapacity = 128;
-            this._bytes = new Uint8Array(initialCapacity);
-            this._view = new DataView(this._bytes.buffer);
-            this._read_offset = 0;
-            this._write_offset = 0;
+            this._readOffset = 0;
+            this._writeOffset = bytes.byteLength;
+            return;
         }
+        this._bytes = new Uint8Array(128);
+        this._view = new DataView(this._bytes.buffer);
+        this._readOffset = 0;
+        this._writeOffset = 0;
     }
 
     public ensureCapacity = (needed: number): void => {
-        const required = this._write_offset + needed;
-        if (required > this._bytes.length) {
-            let newCapacity = this._bytes.length;
-            if (newCapacity === 0) newCapacity = 128;
-            while (newCapacity < required) {
-                newCapacity *= 2;
-            }
-            const newBytes = new Uint8Array(newCapacity);
-            newBytes.set(this._bytes);
-            this._bytes = newBytes;
-            this._view = new DataView(newBytes.buffer);
-        }
+        const required = this._writeOffset + needed;
+        if (required <= this._bytes.length) return;
+        let newCapacity = this._bytes.length === 0 ? 128 : this._bytes.length;
+        while (newCapacity < required) newCapacity *= 2;
+        const next = new Uint8Array(newCapacity);
+        next.set(this._bytes.subarray(0, this._writeOffset));
+        this._bytes = next;
+        this._view = new DataView(next.buffer);
     };
 
     public read = (byteLength: number): [Uint8Array, Error | null] => {
-        if (this._read_offset + byteLength > this._write_offset) {
-            return [new Uint8Array(0), new Error("not enough data")];
-        }
-        const slice = this._bytes.subarray(this._read_offset, this._read_offset + byteLength);
-        this._read_offset += byteLength;
+        if (byteLength < 0) return [new Uint8Array(0), new Error(`invalid read length ${byteLength}`)];
+        if (this._readOffset + byteLength > this._writeOffset) return [new Uint8Array(0), new Error("not enough data")];
+        const slice = this._bytes.subarray(this._readOffset, this._readOffset + byteLength);
+        this._readOffset += byteLength;
         return [slice, null];
-    }
+    };
 
     public write = (data: Uint8Array): Error | null => {
-        this.ensureCapacity(data.length);
+        this.ensureCapacity(data.byteLength);
         this.writeUnsafe(data);
         return null;
-    }
+    };
 
     public writeUnsafe = (data: Uint8Array): void => {
-        this._bytes.set(data, this._write_offset);
-        this._write_offset += data.length;
-    }
+        this._bytes.set(data, this._writeOffset);
+        this._writeOffset += data.byteLength;
+    };
 
     public rewindWrite = (offset: number): void => {
-        this._write_offset = offset;
-    }
+        if (offset < 0) offset = 0;
+        if (offset > this._writeOffset) offset = this._writeOffset;
+        this._writeOffset = offset;
+        if (this._readOffset > this._writeOffset) this._readOffset = this._writeOffset;
+    };
 
-    get read_offset(): number { return this._read_offset; }
-    get write_offset(): number { return this._write_offset; }
+    get bytes(): Uint8Array { return this._bytes.subarray(0, this._writeOffset); }
     get view(): DataView { return this._view; }
-    get bytes(): Uint8Array { return this._bytes.subarray(0, this._write_offset); }
-    get len(): number { return this._write_offset - this._read_offset; }
+    get len(): number { return this._writeOffset - this._readOffset; }
+    get readOffset(): number { return this._readOffset; }
+    get writeOffset(): number { return this._writeOffset; }
 }
 
+export type Err = Error | undefined;
+export const errU = (err: Error | null): Err => err === null ? undefined : err;
+export const resultU = <T>(value: T, err: Error | null): [T, Err] => err === null ? [value, undefined] : [value, err];
+
 export interface Serializable {
-    set: (buf: Buffer) => Error | null;
+    set: (buf: Buffer) => Err;
 }
 
 export interface Deserializable {
-    get: (buf: Buffer) => Error | null;
+    get: (buf: Buffer) => Err;
 }
 
-// Bit Operations
-export const GetBit = (bits: Uint8Array, i: number): boolean => {
-    const byteIndex = Math.floor(i / 8);
-    if (byteIndex >= bits.length) return false;
-    const bitIndex = i % 8;
-    return (bits[byteIndex] & (1 << bitIndex)) !== 0;
-};
+export const headerSize = (bitCount: number): number => bitCount <= 0 ? 0 : Math.floor((bitCount + 7) / 8);
+export const bitmapSize = (count: number): number => count <= 0 ? 0 : Math.floor((count + 7) / 8);
+export const itemHeaderSize = (count: number): number => count <= 0 ? 0 : Math.floor((count * 2 + 7) / 8);
 
-export const SetBit = (bits: Uint8Array, i: number, value: boolean): void => {
-    const byteIndex = Math.floor(i / 8);
-    if (byteIndex >= bits.length) return;
-    const bitIndex = i % 8;
-    if (value) {
-        bits[byteIndex] |= (1 << bitIndex);
-    } else {
-        bits[byteIndex] &= ~(1 << bitIndex);
+export class BitWriter {
+    private _data: Uint8Array;
+    private _bitOffset: number;
+
+    constructor(bitCapacity: number) {
+        this._data = new Uint8Array(headerSize(bitCapacity));
+        this._bitOffset = 0;
     }
-};
 
-const _setNum = (buf: Buffer, byteLength: number, value: number | bigint, setter: string): void => {
-    buf.ensureCapacity(byteLength);
-    (buf.view as any)[setter](buf.write_offset, value, true);
-    (buf as any)._write_offset += byteLength;
-};
+    private ensureBits = (width: number): void => {
+        const requiredBits = this._bitOffset + width;
+        const requiredBytes = headerSize(requiredBits);
+        if (requiredBytes <= this._data.byteLength) return;
+        const next = new Uint8Array(requiredBytes);
+        next.set(this._data);
+        this._data = next;
+    };
 
-const _checkRead = (buf: Buffer, len: number): Error | null => {
-    if (buf.len < len) return new Error("not enough data");
-    return null;
-};
+    public writeBit = (v: boolean): void => {
+        this.ensureBits(1);
+        const byteIndex = Math.floor(this._bitOffset / 8);
+        const bitIndex = 7 - (this._bitOffset % 8);
+        if (v) this._data[byteIndex] |= 1 << bitIndex;
+        this._bitOffset++;
+    };
 
-const _textEncoder = new TextEncoder();
-const _textDecoder = new TextDecoder();
+    public writeBits = (v: number, width: number): Error | null => {
+        if (width <= 0 || width > 8) return new Error(`invalid bit width: ${width}`);
+        const maxValue = width === 8 ? 0xff : (1 << width) - 1;
+        if (v < 0 || v > maxValue) return new Error(`value ${v} exceeds ${width}-bit max ${maxValue}`);
+        for (let shift = width - 1; shift >= 0; shift--) this.writeBit(((v >> shift) & 1) === 1);
+        return null;
+    };
 
-// List Helpers
-export const getList = <T>(buf: Buffer, getter: (buf: Buffer) => [T, Error | null]): [T[], Error | null] => {
-    const [count, err] = getU16(buf);
-    if (err !== null) return [[], err];
-    const list: T[] = new Array(count);
-    for (let i = 0; i < count; i++) {
-        const [item, err2] = getter(buf);
-        if (err2 !== null) return [[], err2];
-        list[i] = item;
+    get bitLen(): number { return this._bitOffset; }
+    get bytes(): Uint8Array { return this._data.slice(); }
+}
+
+export class BitReader {
+    private readonly _data: Uint8Array;
+    private readonly _bitLimit: number;
+    private _bitOffset: number;
+
+    constructor(data: Uint8Array, bitLimit: number) {
+        const maxBits = data.byteLength * 8;
+        this._data = data;
+        this._bitLimit = bitLimit < 0 || bitLimit > maxBits ? maxBits : bitLimit;
+        this._bitOffset = 0;
     }
-    return [list, null];
-};
 
-export const setList = <T>(buf: Buffer, list: T[], setter: (buf: Buffer, val: T) => Error | null): Error | null => {
-    if (list.length > 65535) return new Error(`list length ${list.length} exceeds u16 max`);
-    const err = setU16(buf, list.length);
-    if (err !== null) return err;
-    for (const item of list) {
-        const err2 = setter(buf, item);
-        if (err2 !== null) return err2;
-    }
-    return null;
-};
+    public readBit = (): [boolean, Error | null] => {
+        if (this._bitOffset >= this._bitLimit) return [false, new Error("not enough bits")];
+        const byteIndex = Math.floor(this._bitOffset / 8);
+        const bitIndex = 7 - (this._bitOffset % 8);
+        this._bitOffset++;
+        return [((this._data[byteIndex] & (1 << bitIndex)) !== 0), null];
+    };
 
-export const eqList = <T>(a: T[], b: T[], eq: (a: T, b: T) => boolean): boolean => {
+    public readBits = (width: number): [number, Error | null] => {
+        if (width <= 0 || width > 8) return [0, new Error(`invalid bit width: ${width}`)];
+        let v = 0;
+        for (let i = 0; i < width; i++) {
+            const [bit, err] = this.readBit();
+            if (err !== null) return [0, err];
+            v <<= 1;
+            if (bit) v |= 1;
+        }
+        return [v, null];
+    };
+
+    get bitOffset(): number { return this._bitOffset; }
+}
+
+export const eqList = <T>(a: T[], b: T[], eq: (left: T, right: T) => boolean): boolean => {
     if (a === b) return true;
-    if (a === null || b === null) return false;
     if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-        if (!eq(a[i], b[i])) return false;
-    }
+    for (let i = 0; i < a.length; i++) if (!eq(a[i], b[i])) return false;
     return true;
 };
 
-const _getFixedWidthList = <T>(buf: Buffer, elemSize: number, reader: (view: DataView, offset: number) => T): [T[], Error | null] => {
-    const [count, err] = getU16(buf);
-    if (err !== null) return [[], err];
-    const byteLength = count * elemSize;
-    const err2 = _checkRead(buf, byteLength);
-    if (err2 !== null) return [[], err2];
-    const offset = buf.read_offset;
-    const list: T[] = new Array(count);
-    for (let i = 0, pos = offset; i < count; i++, pos += elemSize) list[i] = reader(buf.view, pos);
-    (buf as any)._read_offset += byteLength;
-    return [list, null];
-};
-
-const _setFixedWidthList = <T>(buf: Buffer, list: T[], elemSize: number, writer: (view: DataView, offset: number, value: T) => void): Error | null => {
-    if (list.length > 65535) return new Error(`list length ${list.length} exceeds u16 max`);
-    buf.ensureCapacity(2 + list.length * elemSize);
-    const err = setU16(buf, list.length);
-    if (err !== null) return err;
-    let offset = buf.write_offset;
-    for (let i = 0; i < list.length; i++) {
-        writer(buf.view, offset, list[i]);
-        offset += elemSize;
-    }
-    (buf as any)._write_offset = offset;
-    return null;
-};
-
-// Primitives
-export const getU8 = (buf: Buffer): [number, Error | null] => {
-    const err = _checkRead(buf, 1);
-    if (err !== null) return [0, err];
-    const v = buf.view.getUint8(buf.read_offset);
-    (buf as any)._read_offset += 1;
-    return [v, null];
-};
-export const setU8 = (buf: Buffer, v: number): Error | null => {
-    _setNum(buf, 1, v, 'setUint8');
-    return null;
-};
-export const eqU8 = (a: number, b: number): boolean => a === b;
-
-export const getU16 = (buf: Buffer): [number, Error | null] => {
-    const err = _checkRead(buf, 2);
-    if (err !== null) return [0, err];
-    const v = buf.view.getUint16(buf.read_offset, true);
-    (buf as any)._read_offset += 2;
-    return [v, null];
-};
-export const setU16 = (buf: Buffer, v: number): Error | null => {
-    _setNum(buf, 2, v, 'setUint16');
-    return null;
-};
-export const eqU16 = (a: number, b: number): boolean => a === b;
-
-export const getU32 = (buf: Buffer): [number, Error | null] => {
-    const err = _checkRead(buf, 4);
-    if (err !== null) return [0, err];
-    const v = buf.view.getUint32(buf.read_offset, true);
-    (buf as any)._read_offset += 4;
-    return [v, null];
-};
-export const setU32 = (buf: Buffer, v: number): Error | null => {
-    _setNum(buf, 4, v, 'setUint32');
-    return null;
-};
-export const eqU32 = (a: number, b: number): boolean => a === b;
-
-export const getI8 = (buf: Buffer): [number, Error | null] => {
-    const err = _checkRead(buf, 1);
-    if (err !== null) return [0, err];
-    const v = buf.view.getInt8(buf.read_offset);
-    (buf as any)._read_offset += 1;
-    return [v, null];
-};
-export const setI8 = (buf: Buffer, v: number): Error | null => {
-    _setNum(buf, 1, v, 'setInt8');
-    return null;
-};
-export const eqI8 = (a: number, b: number): boolean => a === b;
-
-export const getI16 = (buf: Buffer): [number, Error | null] => {
-    const err = _checkRead(buf, 2);
-    if (err !== null) return [0, err];
-    const v = buf.view.getInt16(buf.read_offset, true);
-    (buf as any)._read_offset += 2;
-    return [v, null];
-};
-export const setI16 = (buf: Buffer, v: number): Error | null => {
-    _setNum(buf, 2, v, 'setInt16');
-    return null;
-};
-export const eqI16 = (a: number, b: number): boolean => a === b;
-
-export const getI32 = (buf: Buffer): [number, Error | null] => {
-    const err = _checkRead(buf, 4);
-    if (err !== null) return [0, err];
-    const v = buf.view.getInt32(buf.read_offset, true);
-    (buf as any)._read_offset += 4;
-    return [v, null];
-};
-export const setI32 = (buf: Buffer, v: number): Error | null => {
-    _setNum(buf, 4, v, 'setInt32');
-    return null;
-};
-export const eqI32 = (a: number, b: number): boolean => a === b;
-
-export const getI64 = (buf: Buffer): [bigint, Error | null] => {
-    const err = _checkRead(buf, 8);
-    if (err !== null) return [0n, err];
-    const v = buf.view.getBigInt64(buf.read_offset, true);
-    (buf as any)._read_offset += 8;
-    return [v, null];
-};
-export const setI64 = (buf: Buffer, v: bigint): Error | null => {
-    _setNum(buf, 8, v, 'setBigInt64');
-    return null;
-};
-export const eqI64 = (a: bigint, b: bigint): boolean => a === b;
-
-export const getU64 = (buf: Buffer): [bigint, Error | null] => {
-    const err = _checkRead(buf, 8);
-    if (err !== null) return [0n, err];
-    const v = buf.view.getBigUint64(buf.read_offset, true);
-    (buf as any)._read_offset += 8;
-    return [v, null];
-};
-export const setU64 = (buf: Buffer, v: bigint): Error | null => {
-    _setNum(buf, 8, v, 'setBigUint64');
-    return null;
-};
-export const eqU64 = (a: bigint, b: bigint): boolean => a === b;
-
-export const getF32 = (buf: Buffer): [number, Error | null] => {
-    const err = _checkRead(buf, 4);
-    if (err !== null) return [0, err];
-    const v = buf.view.getFloat32(buf.read_offset, true);
-    (buf as any)._read_offset += 4;
-    return [v, null];
-};
-export const setF32 = (buf: Buffer, v: number): Error | null => {
-    _setNum(buf, 4, v, 'setFloat32');
-    return null;
-};
-export const eqF32 = (a: number, b: number): boolean => Math.abs(a - b) < 1e-6;
-
-export const getF64 = (buf: Buffer): [number, Error | null] => {
-    const err = _checkRead(buf, 8);
-    if (err !== null) return [0, err];
-    const v = buf.view.getFloat64(buf.read_offset, true);
-    (buf as any)._read_offset += 8;
-    return [v, null];
-};
-export const setF64 = (buf: Buffer, v: number): Error | null => {
-    _setNum(buf, 8, v, 'setFloat64');
-    return null;
-};
-export const eqF64 = (a: number, b: number): boolean => Math.abs(a - b) < 1e-9;
-
-export const getBool = (buf: Buffer): [boolean, Error | null] => {
-    const [v, err] = getU8(buf);
-    if (err !== null) return [false, err];
-    return [v === 1, null];
-};
-export const setBool = (buf: Buffer, value: boolean): Error | null => setU8(buf, value ? 1 : 0);
 export const eqBool = (a: boolean, b: boolean): boolean => a === b;
-
-export const getBin = (buf: Buffer): [Uint8Array, Error | null] => {
-    const [len, err] = getU32(buf);
-    if (err !== null) return [new Uint8Array(0), err];
-    return buf.read(Number(len));
-};
-export const setBin = (buf: Buffer, value: Uint8Array): Error | null => {
-    if (value.length > 4294967295) return new Error(`bin length ${value.length} exceeds u32 max`);
-    buf.ensureCapacity(4 + value.length);
-    const err = setU32(buf, value.length);
-    if (err !== null) return err;
-    if (value.length === 0) return null;
-    buf.writeUnsafe(value);
-    return null;
-};
+export const eqU8 = (a: number, b: number): boolean => a === b;
+export const eqI8 = (a: number, b: number): boolean => a === b;
+export const eqU16 = (a: number, b: number): boolean => a === b;
+export const eqI16 = (a: number, b: number): boolean => a === b;
+export const eqU32 = (a: number, b: number): boolean => a === b;
+export const eqI32 = (a: number, b: number): boolean => a === b;
+export const eqU64 = (a: bigint, b: bigint): boolean => a === b;
+export const eqI64 = (a: bigint, b: bigint): boolean => a === b;
+export const eqText = (a: string, b: string): boolean => a === b;
+export const eqF32 = (a: number, b: number): boolean => Math.abs(a - b) < 1e-6;
+export const eqF64 = (a: number, b: number): boolean => Math.abs(a - b) < 1e-9;
 export const eqBin = (a: Uint8Array, b: Uint8Array): boolean => {
     if (a === b) return true;
-    if (a === null || b === null) return false;
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    if (a.byteLength !== b.byteLength) return false;
+    for (let i = 0; i < a.byteLength; i++) if (a[i] !== b[i]) return false;
     return true;
-};
-
-export const getText = (buf: Buffer): [string, Error | null] => {
-    const [len, err] = getU16(buf);
-    if (err !== null) return ["", err];
-    const [data, err2] = buf.read(len);
-    if (err2 !== null) return ["", err2];
-    return [_textDecoder.decode(data), null];
-};
-export const setText = (buf: Buffer, value: string): Error | null => {
-    const data = _textEncoder.encode(value);
-    if (data.length > 65535) return new Error(`text length ${data.length} exceeds u16 max`);
-    buf.ensureCapacity(2 + data.length);
-    const err = setU16(buf, data.length);
-    if (err !== null) return err;
-    if (data.length === 0) return null;
-    buf.writeUnsafe(data);
-    return null;
-};
-export const eqText = (a: string, b: string): boolean => a === b;
-
-export const getBoolList = (buf: Buffer): [boolean[], Error | null] => {
-    const [count, err] = getU16(buf);
-    if (err !== null) return [[], err];
-    const [bits, errBits] = buf.read(Math.ceil(count / 8));
-    if (errBits !== null) return [[], errBits];
-    const list: boolean[] = new Array(count);
-    for (let i = 0; i < count; i++) list[i] = GetBit(bits, i);
-    return [list, null];
-};
-export const setBoolList = (buf: Buffer, v: boolean[]): Error | null => {
-    if (v.length > 65535) return new Error(`list length ${v.length} exceeds u16 max`);
-    const err = setU16(buf, v.length);
-    if (err !== null) return err;
-    const bits = new Uint8Array(Math.ceil(v.length / 8));
-    for (let i = 0; i < v.length; i++) SetBit(bits, i, v[i]);
-    return buf.write(bits);
-};
-export const eqBoolList = (a: boolean[], b: boolean[]): boolean => eqList(a, b, eqBool);
-
-export const getI8List = (buf: Buffer): [number[], Error | null] => _getFixedWidthList(buf, 1, (view, offset) => view.getInt8(offset));
-export const setI8List = (buf: Buffer, v: number[]): Error | null => _setFixedWidthList(buf, v, 1, (view, offset, value) => view.setInt8(offset, value));
-export const eqI8List = (a: number[], b: number[]): boolean => eqList(a, b, eqI8);
-
-export const getU8List = (buf: Buffer): [number[], Error | null] => {
-    const [count, err] = getU16(buf);
-    if (err !== null) return [[], err];
-    const [data, err2] = buf.read(count);
-    if (err2 !== null) return [[], err2];
-    return [Array.from(data), null];
-};
-export const setU8List = (buf: Buffer, v: number[]): Error | null => {
-    if (v.length > 65535) return new Error(`list length ${v.length} exceeds u16 max`);
-    buf.ensureCapacity(2 + v.length);
-    const err = setU16(buf, v.length);
-    if (err !== null) return err;
-    if (v.length === 0) return null;
-    buf.writeUnsafe(Uint8Array.from(v));
-    return null;
-};
-export const eqU8List = (a: number[], b: number[]): boolean => eqList(a, b, eqU8);
-
-export const getI16List = (buf: Buffer): [number[], Error | null] => _getFixedWidthList(buf, 2, (view, offset) => view.getInt16(offset, true));
-export const setI16List = (buf: Buffer, v: number[]): Error | null => _setFixedWidthList(buf, v, 2, (view, offset, value) => view.setInt16(offset, value, true));
-export const eqI16List = (a: number[], b: number[]): boolean => eqList(a, b, eqI16);
-
-export const getU16List = (buf: Buffer): [number[], Error | null] => _getFixedWidthList(buf, 2, (view, offset) => view.getUint16(offset, true));
-export const setU16List = (buf: Buffer, v: number[]): Error | null => _setFixedWidthList(buf, v, 2, (view, offset, value) => view.setUint16(offset, value, true));
-export const eqU16List = (a: number[], b: number[]): boolean => eqList(a, b, eqU16);
-
-export const getI32List = (buf: Buffer): [number[], Error | null] => _getFixedWidthList(buf, 4, (view, offset) => view.getInt32(offset, true));
-export const setI32List = (buf: Buffer, v: number[]): Error | null => _setFixedWidthList(buf, v, 4, (view, offset, value) => view.setInt32(offset, value, true));
-export const eqI32List = (a: number[], b: number[]): boolean => eqList(a, b, eqI32);
-
-export const getU32List = (buf: Buffer): [number[], Error | null] => _getFixedWidthList(buf, 4, (view, offset) => view.getUint32(offset, true));
-export const setU32List = (buf: Buffer, v: number[]): Error | null => _setFixedWidthList(buf, v, 4, (view, offset, value) => view.setUint32(offset, value, true));
-export const eqU32List = (a: number[], b: number[]): boolean => eqList(a, b, eqU32);
-
-export const getI64List = (buf: Buffer): [bigint[], Error | null] => _getFixedWidthList(buf, 8, (view, offset) => view.getBigInt64(offset, true));
-export const setI64List = (buf: Buffer, v: bigint[]): Error | null => _setFixedWidthList(buf, v, 8, (view, offset, value) => view.setBigInt64(offset, value, true));
-export const eqI64List = (a: bigint[], b: bigint[]): boolean => eqList(a, b, eqI64);
-
-export const getU64List = (buf: Buffer): [bigint[], Error | null] => _getFixedWidthList(buf, 8, (view, offset) => view.getBigUint64(offset, true));
-export const setU64List = (buf: Buffer, v: bigint[]): Error | null => _setFixedWidthList(buf, v, 8, (view, offset, value) => view.setBigUint64(offset, value, true));
-export const eqU64List = (a: bigint[], b: bigint[]): boolean => eqList(a, b, eqU64);
-
-export const getF32List = (buf: Buffer): [number[], Error | null] => _getFixedWidthList(buf, 4, (view, offset) => view.getFloat32(offset, true));
-export const setF32List = (buf: Buffer, v: number[]): Error | null => _setFixedWidthList(buf, v, 4, (view, offset, value) => view.setFloat32(offset, value, true));
-export const eqF32List = (a: number[], b: number[]): boolean => eqList(a, b, eqF32);
-
-export const getF64List = (buf: Buffer): [number[], Error | null] => _getFixedWidthList(buf, 8, (view, offset) => view.getFloat64(offset, true));
-export const setF64List = (buf: Buffer, v: number[]): Error | null => _setFixedWidthList(buf, v, 8, (view, offset, value) => view.setFloat64(offset, value, true));
-export const eqF64List = (a: number[], b: number[]): boolean => eqList(a, b, eqF64);
-
-export const getBinList = (buf: Buffer): [Uint8Array[], Error | null] => {
-    const [count, err] = getU16(buf);
-    if (err !== null) return [[], err];
-    const list: Uint8Array[] = new Array(count);
-    for (let i = 0; i < count; i++) {
-        const [item, err2] = getBin(buf);
-        if (err2 !== null) return [[], err2];
-        list[i] = item;
-    }
-    return [list, null];
-};
-export const setBinList = (buf: Buffer, v: Uint8Array[]): Error | null => {
-    if (v.length > 65535) return new Error(`list length ${v.length} exceeds u16 max`);
-    let totalSize = 2;
-    for (const item of v) {
-        if (item.length > 4294967295) return new Error(`bin length ${item.length} exceeds u32 max`);
-        totalSize += 4 + item.length;
-    }
-    buf.ensureCapacity(totalSize);
-    const err = setU16(buf, v.length);
-    if (err !== null) return err;
-    for (const item of v) {
-        const err2 = setU32(buf, item.length);
-        if (err2 !== null) return err2;
-        if (item.length === 0) continue;
-        buf.writeUnsafe(item);
-    }
-    return null;
 };
 export const eqBinList = (a: Uint8Array[], b: Uint8Array[]): boolean => eqList(a, b, eqBin);
 
-export const getTextList = (buf: Buffer): [string[], Error | null] => {
-    const [count, err] = getU16(buf);
-    if (err !== null) return [[], err];
-    const list: string[] = new Array(count);
+const _checkRead = (buf: Buffer, len: number): Error | null => buf.len < len ? new Error("not enough data") : null;
+const _setNum = (buf: Buffer, byteLength: number, setter: (view: DataView, offset: number) => void): void => {
+    buf.ensureCapacity(byteLength);
+    setter(buf.view, buf.writeOffset);
+    (buf as any)._writeOffset += byteLength;
+};
+
+export const getU8 = (buf: Buffer): [number, Error | null] => {
+    const err = _checkRead(buf, 1);
+    if (err !== null) return [0, err];
+    const v = buf.view.getUint8(buf.readOffset);
+    (buf as any)._readOffset += 1;
+    return [v, null];
+};
+export const setU8 = (buf: Buffer, v: number): Error | null => { _setNum(buf, 1, (view, offset) => view.setUint8(offset, v)); return null; };
+export const getI8 = (buf: Buffer): [number, Error | null] => {
+    const err = _checkRead(buf, 1);
+    if (err !== null) return [0, err];
+    const v = buf.view.getInt8(buf.readOffset);
+    (buf as any)._readOffset += 1;
+    return [v, null];
+};
+export const setI8 = (buf: Buffer, v: number): Error | null => { _setNum(buf, 1, (view, offset) => view.setInt8(offset, v)); return null; };
+export const getU16 = (buf: Buffer): [number, Error | null] => {
+    const err = _checkRead(buf, 2);
+    if (err !== null) return [0, err];
+    const v = buf.view.getUint16(buf.readOffset, true);
+    (buf as any)._readOffset += 2;
+    return [v, null];
+};
+export const setU16 = (buf: Buffer, v: number): Error | null => { _setNum(buf, 2, (view, offset) => view.setUint16(offset, v, true)); return null; };
+export const getI16 = (buf: Buffer): [number, Error | null] => {
+    const err = _checkRead(buf, 2);
+    if (err !== null) return [0, err];
+    const v = buf.view.getInt16(buf.readOffset, true);
+    (buf as any)._readOffset += 2;
+    return [v, null];
+};
+export const setI16 = (buf: Buffer, v: number): Error | null => { _setNum(buf, 2, (view, offset) => view.setInt16(offset, v, true)); return null; };
+export const getU24 = (buf: Buffer): [number, Error | null] => {
+    const [bytes, err] = buf.read(3);
+    if (err !== null) return [0, err];
+    return [bytes[0] | (bytes[1] << 8) | (bytes[2] << 16), null];
+};
+export const setU24 = (buf: Buffer, v: number): Error | null => {
+    if (v < 0 || v > 0xFFFFFF) return new Error(`u24 out of range: ${v}`);
+    buf.ensureCapacity(3);
+    const bytes = buf.bytes;
+    (buf as any)._bytes[buf.writeOffset] = v & 0xff;
+    (buf as any)._bytes[buf.writeOffset + 1] = (v >>> 8) & 0xff;
+    (buf as any)._bytes[buf.writeOffset + 2] = (v >>> 16) & 0xff;
+    (buf as any)._writeOffset += 3;
+    void bytes;
+    return null;
+};
+export const getU32 = (buf: Buffer): [number, Error | null] => {
+    const err = _checkRead(buf, 4);
+    if (err !== null) return [0, err];
+    const v = buf.view.getUint32(buf.readOffset, true);
+    (buf as any)._readOffset += 4;
+    return [v, null];
+};
+export const setU32 = (buf: Buffer, v: number): Error | null => { _setNum(buf, 4, (view, offset) => view.setUint32(offset, v, true)); return null; };
+export const getI32 = (buf: Buffer): [number, Error | null] => {
+    const err = _checkRead(buf, 4);
+    if (err !== null) return [0, err];
+    const v = buf.view.getInt32(buf.readOffset, true);
+    (buf as any)._readOffset += 4;
+    return [v, null];
+};
+export const setI32 = (buf: Buffer, v: number): Error | null => { _setNum(buf, 4, (view, offset) => view.setInt32(offset, v, true)); return null; };
+export const getU64 = (buf: Buffer): [bigint, Error | null] => {
+    const err = _checkRead(buf, 8);
+    if (err !== null) return [0n, err];
+    const v = buf.view.getBigUint64(buf.readOffset, true);
+    (buf as any)._readOffset += 8;
+    return [v, null];
+};
+export const setU64 = (buf: Buffer, v: bigint): Error | null => { _setNum(buf, 8, (view, offset) => view.setBigUint64(offset, v, true)); return null; };
+export const getI64 = (buf: Buffer): [bigint, Error | null] => {
+    const err = _checkRead(buf, 8);
+    if (err !== null) return [0n, err];
+    const v = buf.view.getBigInt64(buf.readOffset, true);
+    (buf as any)._readOffset += 8;
+    return [v, null];
+};
+export const setI64 = (buf: Buffer, v: bigint): Error | null => { _setNum(buf, 8, (view, offset) => view.setBigInt64(offset, v, true)); return null; };
+export const getF32 = (buf: Buffer): [number, Error | null] => {
+    const err = _checkRead(buf, 4);
+    if (err !== null) return [0, err];
+    const v = buf.view.getFloat32(buf.readOffset, true);
+    (buf as any)._readOffset += 4;
+    return [v, null];
+};
+export const setF32 = (buf: Buffer, v: number): Error | null => { _setNum(buf, 4, (view, offset) => view.setFloat32(offset, v, true)); return null; };
+export const getF64 = (buf: Buffer): [number, Error | null] => {
+    const err = _checkRead(buf, 8);
+    if (err !== null) return [0, err];
+    const v = buf.view.getFloat64(buf.readOffset, true);
+    (buf as any)._readOffset += 8;
+    return [v, null];
+};
+export const setF64 = (buf: Buffer, v: number): Error | null => { _setNum(buf, 8, (view, offset) => view.setFloat64(offset, v, true)); return null; };
+
+export const encodeBitmap = (bits: boolean[]): Uint8Array => {
+    const writer = new BitWriter(bits.length);
+    for (const bit of bits) writer.writeBit(bit);
+    return writer.bytes;
+};
+export const decodeBitmap = (data: Uint8Array, count: number): [boolean[], Error | null] => {
+    const reader = new BitReader(data, count);
+    const bits: boolean[] = new Array(count);
     for (let i = 0; i < count; i++) {
-        const [item, err2] = getText(buf);
-        if (err2 !== null) return [[], err2];
+        const [bit, err] = reader.readBit();
+        if (err !== null) return [[], err];
+        bits[i] = bit;
+    }
+    const err = validatePaddingZero(data, count, "bitmap");
+    if (err !== null) return [[], err];
+    return [bits, null];
+};
+export const encodeStateBlock = (states: number[]): [Uint8Array, Error | null] => {
+    const writer = new BitWriter(states.length * 2);
+    for (let i = 0; i < states.length; i++) {
+        const err = writer.writeBits(states[i], 2);
+        if (err !== null) return [new Uint8Array(0), new Error(`state[${i}]: ${err.message}`)];
+    }
+    return [writer.bytes, null];
+};
+export const decodeStateBlock = (data: Uint8Array, count: number): [number[], Error | null] => {
+    const reader = new BitReader(data, count * 2);
+    const states = new Array<number>(count);
+    for (let i = 0; i < count; i++) {
+        const [state, err] = reader.readBits(2);
+        if (err !== null) return [[], err];
+        states[i] = state;
+    }
+    const err = validatePaddingZero(data, count * 2, "state block");
+    if (err !== null) return [[], err];
+    return [states, null];
+};
+
+export const validatePaddingZero = (data: Uint8Array, usedBits: number, kind: string): Error | null => {
+    for (let bitOffset = usedBits; bitOffset < data.byteLength * 8; bitOffset++) {
+        const byteIndex = Math.floor(bitOffset / 8);
+        const bitIndex = 7 - (bitOffset % 8);
+        if ((data[byteIndex] & (1 << bitIndex)) !== 0) return new Error(`${kind} padding bit ${bitOffset - usedBits} is not zero`);
+    }
+    return null;
+};
+
+const _headerBitCount = (widths: readonly number[]): [number, Error | null] => {
+    let total = 0;
+    for (let i = 0; i < widths.length; i++) {
+        const width = widths[i];
+        if (width !== 1 && width !== 2) return [0, new Error(`header width[${i}] is invalid: ${width}`)];
+        total += width;
+    }
+    return [total, null];
+};
+export const readHeader = (data: Uint8Array, widths: readonly number[], kind: string): [number[], Err] => {
+    const [usedBits, err] = _headerBitCount(widths);
+    if (err !== null) return [[], new Error(`${kind}: ${err.message}`)];
+    const expectBytes = headerSize(usedBits);
+    if (data.byteLength !== expectBytes) return [[], new Error(`${kind}: size mismatch ${data.byteLength} !== ${expectBytes}`)];
+    const errPadding = validatePaddingZero(data, usedBits, kind);
+    if (errPadding !== null) return [[], errPadding];
+    const reader = new BitReader(data, usedBits);
+    const states = new Array<number>(widths.length);
+    for (let i = 0; i < widths.length; i++) {
+        const [state, errState] = reader.readBits(widths[i]);
+        if (errState !== null) return [[], new Error(`${kind}[${i}]: ${errState.message}`)];
+        states[i] = state;
+    }
+    return [states, undefined];
+};
+export const writeHeader = (widths: readonly number[], values: readonly number[]): [Uint8Array, Err] => {
+    if (widths.length !== values.length) return [new Uint8Array(0), new Error(`header widths/values length mismatch: ${widths.length} !== ${values.length}`)];
+    const [usedBits, err] = _headerBitCount(widths);
+    if (err !== null) return [new Uint8Array(0), err];
+    const writer = new BitWriter(usedBits);
+    for (let i = 0; i < widths.length; i++) {
+        const errState = writer.writeBits(values[i], widths[i]);
+        if (errState !== null) return [new Uint8Array(0), new Error(`header[${i}]: ${errState.message}`)];
+    }
+    return [writer.bytes, undefined];
+};
+
+const _textBytes = (v: string): Uint8Array => _textEncoder.encode(v);
+const _textLengthState = (length: number): [number, Error | null] => {
+    if (length < 0) return [0, new Error(`negative text length: ${length}`)];
+    if (length === 0) return [StateZero, null];
+    if (length <= 0xFF) return [StateU8, null];
+    if (length <= 0xFFFF) return [StateU16, null];
+    return [0, new Error(`text length exceeds u16 max: ${length}`)];
+};
+export const textState = (v: string): [number, Error | null] => _textLengthState(_textBytes(v).byteLength);
+export const binState = (length: number): [number, Error | null] => {
+    if (length < 0) return [0, new Error(`negative bin length: ${length}`)];
+    if (length === 0) return [StateZero, null];
+    if (length <= 0xFF) return [StateU8, null];
+    if (length <= 0xFFFF) return [StateU16, null];
+    if (length <= 0xFFFFFF) return [StateU24, null];
+    return [0, new Error(`bin length exceeds u24 max: ${length}`)];
+};
+export const listCountState = (count: number): [number, Error | null] => {
+    if (count < 0) return [0, new Error(`negative list count: ${count}`)];
+    if (count === 0) return [StateZero, null];
+    if (count <= 0xFF) return [StateU8, null];
+    return [0, new Error(`list count exceeds u8 max: ${count}`)];
+};
+
+const _getCompactLength = (buf: Buffer, state: number, max: number, kind: string): [number, Error | null] => {
+    switch (state) {
+    case StateZero:
+        return [0, null];
+    case StateU8: {
+        const [v, err] = getU8(buf);
+        if (err !== null) return [0, err];
+        if (v === 0) return [0, new Error(`${kind} state ${state} encoded zero length`)];
+        return [v, null];
+    }
+    case StateU16: {
+        const [v, err] = getU16(buf);
+        if (err !== null) return [0, err];
+        if (v === 0) return [0, new Error(`${kind} state ${state} encoded zero length`)];
+        if (v <= 0xFF) return [0, new Error(`${kind} state ${state} is not canonical for length ${v}`)];
+        return [v, null];
+    }
+    case StateU24: {
+        if (max < 0x10000) return [0, new Error(`${kind} state ${state} is illegal`)];
+        const [v, err] = getU24(buf);
+        if (err !== null) return [0, err];
+        if (v === 0) return [0, new Error(`${kind} state ${state} encoded zero length`)];
+        if (v <= 0xFFFF) return [0, new Error(`${kind} state ${state} is not canonical for length ${v}`)];
+        return [v, null];
+    }
+    default:
+        return [0, new Error(`invalid ${kind} state: ${state}`)];
+    }
+};
+
+export const getTextCompact = (buf: Buffer, state: number): [string, Error | null] => {
+    const [length, err] = _getCompactLength(buf, state, 0xFFFF, "text");
+    if (err !== null) return ["", err];
+    if (length === 0) return ["", null];
+    const [data, err2] = buf.read(length);
+    if (err2 !== null) return ["", new Error(`text body not enough data: ${buf.len} - ${length}`)];
+    return [_textDecoder.decode(data), null];
+};
+export const setTextCompact = (buf: Buffer, state: number, v: string): Error | null => {
+    const bytes = _textBytes(v);
+    const [canonical, err] = _textLengthState(bytes.byteLength);
+    if (err !== null) return err;
+    if (state !== canonical) return new Error(`text state ${state} is not canonical for length ${bytes.byteLength}`);
+    switch (state) {
+    case StateZero:
+        return null;
+    case StateU8: {
+        const err2 = setU8(buf, bytes.byteLength);
+        if (err2 !== null) return err2;
+        return buf.write(bytes);
+    }
+    case StateU16: {
+        const err2 = setU16(buf, bytes.byteLength);
+        if (err2 !== null) return err2;
+        return buf.write(bytes);
+    }
+    default:
+        return new Error(`invalid text state: ${state}`);
+    }
+};
+
+export const getBinCompact = (buf: Buffer, state: number): [Uint8Array, Error | null] => {
+    const [length, err] = _getCompactLength(buf, state, 0xFFFFFF, "bin");
+    if (err !== null) return [new Uint8Array(0), err];
+    if (length === 0) return [new Uint8Array(0), null];
+    const [data, err2] = buf.read(length);
+    if (err2 !== null) return [new Uint8Array(0), new Error(`bin body not enough data: ${buf.len} - ${length}`)];
+    return [new Uint8Array(data), null];
+};
+export const setBinCompact = (buf: Buffer, state: number, v: Uint8Array): Error | null => {
+    const [canonical, err] = binState(v.byteLength);
+    if (err !== null) return err;
+    if (state !== canonical) return new Error(`bin state ${state} is not canonical for length ${v.byteLength}`);
+    switch (state) {
+    case StateZero:
+        return null;
+    case StateU8: {
+        const err2 = setU8(buf, v.byteLength);
+        if (err2 !== null) return err2;
+        return buf.write(v);
+    }
+    case StateU16: {
+        const err2 = setU16(buf, v.byteLength);
+        if (err2 !== null) return err2;
+        return buf.write(v);
+    }
+    case StateU24: {
+        const err2 = setU24(buf, v.byteLength);
+        if (err2 !== null) return err2;
+        return buf.write(v);
+    }
+    default:
+        return new Error(`invalid bin state: ${state}`);
+    }
+};
+
+export const getListCountCompact = (buf: Buffer, state: number): [number, Error | null] => {
+    switch (state) {
+    case StateZero:
+        return [0, null];
+    case StateU8: {
+        const [v, err] = getU8(buf);
+        if (err !== null) return [0, err];
+        if (v === 0) return [0, new Error(`list count state ${state} encoded zero length`)];
+        return [v, null];
+    }
+    case StateU16:
+    case StateU24:
+        return [0, new Error(`list count state ${state} is illegal`)];
+    default:
+        return [0, new Error(`invalid list count state: ${state}`)];
+    }
+};
+export const setListCountCompact = (buf: Buffer, state: number, count: number): Error | null => {
+    const [canonical, err] = listCountState(count);
+    if (err !== null) return err;
+    if (state !== canonical) return new Error(`list count state ${state} is not canonical for count ${count}`);
+    switch (state) {
+    case StateZero:
+        return null;
+    case StateU8:
+        return setU8(buf, count);
+    default:
+        return new Error(`invalid list count state: ${state}`);
+    }
+};
+
+export const getBoolListCompact = (buf: Buffer, state: number): [boolean[], Error | null] => {
+    const [count, err] = getListCountCompact(buf, state);
+    if (err !== null) return [[], err];
+    const size = bitmapSize(count);
+    const [data, err2] = buf.read(size);
+    if (err2 !== null) return [[], new Error(`bool list bitmap not enough data: ${buf.len} - ${size}`)];
+    return decodeBitmap(data, count);
+};
+export const setBoolListCompact = (buf: Buffer, state: number, v: boolean[]): Error | null => {
+    const [canonical, err] = listCountState(v.length);
+    if (err !== null) return err;
+    if (state !== canonical) return new Error(`bool list state ${state} is not canonical for count ${v.length}`);
+    const err2 = setListCountCompact(buf, state, v.length);
+    if (err2 !== null || v.length === 0) return err2;
+    return buf.write(encodeBitmap(v));
+};
+
+export const getBitmapListCompact = <T>(
+    buf: Buffer,
+    state: number,
+    defaultItem: () => T,
+    getItem: (buf: Buffer) => [T, Err | null],
+): [T[], Err] => {
+    const [count, err] = getListCountCompact(buf, state);
+    if (err !== null) return [[], err];
+    const size = bitmapSize(count);
+    const [bitmap, err2] = buf.read(size);
+    if (err2 !== null) return [[], new Error(`bitmap list not enough data: ${buf.len} - ${size}`)];
+    const [bits, err3] = decodeBitmap(bitmap, count);
+    if (err3 !== null) return [[], err3];
+    const list = new Array<T>(count);
+    for (let i = 0; i < count; i++) {
+        if (!bits[i]) {
+            list[i] = defaultItem();
+            continue;
+        }
+        const [item, err4] = getItem(buf);
+        if (err4 !== undefined && err4 !== null) return [[], new Error(`bitmap list[${i}]: ${err4.message}`)];
+        list[i] = item;
+    }
+    return [list, undefined];
+};
+export const getZeroValueListCompact = <T>(
+    buf: Buffer,
+    state: number,
+    zeroValue: T,
+    getItem: (buf: Buffer) => [T, Error | null],
+): [T[], Err] => getBitmapListCompact(buf, state, () => zeroValue, (next) => resultU(...getItem(next)));
+export const setBitmapListCompact = <T>(
+    buf: Buffer,
+    state: number,
+    v: T[],
+    isDefault: (item: T) => boolean,
+    setItem: (buf: Buffer, item: T) => Err | null,
+): Err => {
+    const [canonical, err] = listCountState(v.length);
+    if (err !== null) return err;
+    if (state !== canonical) return new Error(`bitmap list state ${state} is not canonical for count ${v.length}`);
+    const err2 = setListCountCompact(buf, state, v.length);
+    if (err2 !== null) return err2;
+    if (v.length === 0) return undefined;
+    const bits = v.map(item => !isDefault(item));
+    const err3 = buf.write(encodeBitmap(bits));
+    if (err3 !== null) return err3;
+    for (let i = 0; i < v.length; i++) {
+        if (!bits[i]) continue;
+        const err4 = setItem(buf, v[i]);
+        if (err4 !== undefined && err4 !== null) return new Error(`bitmap list[${i}]: ${err4.message}`);
+    }
+    return undefined;
+};
+export const setZeroValueListCompact = <T>(
+    buf: Buffer,
+    state: number,
+    v: T[],
+    zeroValue: T,
+    setItem: (buf: Buffer, item: T) => Error | null,
+): Err => setBitmapListCompact(buf, state, v, (item) => item === zeroValue, (next, item) => errU(setItem(next, item)));
+
+export const getTextListCompact = (buf: Buffer, state: number): [string[], Error | null] => {
+    const [count, err] = getListCountCompact(buf, state);
+    if (err !== null) return [[], err];
+    const size = itemHeaderSize(count);
+    const [header, err2] = buf.read(size);
+    if (err2 !== null) return [[], new Error(`text list state block not enough data: ${buf.len} - ${size}`)];
+    const [states, err3] = decodeStateBlock(header, count);
+    if (err3 !== null) return [[], err3];
+    const list = new Array<string>(count);
+    for (let i = 0; i < count; i++) {
+        const [item, err4] = getTextCompact(buf, states[i]);
+        if (err4 !== null) return [[], new Error(`text list[${i}]: ${err4.message}`)];
         list[i] = item;
     }
     return [list, null];
 };
-export const setTextList = (buf: Buffer, v: string[]): Error | null => {
-    if (v.length > 65535) return new Error(`list length ${v.length} exceeds u16 max`);
-    const dataList: Uint8Array[] = new Array(v.length);
-    let totalSize = 2;
-    for (let i = 0; i < v.length; i++) {
-        const data = _textEncoder.encode(v[i]);
-        if (data.length > 65535) return new Error(`text length ${data.length} exceeds u16 max`);
-        dataList[i] = data;
-        totalSize += 2 + data.length;
-    }
-    buf.ensureCapacity(totalSize);
-    const err = setU16(buf, v.length);
+export const setTextListCompact = (buf: Buffer, state: number, v: string[]): Error | null => {
+    const [canonical, err] = listCountState(v.length);
     if (err !== null) return err;
-    for (const data of dataList) {
-        const err2 = setU16(buf, data.length);
-        if (err2 !== null) return err2;
-        if (data.length === 0) continue;
-        buf.writeUnsafe(data);
+    if (state !== canonical) return new Error(`text list state ${state} is not canonical for count ${v.length}`);
+    const err2 = setListCountCompact(buf, state, v.length);
+    if (err2 !== null) return err2;
+    if (v.length === 0) return null;
+    const states = new Array<number>(v.length);
+    for (let i = 0; i < v.length; i++) {
+        const [itemState, err3] = textState(v[i]);
+        if (err3 !== null) return new Error(`text list[${i}]: ${err3.message}`);
+        states[i] = itemState;
     }
-    return null;
-};
-export const eqTextList = (a: string[], b: string[]): boolean => eqList(a, b, eqText);
-
-// SetAll performs batch set operations. Supports values or functions.
-export const setAll = (buf: Buffer, ...args: any[]): Error | null => {
-    for (const arg of args) {
-        let err: Error | null = null;
-        if (typeof arg === 'function') {
-            err = arg(buf);
-        } else if (arg && typeof arg === 'object' && 'set' in arg && typeof arg.set === 'function') {
-            err = arg.set(buf);
-        } else if (typeof arg === 'string') {
-            err = setText(buf, arg);
-        } else if (typeof arg === 'boolean') {
-            err = setBool(buf, arg);
-        } else if (typeof arg === 'bigint') {
-            err = setI64(buf, arg);
-        } else if (arg instanceof Uint8Array) {
-            err = setBin(buf, arg);
-        } else {
-            return new Error(`setAll: unsupported type ${typeof arg}. Use wrappers for numbers.`);
-        }
-        if (err !== null) return err;
+    const [header, err4] = encodeStateBlock(states);
+    if (err4 !== null) return err4;
+    const err5 = buf.write(header);
+    if (err5 !== null) return err5;
+    for (let i = 0; i < v.length; i++) {
+        const err6 = setTextCompact(buf, states[i], v[i]);
+        if (err6 !== null) return new Error(`text list[${i}]: ${err6.message}`);
     }
     return null;
 };
 
-// GetAll performs batch get operations. Supports functions or objects with get().
-export const getAll = (buf: Buffer, ...args: (any)[]): Error | null => {
-    for (const arg of args) {
-        let err: Error | null = null;
-        if (typeof arg === 'function') {
-            err = arg(buf);
-        } else if (arg && typeof arg === 'object' && 'get' in arg && typeof arg.get === 'function') {
-            err = arg.get(buf);
-        } else {
-            return new Error("getAll: argument must be a function or have a get() method");
-        }
-        if (err !== null) return err;
+export const getBinListCompact = (buf: Buffer, state: number): [Uint8Array[], Error | null] => {
+    const [count, err] = getListCountCompact(buf, state);
+    if (err !== null) return [[], err];
+    const size = itemHeaderSize(count);
+    const [header, err2] = buf.read(size);
+    if (err2 !== null) return [[], new Error(`bin list state block not enough data: ${buf.len} - ${size}`)];
+    const [states, err3] = decodeStateBlock(header, count);
+    if (err3 !== null) return [[], err3];
+    const list = new Array<Uint8Array>(count);
+    for (let i = 0; i < count; i++) {
+        const [item, err4] = getBinCompact(buf, states[i]);
+        if (err4 !== null) return [[], new Error(`bin list[${i}]: ${err4.message}`)];
+        list[i] = item;
+    }
+    return [list, null];
+};
+export const setBinListCompact = (buf: Buffer, state: number, v: Uint8Array[]): Error | null => {
+    const [canonical, err] = listCountState(v.length);
+    if (err !== null) return err;
+    if (state !== canonical) return new Error(`bin list state ${state} is not canonical for count ${v.length}`);
+    const err2 = setListCountCompact(buf, state, v.length);
+    if (err2 !== null) return err2;
+    if (v.length === 0) return null;
+    const states = new Array<number>(v.length);
+    for (let i = 0; i < v.length; i++) {
+        const [itemState, err3] = binState(v[i].byteLength);
+        if (err3 !== null) return new Error(`bin list[${i}]: ${err3.message}`);
+        states[i] = itemState;
+    }
+    const [header, err4] = encodeStateBlock(states);
+    if (err4 !== null) return err4;
+    const err5 = buf.write(header);
+    if (err5 !== null) return err5;
+    for (let i = 0; i < v.length; i++) {
+        const err6 = setBinCompact(buf, states[i], v[i]);
+        if (err6 !== null) return new Error(`bin list[${i}]: ${err6.message}`);
     }
     return null;
 };
-
-// Helpers to match Go's GetAny logic for primitives via closure update
-export const into = <T>(target: { value: T }, getter: (buf: Buffer) => [T, Error | null]) => (buf: Buffer) => {
-    const [v, e] = getter(buf);
-    if (e === null) target.value = v;
-    return e;
-};
-
-// Convenience wrappers for TS numbers
-export const u8 = (v: number) => (buf: Buffer) => setU8(buf, v);
-export const u8List = (v: number[]) => (buf: Buffer) => setU8List(buf, v);
-export const u16 = (v: number) => (buf: Buffer) => setU16(buf, v);
-export const u32 = (v: number) => (buf: Buffer) => setU32(buf, v);
-export const i8 = (v: number) => (buf: Buffer) => setI8(buf, v);
-export const i16 = (v: number) => (buf: Buffer) => setI16(buf, v);
-export const i32 = (v: number) => (buf: Buffer) => setI32(buf, v);
-export const f32 = (v: number) => (buf: Buffer) => setF32(buf, v);
-export const f64 = (v: number) => (buf: Buffer) => setF64(buf, v);
-export const bool = (v: boolean) => (buf: Buffer) => setBool(buf, v);
-export const bin = (v: Uint8Array) => (buf: Buffer) => setBin(buf, v);
-export const text = (v: string) => (buf: Buffer) => setText(buf, v);

@@ -9,11 +9,10 @@ SB 是一个面向 Go 和 TypeScript 的二进制协议与 RPC 代码生成工�
 - 当前实现: 生成主链路已统一到 `sb/internal` 根包, 代码生成不再依赖模板文件.
 - 适用场景: 内部服务通信, 前后端对等协议, 小到中等体积的结构化二进制数据.
 
-### 协议草案
+### 协议规范
 
-- 当前已实现的协议规则以本 README 为准.
-- 如果要讨论下一版**非兼容** wire format 草案, 见 [PROTOCOL_V2.md](/._/tool/sb/PROTOCOL_V2.md).
-- `PROTOCOL_V2.md` 当前已经有独立的 Go / TypeScript `v2` runtime 与生成器原型落地到 `go/sb/v2`、`go/sbv2` 和 `ts/sbv2`, 但还没有切换为默认协议.
+- 当前协议规则以本 README 和 [PROTOCOL.md](/._/tool/sb/PROTOCOL.md) 为准.
+- 旧版生成链路已删除, 当前仓库只保留这套紧凑编码协议实现.
 
 ### 1.1 与常见序列化的优缺点对比
 
@@ -99,58 +98,19 @@ go run . <input.sb> [flags]
 go run . -go ./go -ts ./ts -tag bson,json aaa.sb
 ```
 
-如果同时生成 Go `v2` 代码:
-
-```bash
-go run . -go ./go -ts ./ts -tag bson,json -go-v2 aaa.sb
-```
-
-如果同时生成 Go / TypeScript `v2` 代码:
-
-```bash
-go run . -go ./go -ts ./ts -tag bson,json -go-v2 -ts-v2 aaa.sb
-```
-
 ### 2.2 命令行参数
 
 - `-go`: Go 代码输出目录, 默认 `./go`
 - `-ts`: TypeScript 代码输出目录, 默认 `./ts`
 - `-tag`: 为 Go 结构体追加 tag, 例如 `bson,json`
-- `-go-v2`: 额外生成 Go `v2` 代码到 `go/sbv2`, 当前包含 `struct`、`enum`、API handler 和 RPC 客户端
-- `-ts-v2`: 额外生成 TypeScript `v2` 代码到 `ts/sbv2`, 当前包含 `struct`、`enum` 和 RPC 客户端
 
 ### 2.3 生成目录约定
 
-- `go/sb`: Go 协议类型, 运行时, 编解码, RPC 客户端, API handler, `api.*.go`
-- `go/sbv2`: Go `v2` 协议类型, 编解码, RPC 客户端, API handler, `api.*.go`
+- `go/sb`: Go 协议类型, 编解码, RPC 客户端, API handler, `api.*.go`
 - `ts/sb`: TypeScript 类型, 运行时, 编解码, RPC 客户端
-- `ts/sbv2`: TypeScript `v2` 类型, 运行时, 编解码, RPC 客户端
-- `go/sb/v2`: Go `v2` runtime
+- `go/sb/rt`: Go runtime
 - `go/sb/DOC.md`: 自动生成的 Markdown API 文档
 - `api.*.go`: 可手改逻辑文件, 生成器使用指纹保护已改文件不被覆盖
-
-### 2.4 `v1/v2` 基准对比
-
-如果要直接跑一轮 `v1` 和 `v2` 的 Go / TypeScript 对照基准:
-
-```bash
-bash ./bench_v1_v2.sh
-```
-
-常用环境变量:
-
-- `SB_SCHEMA`: 输入 schema, 默认 `aaa.sb`
-- `SB_GO_BENCHTIME`: Go benchmark 时长, 默认 `100ms`
-- `SB_BENCH_ITERS`: Bun benchmark 迭代次数, 默认 `1000`
-- `SB_BENCH_WARMUP`: Bun benchmark 预热次数, 默认 `100`
-- `SB_BENCH_LIST_SIZE`: list 基准长度, 默认 `32`
-- `SB_SKIP_GEN=1`: 跳过生成, 直接跑现有产物
-
-例如快速跑一轮较短的对照:
-
-```bash
-SB_GO_BENCHTIME=10ms SB_BENCH_ITERS=100 SB_BENCH_WARMUP=10 bash ./bench_v1_v2.sh
-```
 
 ## 3. `.sb` 语法
 

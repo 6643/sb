@@ -1,5 +1,44 @@
 # Changelog
 
+## [2026-03-08 06:08:00] [type: refactor] [scope: naming,docs,tplgen]
+- [将当前主链路中的版本化命名收口为正式命名：协议文档更名为 `PROTOCOL.md`，内部模板文件更名为 `tpl_go_render.go`、`tpl_ts_render.go`、`tpl_ts_runtime_render.go` 等通用名称]
+- [同步清理 README 与协议文档中的迁移期措辞，删除当前实现里对并行协议链路的引用，并把生成器/运行时/一致性回归的实际落点更新到文档]
+
+## [2026-03-08 05:41:00] [type: refactor] [scope: ts,runtime,tplgen]
+- [为 TS runtime 新增 `getZeroValueListCompact` / `setZeroValueListCompact`，把 number/bigint 这类零默认值 list 的容器级重复包装下沉到 runtime]
+- [TS 生成器改为让基础标量 list 直接调用新 helper，减少生成产物中的重复 lambda 与模板分支；随后重生成产物并通过 Go/Bun/`bunx tsc`/双端一致性回归]
+
+## [2026-03-08 05:32:00] [type: refactor] [scope: ts,runtime,tplgen,test]
+- [为 TS runtime 新增 `readHeader` / `writeHeader`，统一处理 struct header 的状态打包与解包；TS 生成器改为为每个 struct 生成 `*HeaderWidths` 常量，不再在产物里手写 `BitReader` / `BitWriter` 的逐字段 header 位运算]
+- [同步更新 TS 生成器回归断言，并在产物重生成后继续执行 Go 全量测试、Bun 全量测试、`bunx tsc` 与双端数据一致性回归]
+
+## [2026-03-08 05:05:00] [type: refactor] [scope: go,runtime,tplgen]
+- [为 Go runtime 新增 `ReadHeader` / `WriteHeader`，统一处理 struct header 的位图/状态打包与解包，并补充 `go/sb/rt/runtime_test.go` 覆盖跨字节与非法 padding/范围校验]
+- [Go 生成器改为为每个 struct 生成 `*HeaderWidths` 常量，生成代码不再手写逐 bit 的 header pack/unpack 位运算，减少模板重复与产物代码量]
+
+## [2026-03-08 04:46:00] [type: refactor] [scope: go,ts,test,docs]
+- [将 Go runtime 路径从 `go/sb/v2` 收口为 `go/sb/rt`，同步更新生成器、生成产物导入路径与文档说明]
+- [新增 `ts/sb/cross_consistency.test.ts`，将双端字节级一致性校验接入正式 `bun test` 入口，并复用 Go 侧权威对拍测试]
+
+## [2026-03-08 04:31:00] [type: test] [scope: go,ts]
+- [新增 `go/sb/cross_consistency_test.go` 与 `ts/sb/cross_consistency.ts`，用同一批结构体与 API 载荷样本做 Go↔TS 字节级 roundtrip 对拍，覆盖空值、常规值与关键边界值]
+
+## [2026-03-08 04:02:00] [type: breaking] [scope: tplgen,go,ts,docs]
+- [删除旧版 v1 生成链路与对应产物目录，生成器现在只保留当前紧凑协议实现；CLI 移除 `-go-v2` / `-ts-v2`，默认直接生成到 `go/sb` 与 `ts/sb`]
+- [将活跃生成器入口与 helper 命名去掉 `v2` 前缀，并同步更新 README / `PROTOCOL_V2.md`，明确当前仓库只保留这一套默认协议]
+
+## [2026-03-08 03:16:00] [type: refactor] [scope: tplgen,ts]
+- [将 TS v1 runtime 的通用 `getList` / `setList` / `into` helper 收口为 `Err` 风格返回值，同时兼容回调返回 `Error | null | undefined`，避免高层生成代码与 runtime helper 的错误类型继续分裂]
+
+## [2026-03-08 03:05:00] [type: fix] [scope: tplgen,ts,v2]
+- [修正 TS v2 `bitmap list` runtime 与生成器之间的错误类型签名不一致：`getBitmapListCompact` / `setBitmapListCompact` 现在接收并返回 `Err`，避免 `readX` / `setX` 回调返回 `Error | undefined` 时与旧的 `Error | null` 签名冲突]
+- [同步移除 TS v2 `struct/enum list` 包装层中多余的 `resultU` / `errU` 包装，直接透传 `Err`，使生成产物与 runtime 签名一致]
+- [补齐 TS v2 primitive bitmap-list 生成：对 `rt.getU32/getI32/...`、`rt.setU32/setI32/...` 这类低层 `Error | null` API 在生成器侧做 `Err` 适配，并把对应判错条件从 `!== null` 收口为 `!== undefined`]
+
+## [2026-03-08 02:12:00] [type: refactor] [scope: tplgen,ts]
+- [将 TS 面向业务侧的生成函数统一收口为 `Error | undefined` / `[T, Err]` 风格；新增 `Err`、`errU`、`resultU` 适配器，避免高层继续暴露 `Error | null`]
+- [保持底层 TS primitive runtime 的 `Error | null` 不变，仅通过适配层改动 `struct/list/v2 validate` 等高层生成签名，降低改动面并保持现有低层实现稳定]
+
 ## [2026-03-08 01:36:00] [type: refactor] [scope: tplgen,go,ts,v2]
 - [移除 Go/TS v2 API 参数与返回值的自动 wrapper struct 组装，改为在 handler / RPC client 中按参数顺序直接对 `buf` 调用基础 getter/setter 与 struct codec，显著减少生成代码量]
 - [停止生成 TS v2 的 `struct_api_*_{req,resp}.ts` 包装体文件，并在生成时清理旧 wrapper 产物，保持 Go server / Go client / TS client 的 v2 API wire format 一致]

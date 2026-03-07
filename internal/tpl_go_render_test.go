@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-func TestGoV2GeneratorWritesSchemaFile(t *testing.T) {
+func TestGoGeneratorWritesSchemaFile(t *testing.T) {
 	tmpDir := t.TempDir()
-	g := NewGoV2Generator(Config{GoDir: tmpDir, GoTag: "json"})
+	g := NewGoGenerator(Config{GoDir: tmpDir, GoTag: "json"})
 
 	schema := &TplSchema{
 		Enums: []TplEnum{
@@ -52,23 +52,26 @@ func TestGoV2GeneratorWritesSchemaFile(t *testing.T) {
 	}
 
 	if err := g.Generate(schema); err != nil {
-		t.Fatalf("generate go v2 failed: %v", err)
+		t.Fatalf("generate go failed: %v", err)
 	}
 
-	content, err := os.ReadFile(filepath.Join(tmpDir, "sbv2", "schema.gen.go"))
+	content, err := os.ReadFile(filepath.Join(tmpDir, "sb", "schema.gen.go"))
 	if err != nil {
 		t.Fatalf("read schema.gen.go failed: %v", err)
 	}
 	text := string(content)
 
-	assertContains(t, text, "package sbv2")
-	assertContains(t, text, "rt \"sb/go/sb/v2\"")
+	assertContains(t, text, "package sb")
+	assertContains(t, text, "rt \"sb/go/sb/rt\"")
 	assertContains(t, text, "func isSimOperator(v SimOperator) bool {")
 	assertContains(t, text, "func defaultSimOperator() SimOperator { return SimOperatorZz }")
 	assertContains(t, text, "func normalizeSimOperator(v SimOperator) SimOperator {")
 	assertContains(t, text, "func isAssignableSimOperator(v SimOperator) bool {")
 	assertContains(t, text, "func SetSim(buf *bytes.Buffer, s *Sim) error {")
 	assertContains(t, text, "func GetSim(buf *bytes.Buffer, s *Sim) error {")
+	assertContains(t, text, "var simHeaderWidths = [...]uint8{1, 2, 1, 1, 2, 2, 2}")
+	assertContains(t, text, "if err := rt.ReadHeader(header, simHeaderWidths[:], headerStates[:], \"Sim header\"); err != nil { return err }")
+	assertContains(t, text, "if err := rt.WriteHeader(headerData[:], simHeaderWidths[:], headerStates[:]); err != nil { return fmt.Errorf(\"SetSim write header: %w\", err) }")
 	assertContains(t, text, "func isZeroSim(s *Sim) bool {")
 	assertContains(t, text, "func getSimInfoListBody(buf *bytes.Buffer, state uint8) ([]*SimInfo, error) {")
 	assertContains(t, text, "func getSimInfoListBodyReuse(buf *bytes.Buffer, state uint8, dst []*SimInfo) ([]*SimInfo, error) {")
@@ -86,7 +89,7 @@ func TestGoV2GeneratorWritesSchemaFile(t *testing.T) {
 	assertNotContains(t, text, "func ValidateSimInfo(")
 	assertContains(t, text, "`json:\"_id\"`")
 
-	apiContent, err := os.ReadFile(filepath.Join(tmpDir, "sbv2", "api._.go"))
+	apiContent, err := os.ReadFile(filepath.Join(tmpDir, "sb", "api._.go"))
 	if err != nil {
 		t.Fatalf("read api._.go failed: %v", err)
 	}
@@ -102,7 +105,7 @@ func TestGoV2GeneratorWritesSchemaFile(t *testing.T) {
 	assertNotContains(t, apiText, "setApiUserGetCountResp")
 	assertContains(t, apiText, "var _ = slices.Equal[[]int, int]")
 
-	rpcContent, err := os.ReadFile(filepath.Join(tmpDir, "sbv2", "rpc.go"))
+	rpcContent, err := os.ReadFile(filepath.Join(tmpDir, "sb", "rpc.go"))
 	if err != nil {
 		t.Fatalf("read rpc.go failed: %v", err)
 	}
@@ -113,7 +116,7 @@ func TestGoV2GeneratorWritesSchemaFile(t *testing.T) {
 	assertNotContains(t, rpcText, "ApiUserGetCountReq")
 	assertNotContains(t, rpcText, "readApiUserGetCountResp")
 
-	stubContent, err := os.ReadFile(filepath.Join(tmpDir, "sbv2", "api.user.get_count.go"))
+	stubContent, err := os.ReadFile(filepath.Join(tmpDir, "sb", "api.user.get_count.go"))
 	if err != nil {
 		t.Fatalf("read api.user.get_count.go failed: %v", err)
 	}

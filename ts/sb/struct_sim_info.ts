@@ -1,7 +1,7 @@
+import * as rt from "./type"
 import * as _ from "./_"
-import * as TplEnum from "./enum"
 
-export interface SimInfo extends _.Serializable, _.Deserializable {
+export interface SimInfo extends rt.Serializable, rt.Deserializable {
     id: number;
     title: string;
     content: string;
@@ -11,6 +11,8 @@ export interface SimInfo extends _.Serializable, _.Deserializable {
     d: boolean;
     zip: Uint8Array;
 }
+
+const simInfoHeaderWidths = [1, 2, 2, 1, 1, 1, 1, 2] as const;
 
 export const newSimInfo = (): SimInfo => {
     const s = {
@@ -23,134 +25,135 @@ export const newSimInfo = (): SimInfo => {
         d: false,
         zip: new Uint8Array(0),
     } as any as SimInfo;
-    s.set = (buf: _.Buffer) => setSimInfo(buf, s);
-    s.get = (buf: _.Buffer) => {
-        const [res, err] = getSimInfo(buf);
-        if (err === null) Object.assign(s, res);
+    s.set = (buf: rt.Buffer) => setSimInfo(buf, s);
+    s.get = (buf: rt.Buffer) => {
+        const [next, err] = getSimInfo(buf);
+        if (err === undefined) Object.assign(s, next);
         return err;
     };
     return s;
-}
+};
 
-export const eqSimInfo = (a: SimInfo, b: SimInfo): boolean => {
-    if (a === b) return true;
-    if (a === null || b === null) return false;
-    if (!_.eqU32(a.id, b.id)) return false;
-    if (!_.eqText(a.title, b.title)) return false;
-    if (!_.eqText(a.content, b.content)) return false;
-    if (!_.eqBool(a.a, b.a)) return false;
-    if (!_.eqBool(a.b, b.b)) return false;
-    if (!_.eqBool(a.c, b.c)) return false;
-    if (!_.eqBool(a.d, b.d)) return false;
-    if (!_.eqBin(a.zip, b.zip)) return false;
+export const isZeroSimInfo = (s: SimInfo | null | undefined): boolean => {
+    if (s === null || s === undefined) return true;
+    if (s.id !== 0) return false;
+    if (s.title !== "") return false;
+    if (s.content !== "") return false;
+    if (s.a) return false;
+    if (s.b) return false;
+    if (s.c) return false;
+    if (s.d) return false;
+    if (s.zip.byteLength !== 0) return false;
     return true;
-}
+};
 
-export const getSimInfo = (buf: _.Buffer): [SimInfo, Error | null] => {
+export const validateSimInfo = (s: SimInfo | null | undefined): rt.Err => {
+    if (s === null || s === undefined) return undefined;
+    { const [, err] = rt.textState(s.title); if (err !== null) return new Error(`Title: ${err.message}`); }
+    { const [, err] = rt.textState(s.content); if (err !== null) return new Error(`Content: ${err.message}`); }
+    { const [, err] = rt.binState(s.zip.byteLength); if (err !== null) return new Error(`Zip: ${err.message}`); }
+    return undefined;
+};
+
+export const getSimInfo = (buf: rt.Buffer): [SimInfo, rt.Err] => {
     const s = newSimInfo();
-    const bitmaskSize = 1;
-    const [bits, err] = buf.read(bitmaskSize);
-    if (err !== null) return [s, err];
-    if (_.GetBit(bits, 0)) {
-        const [v, err] = _.getU32(buf);
-        if (err !== null) return [s, err];
-        s.id = v;
+    const headerBits = 11;
+    const [header, errHeader] = buf.read(rt.headerSize(headerBits));
+    if (errHeader !== null) return [s, new Error(`not enough data`)];
+    const [headerStates, errHeaderState] = rt.readHeader(header, simInfoHeaderWidths, "SimInfo header");
+    if (errHeaderState !== undefined) return [s, errHeaderState];
+    const idPresent = headerStates[0] === 1;
+    const titleState = headerStates[1];
+    const contentState = headerStates[2];
+    const aState = headerStates[3] === 1;
+    const bState = headerStates[4] === 1;
+    const cState = headerStates[5] === 1;
+    const dState = headerStates[6] === 1;
+    const zipState = headerStates[7];
+    if (idPresent) {
+        const [value, err] = rt.getU32(buf);
+        if (err !== null) return [s, new Error(`get SimInfo Id: ${err.message}`)];
+        s.id = value as any;
     }
-    if (_.GetBit(bits, 1)) {
-        const [v, err] = _.getText(buf);
-        if (err !== null) return [s, err];
-        s.title = v;
-    }
-    if (_.GetBit(bits, 2)) {
-        const [v, err] = _.getText(buf);
-        if (err !== null) return [s, err];
-        s.content = v;
-    }
-    s.a = _.GetBit(bits, 3);
-    s.b = _.GetBit(bits, 4);
-    s.c = _.GetBit(bits, 5);
-    s.d = _.GetBit(bits, 6);
-    if (_.GetBit(bits, 7)) {
-        const [v, err] = _.getBin(buf);
-        if (err !== null) return [s, err];
-        s.zip = v;
-    }
-    return [s, null];
-}
+    { const [value, err] = rt.getTextCompact(buf, titleState); if (err !== null) return [s, new Error(`get SimInfo Title: ${err.message}`)]; s.title = value; }
+    { const [value, err] = rt.getTextCompact(buf, contentState); if (err !== null) return [s, new Error(`get SimInfo Content: ${err.message}`)]; s.content = value; }
+    s.a = aState;
+    s.b = bState;
+    s.c = cState;
+    s.d = dState;
+    { const [value, err] = rt.getBinCompact(buf, zipState); if (err !== null) return [s, new Error(`get SimInfo Zip: ${err.message}`)]; s.zip = value; }
+    const errValidate = validateSimInfo(s);
+    if (errValidate !== undefined) return [s, new Error(`validate failed: ${errValidate.message}`)];
+    return [s, undefined];
+};
 
-export const setSimInfo = (buf: _.Buffer, s: SimInfo): Error | null => {
+export const setSimInfo = (buf: rt.Buffer, s: SimInfo): rt.Err => {
     if (s === null || s === undefined) return new Error(`set SimInfo: value is null or undefined`);
-    const startOffset = buf.write_offset;
-    const bits = new Uint8Array(1);
-    if (!_.eqU32(s.id, 0)) {
-        _.SetBit(bits, 0, true);
+    const errValidate = validateSimInfo(s);
+    if (errValidate !== undefined) return new Error(`validate SimInfo: ${errValidate.message}`);
+    const startOffset = buf.writeOffset;
+    const [titleState, errTitleState] = rt.textState(s.title);
+    if (errTitleState !== null) return errTitleState;
+    const [contentState, errContentState] = rt.textState(s.content);
+    if (errContentState !== null) return errContentState;
+    const [zipState, errZipState] = rt.binState(s.zip.byteLength);
+    if (errZipState !== null) return errZipState;
+    const headerStates = [
+        s.id !== 0 ? 1 : 0,
+        titleState,
+        contentState,
+        s.a ? 1 : 0,
+        s.b ? 1 : 0,
+        s.c ? 1 : 0,
+        s.d ? 1 : 0,
+        zipState,
+    ];
+    const [header, errHeader] = rt.writeHeader(simInfoHeaderWidths, headerStates);
+    if (errHeader !== undefined) { buf.rewindWrite(startOffset); return new Error(`set header: ${errHeader.message}`); }
+    const errHeaderWrite = buf.write(header);
+    if (errHeaderWrite !== null) { buf.rewindWrite(startOffset); return errHeaderWrite; }
+    if (s.id !== 0) {
+        const err = rt.setU32(buf, s.id as any);
+        if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimInfo Id: ${err.message}`); }
     }
-    if (!_.eqText(s.title, "")) {
-        _.SetBit(bits, 1, true);
-    }
-    if (!_.eqText(s.content, "")) {
-        _.SetBit(bits, 2, true);
-    }
-    _.SetBit(bits, 3, s.a as boolean);
-    _.SetBit(bits, 4, s.b as boolean);
-    _.SetBit(bits, 5, s.c as boolean);
-    _.SetBit(bits, 6, s.d as boolean);
-    if (!_.eqBin(s.zip, new Uint8Array(0))) {
-        _.SetBit(bits, 7, true);
-    }
+    { const err = rt.setTextCompact(buf, titleState, s.title); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimInfo Title: ${err.message}`); } }
+    { const err = rt.setTextCompact(buf, contentState, s.content); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimInfo Content: ${err.message}`); } }
+    { const err = rt.setBinCompact(buf, zipState, s.zip); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimInfo Zip: ${err.message}`); } }
+    return undefined;
+};
 
-    const errBits = buf.write(bits);
-    if (errBits !== null) return errBits;
-    if (!_.eqU32(s.id, 0)) {
-        const err = _.setU32(buf, s.id);
-        if (err !== null) {
-            buf.rewindWrite(startOffset);
-            return err;
-        }
-    }
-    if (!_.eqText(s.title, "")) {
-        const err = _.setText(buf, s.title);
-        if (err !== null) {
-            buf.rewindWrite(startOffset);
-            return err;
-        }
-    }
-    if (!_.eqText(s.content, "")) {
-        const err = _.setText(buf, s.content);
-        if (err !== null) {
-            buf.rewindWrite(startOffset);
-            return err;
-        }
-    }
-    if (!_.eqBin(s.zip, new Uint8Array(0))) {
-        const err = _.setBin(buf, s.zip);
-        if (err !== null) {
-            buf.rewindWrite(startOffset);
-            return err;
-        }
-    }
-    return null;
-}
+export const readSimInfo = (buf: rt.Buffer): [SimInfo, rt.Err] => getSimInfo(buf);
 
-export const getSimInfoList = (buf: _.Buffer): [SimInfo[], Error | null] => {
-    const [count, err] = _.getU16(buf);
-    if (err !== null) return [[], err];
-    const list: SimInfo[] = new Array(count);
-    for (let i = 0; i < count; i++) {
-        const [item, err2] = getSimInfo(buf);
-        if (err2 !== null) return [[], err2];
-        list[i] = item;
-    }
-    return [list, null];
+export const eqSimInfo = (a: SimInfo | null | undefined, b: SimInfo | null | undefined): boolean => {
+    if (isZeroSimInfo(a as any) && isZeroSimInfo(b as any)) return true;
+    if (a === null || a === undefined || b === null || b === undefined) return false;
+    if (!rt.eqU32(a.id, b.id)) return false;
+    if (!rt.eqText(a.title, b.title)) return false;
+    if (!rt.eqText(a.content, b.content)) return false;
+    if (!rt.eqBool(a.a, b.a)) return false;
+    if (!rt.eqBool(a.b, b.b)) return false;
+    if (!rt.eqBool(a.c, b.c)) return false;
+    if (!rt.eqBool(a.d, b.d)) return false;
+    if (!rt.eqBin(a.zip, b.zip)) return false;
+    return true;
+};
+
+export const getSimInfoListBody = (buf: rt.Buffer, state: number): [SimInfo[], rt.Err] => {
+    const [list, err] = rt.getBitmapListCompact<SimInfo>(
+        buf,
+        state,
+        () => newSimInfo(),
+        (buf) => readSimInfo(buf),
+    );
+    return [list, err];
+};
+
+export const setSimInfoListBody = (buf: rt.Buffer, state: number, v: SimInfo[]): rt.Err => {
+    return rt.setBitmapListCompact<SimInfo>(
+        buf,
+        state,
+        v,
+        (item) => isZeroSimInfo(item),
+        (buf, item) => setSimInfo(buf, item),
+    );
 }
-export const setSimInfoList = (buf: _.Buffer, v: SimInfo[]): Error | null => {
-    if (v.length > 65535) return new Error(`list length ${v.length} exceeds u16 max`);
-    const err = _.setU16(buf, v.length);
-    if (err !== null) return err;
-    for (const item of v) {
-        const err2 = setSimInfo(buf, item);
-        if (err2 !== null) return err2;
-    }
-    return null;
-}
-export const eqSimInfoList = (a: SimInfo[], b: SimInfo[]): boolean => _.eqList(a, b, eqSimInfo);

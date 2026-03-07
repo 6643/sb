@@ -1,15 +1,24 @@
+import * as rt from "./type"
 import * as _ from "./_"
-import * as TplEnum from "./enum"
 
-export interface SimOrder2 extends _.Serializable, _.Deserializable {
+export interface SimOrder2 extends rt.Serializable, rt.Deserializable {
+    // SIM卡ID
     id: number;
+    // 办理人姓名
     name: string;
+    // 联系电话
     phone: string;
+    // 身份证号
     idNo: string;
+    // 所在城市
     cityCode: number;
+    // 详细地址
     address: string;
+    // 新手机号码
     newPhone: string;
 }
+
+const simOrder2HeaderWidths = [1, 2, 2, 2, 1, 2, 2] as const;
 
 export const newSimOrder2 = (): SimOrder2 => {
     const s = {
@@ -21,170 +30,146 @@ export const newSimOrder2 = (): SimOrder2 => {
         address: "",
         newPhone: "",
     } as any as SimOrder2;
-    s.set = (buf: _.Buffer) => setSimOrder2(buf, s);
-    s.get = (buf: _.Buffer) => {
-        const [res, err] = getSimOrder2(buf);
-        if (err === null) Object.assign(s, res);
+    s.set = (buf: rt.Buffer) => setSimOrder2(buf, s);
+    s.get = (buf: rt.Buffer) => {
+        const [next, err] = getSimOrder2(buf);
+        if (err === undefined) Object.assign(s, next);
         return err;
     };
     return s;
-}
+};
 
-export const eqSimOrder2 = (a: SimOrder2, b: SimOrder2): boolean => {
-    if (a === b) return true;
-    if (a === null || b === null) return false;
-    if (!_.eqU32(a.id, b.id)) return false;
-    if (!_.eqText(a.name, b.name)) return false;
-    if (!_.eqText(a.phone, b.phone)) return false;
-    if (!_.eqText(a.idNo, b.idNo)) return false;
-    if (!_.eqU32(a.cityCode, b.cityCode)) return false;
-    if (!_.eqText(a.address, b.address)) return false;
-    if (!_.eqText(a.newPhone, b.newPhone)) return false;
+export const isZeroSimOrder2 = (s: SimOrder2 | null | undefined): boolean => {
+    if (s === null || s === undefined) return true;
+    if (s.id !== 0) return false;
+    if (s.name !== "") return false;
+    if (s.phone !== "") return false;
+    if (s.idNo !== "") return false;
+    if (s.cityCode !== 0) return false;
+    if (s.address !== "") return false;
+    if (s.newPhone !== "") return false;
     return true;
-}
+};
 
-export const getSimOrder2 = (buf: _.Buffer): [SimOrder2, Error | null] => {
+export const validateSimOrder2 = (s: SimOrder2 | null | undefined): rt.Err => {
+    if (s === null || s === undefined) return undefined;
+    { const [, err] = rt.textState(s.name); if (err !== null) return new Error(`Name: ${err.message}`); }
+    { const [, err] = rt.textState(s.phone); if (err !== null) return new Error(`Phone: ${err.message}`); }
+    { const [, err] = rt.textState(s.idNo); if (err !== null) return new Error(`IdNo: ${err.message}`); }
+    { const [, err] = rt.textState(s.address); if (err !== null) return new Error(`Address: ${err.message}`); }
+    { const [, err] = rt.textState(s.newPhone); if (err !== null) return new Error(`NewPhone: ${err.message}`); }
+    return undefined;
+};
+
+export const getSimOrder2 = (buf: rt.Buffer): [SimOrder2, rt.Err] => {
     const s = newSimOrder2();
-    const bitmaskSize = 1;
-    const [bits, err] = buf.read(bitmaskSize);
-    if (err !== null) return [s, err];
-    if (_.GetBit(bits, 0)) {
-        const [v, err] = _.getU32(buf);
-        if (err !== null) return [s, err];
-        s.id = v;
+    const headerBits = 12;
+    const [header, errHeader] = buf.read(rt.headerSize(headerBits));
+    if (errHeader !== null) return [s, new Error(`not enough data`)];
+    const [headerStates, errHeaderState] = rt.readHeader(header, simOrder2HeaderWidths, "SimOrder2 header");
+    if (errHeaderState !== undefined) return [s, errHeaderState];
+    const idPresent = headerStates[0] === 1;
+    const nameState = headerStates[1];
+    const phoneState = headerStates[2];
+    const idNoState = headerStates[3];
+    const cityCodePresent = headerStates[4] === 1;
+    const addressState = headerStates[5];
+    const newPhoneState = headerStates[6];
+    if (idPresent) {
+        const [value, err] = rt.getU32(buf);
+        if (err !== null) return [s, new Error(`get SimOrder2 Id: ${err.message}`)];
+        s.id = value as any;
     }
-    if (_.GetBit(bits, 1)) {
-        const [v, err] = _.getText(buf);
-        if (err !== null) return [s, err];
-        s.name = v;
+    { const [value, err] = rt.getTextCompact(buf, nameState); if (err !== null) return [s, new Error(`get SimOrder2 Name: ${err.message}`)]; s.name = value; }
+    { const [value, err] = rt.getTextCompact(buf, phoneState); if (err !== null) return [s, new Error(`get SimOrder2 Phone: ${err.message}`)]; s.phone = value; }
+    { const [value, err] = rt.getTextCompact(buf, idNoState); if (err !== null) return [s, new Error(`get SimOrder2 IdNo: ${err.message}`)]; s.idNo = value; }
+    if (cityCodePresent) {
+        const [value, err] = rt.getU32(buf);
+        if (err !== null) return [s, new Error(`get SimOrder2 CityCode: ${err.message}`)];
+        s.cityCode = value as any;
     }
-    if (_.GetBit(bits, 2)) {
-        const [v, err] = _.getText(buf);
-        if (err !== null) return [s, err];
-        s.phone = v;
-    }
-    if (_.GetBit(bits, 3)) {
-        const [v, err] = _.getText(buf);
-        if (err !== null) return [s, err];
-        s.idNo = v;
-    }
-    if (_.GetBit(bits, 4)) {
-        const [v, err] = _.getU32(buf);
-        if (err !== null) return [s, err];
-        s.cityCode = v;
-    }
-    if (_.GetBit(bits, 5)) {
-        const [v, err] = _.getText(buf);
-        if (err !== null) return [s, err];
-        s.address = v;
-    }
-    if (_.GetBit(bits, 6)) {
-        const [v, err] = _.getText(buf);
-        if (err !== null) return [s, err];
-        s.newPhone = v;
-    }
-    return [s, null];
-}
+    { const [value, err] = rt.getTextCompact(buf, addressState); if (err !== null) return [s, new Error(`get SimOrder2 Address: ${err.message}`)]; s.address = value; }
+    { const [value, err] = rt.getTextCompact(buf, newPhoneState); if (err !== null) return [s, new Error(`get SimOrder2 NewPhone: ${err.message}`)]; s.newPhone = value; }
+    const errValidate = validateSimOrder2(s);
+    if (errValidate !== undefined) return [s, new Error(`validate failed: ${errValidate.message}`)];
+    return [s, undefined];
+};
 
-export const setSimOrder2 = (buf: _.Buffer, s: SimOrder2): Error | null => {
+export const setSimOrder2 = (buf: rt.Buffer, s: SimOrder2): rt.Err => {
     if (s === null || s === undefined) return new Error(`set SimOrder2: value is null or undefined`);
-    const startOffset = buf.write_offset;
-    const bits = new Uint8Array(1);
-    if (!_.eqU32(s.id, 0)) {
-        _.SetBit(bits, 0, true);
+    const errValidate = validateSimOrder2(s);
+    if (errValidate !== undefined) return new Error(`validate SimOrder2: ${errValidate.message}`);
+    const startOffset = buf.writeOffset;
+    const [nameState, errNameState] = rt.textState(s.name);
+    if (errNameState !== null) return errNameState;
+    const [phoneState, errPhoneState] = rt.textState(s.phone);
+    if (errPhoneState !== null) return errPhoneState;
+    const [idNoState, errIdNoState] = rt.textState(s.idNo);
+    if (errIdNoState !== null) return errIdNoState;
+    const [addressState, errAddressState] = rt.textState(s.address);
+    if (errAddressState !== null) return errAddressState;
+    const [newPhoneState, errNewPhoneState] = rt.textState(s.newPhone);
+    if (errNewPhoneState !== null) return errNewPhoneState;
+    const headerStates = [
+        s.id !== 0 ? 1 : 0,
+        nameState,
+        phoneState,
+        idNoState,
+        s.cityCode !== 0 ? 1 : 0,
+        addressState,
+        newPhoneState,
+    ];
+    const [header, errHeader] = rt.writeHeader(simOrder2HeaderWidths, headerStates);
+    if (errHeader !== undefined) { buf.rewindWrite(startOffset); return new Error(`set header: ${errHeader.message}`); }
+    const errHeaderWrite = buf.write(header);
+    if (errHeaderWrite !== null) { buf.rewindWrite(startOffset); return errHeaderWrite; }
+    if (s.id !== 0) {
+        const err = rt.setU32(buf, s.id as any);
+        if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder2 Id: ${err.message}`); }
     }
-    if (!_.eqText(s.name, "")) {
-        _.SetBit(bits, 1, true);
+    { const err = rt.setTextCompact(buf, nameState, s.name); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder2 Name: ${err.message}`); } }
+    { const err = rt.setTextCompact(buf, phoneState, s.phone); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder2 Phone: ${err.message}`); } }
+    { const err = rt.setTextCompact(buf, idNoState, s.idNo); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder2 IdNo: ${err.message}`); } }
+    if (s.cityCode !== 0) {
+        const err = rt.setU32(buf, s.cityCode as any);
+        if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder2 CityCode: ${err.message}`); }
     }
-    if (!_.eqText(s.phone, "")) {
-        _.SetBit(bits, 2, true);
-    }
-    if (!_.eqText(s.idNo, "")) {
-        _.SetBit(bits, 3, true);
-    }
-    if (!_.eqU32(s.cityCode, 0)) {
-        _.SetBit(bits, 4, true);
-    }
-    if (!_.eqText(s.address, "")) {
-        _.SetBit(bits, 5, true);
-    }
-    if (!_.eqText(s.newPhone, "")) {
-        _.SetBit(bits, 6, true);
-    }
+    { const err = rt.setTextCompact(buf, addressState, s.address); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder2 Address: ${err.message}`); } }
+    { const err = rt.setTextCompact(buf, newPhoneState, s.newPhone); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder2 NewPhone: ${err.message}`); } }
+    return undefined;
+};
 
-    const errBits = buf.write(bits);
-    if (errBits !== null) return errBits;
-    if (!_.eqU32(s.id, 0)) {
-        const err = _.setU32(buf, s.id);
-        if (err !== null) {
-            buf.rewindWrite(startOffset);
-            return err;
-        }
-    }
-    if (!_.eqText(s.name, "")) {
-        const err = _.setText(buf, s.name);
-        if (err !== null) {
-            buf.rewindWrite(startOffset);
-            return err;
-        }
-    }
-    if (!_.eqText(s.phone, "")) {
-        const err = _.setText(buf, s.phone);
-        if (err !== null) {
-            buf.rewindWrite(startOffset);
-            return err;
-        }
-    }
-    if (!_.eqText(s.idNo, "")) {
-        const err = _.setText(buf, s.idNo);
-        if (err !== null) {
-            buf.rewindWrite(startOffset);
-            return err;
-        }
-    }
-    if (!_.eqU32(s.cityCode, 0)) {
-        const err = _.setU32(buf, s.cityCode);
-        if (err !== null) {
-            buf.rewindWrite(startOffset);
-            return err;
-        }
-    }
-    if (!_.eqText(s.address, "")) {
-        const err = _.setText(buf, s.address);
-        if (err !== null) {
-            buf.rewindWrite(startOffset);
-            return err;
-        }
-    }
-    if (!_.eqText(s.newPhone, "")) {
-        const err = _.setText(buf, s.newPhone);
-        if (err !== null) {
-            buf.rewindWrite(startOffset);
-            return err;
-        }
-    }
-    return null;
-}
+export const readSimOrder2 = (buf: rt.Buffer): [SimOrder2, rt.Err] => getSimOrder2(buf);
 
-export const getSimOrder2List = (buf: _.Buffer): [SimOrder2[], Error | null] => {
-    const [count, err] = _.getU16(buf);
-    if (err !== null) return [[], err];
-    const list: SimOrder2[] = new Array(count);
-    for (let i = 0; i < count; i++) {
-        const [item, err2] = getSimOrder2(buf);
-        if (err2 !== null) return [[], err2];
-        list[i] = item;
-    }
-    return [list, null];
+export const eqSimOrder2 = (a: SimOrder2 | null | undefined, b: SimOrder2 | null | undefined): boolean => {
+    if (isZeroSimOrder2(a as any) && isZeroSimOrder2(b as any)) return true;
+    if (a === null || a === undefined || b === null || b === undefined) return false;
+    if (!rt.eqU32(a.id, b.id)) return false;
+    if (!rt.eqText(a.name, b.name)) return false;
+    if (!rt.eqText(a.phone, b.phone)) return false;
+    if (!rt.eqText(a.idNo, b.idNo)) return false;
+    if (!rt.eqU32(a.cityCode, b.cityCode)) return false;
+    if (!rt.eqText(a.address, b.address)) return false;
+    if (!rt.eqText(a.newPhone, b.newPhone)) return false;
+    return true;
+};
+
+export const getSimOrder2ListBody = (buf: rt.Buffer, state: number): [SimOrder2[], rt.Err] => {
+    const [list, err] = rt.getBitmapListCompact<SimOrder2>(
+        buf,
+        state,
+        () => newSimOrder2(),
+        (buf) => readSimOrder2(buf),
+    );
+    return [list, err];
+};
+
+export const setSimOrder2ListBody = (buf: rt.Buffer, state: number, v: SimOrder2[]): rt.Err => {
+    return rt.setBitmapListCompact<SimOrder2>(
+        buf,
+        state,
+        v,
+        (item) => isZeroSimOrder2(item),
+        (buf, item) => setSimOrder2(buf, item),
+    );
 }
-export const setSimOrder2List = (buf: _.Buffer, v: SimOrder2[]): Error | null => {
-    if (v.length > 65535) return new Error(`list length ${v.length} exceeds u16 max`);
-    const err = _.setU16(buf, v.length);
-    if (err !== null) return err;
-    for (const item of v) {
-        const err2 = setSimOrder2(buf, item);
-        if (err2 !== null) return err2;
-    }
-    return null;
-}
-export const eqSimOrder2List = (a: SimOrder2[], b: SimOrder2[]): boolean => _.eqList(a, b, eqSimOrder2);

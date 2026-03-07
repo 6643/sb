@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	rt "sb/go/sb/rt"
 )
 
 type RpcErrCode int
@@ -92,14 +94,13 @@ func doClient(c *Client, ctx context.Context, path string, body []byte) ([]byte,
 	for i := 0; i <= maxRetries; i++ {
 		if i > 0 {
 			timer := time.NewTimer(time.Duration(i) * time.Second)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return nil, RpcTimeout
-		case <-timer.C:
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return nil, RpcTimeout
+			case <-timer.C:
+			}
 		}
-	}
-
 		reqCtx := ctx
 		cancel := func() {}
 		if c.Timeout > 0 {
@@ -110,7 +111,6 @@ func doClient(c *Client, ctx context.Context, path string, body []byte) ([]byte,
 			cancel()
 			return nil, RpcNoConn
 		}
-
 		c.headersMu.RLock()
 		for k, v := range c.headers {
 			req.Header.Set(k, v)
@@ -119,19 +119,13 @@ func doClient(c *Client, ctx context.Context, path string, body []byte) ([]byte,
 		if req.Header.Get("Content-Type") == "" {
 			req.Header.Set("Content-Type", "application/octet-stream")
 		}
-
 		resp, err = httpClient.Do(req)
 		cancel()
 		if err != nil {
-			if isTimeout(err) && i < maxRetries {
-				continue
-			}
-			if isTimeout(err) {
-				return nil, RpcTimeout
-			}
+			if isTimeout(err) && i < maxRetries { continue }
+			if isTimeout(err) { return nil, RpcTimeout }
 			return nil, RpcNoConn
 		}
-
 		if resp.StatusCode == http.StatusRequestTimeout && i < maxRetries {
 			resp.Body.Close()
 			continue
@@ -140,17 +134,11 @@ func doClient(c *Client, ctx context.Context, path string, body []byte) ([]byte,
 	}
 	if resp == nil { return nil, RpcNoConn }
 	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, RpcErrCode(resp.StatusCode)
-	}
-
+	if resp.StatusCode != http.StatusOK { return nil, RpcErrCode(resp.StatusCode) }
 	readLimit := maxRespBytes
 	if readLimit < (1<<63 - 1) { readLimit++ }
 	b, readErr := io.ReadAll(io.LimitReader(resp.Body, readLimit))
-	if readErr != nil {
-		return nil, RpcRespErr
-	}
+	if readErr != nil { return nil, RpcRespErr }
 	if readLimit > maxRespBytes && int64(len(b)) > maxRespBytes { return nil, RpcRespErr }
 	return b, RpcOk
 }
@@ -163,45 +151,41 @@ func CallUserGetAbc(c *Client, ctx context.Context) (result OrderStatus, errCode
 	if status != RpcOk {
 		return result, status
 	}
-
 	respBuf := bytes.NewBuffer(body)
-	val, err := GetOrderStatus(respBuf)
-	if err != nil {
-		return result, RpcRespErr
+	{
+		value, err := rt.GetU8(respBuf)
+		if err != nil { return result, RpcRespErr }
+		item := OrderStatus(value)
+		if !isOrderStatus(item) { return result, RpcRespErr }
+		result = item
 	}
-	result = val
 	if respBuf.Len() != 0 { return result, RpcRespErr }
-	if !IsOrderStatus(result) { return result, RpcRespErr }
 	return result, status
 }
 
 // CallUserGetAbcd 获取abcd
 func CallUserGetAbcd(c *Client, ctx context.Context, page uint8, size uint8) (result OrderStatus, errCode RpcErrCode) {
 	var buf bytes.Buffer
-	bodySize := 0
-	bodySize += 1
-	bodySize += 1
-	buf.Grow(bodySize)
-	if err := SetU8(&buf, page); err != nil {
-		return result, RpcReqErr
+	{
+		if err := rt.SetU8(&buf, page); err != nil { return result, RpcReqErr }
 	}
-	if err := SetU8(&buf, size); err != nil {
-		return result, RpcReqErr
+	{
+		if err := rt.SetU8(&buf, size); err != nil { return result, RpcReqErr }
 	}
 
 	body, status := doClient(c, ctx, "/user.get_abcd", buf.Bytes())
 	if status != RpcOk {
 		return result, status
 	}
-
 	respBuf := bytes.NewBuffer(body)
-	val, err := GetOrderStatus(respBuf)
-	if err != nil {
-		return result, RpcRespErr
+	{
+		value, err := rt.GetU8(respBuf)
+		if err != nil { return result, RpcRespErr }
+		item := OrderStatus(value)
+		if !isOrderStatus(item) { return result, RpcRespErr }
+		result = item
 	}
-	result = val
 	if respBuf.Len() != 0 { return result, RpcRespErr }
-	if !IsOrderStatus(result) { return result, RpcRespErr }
 	return result, status
 }
 
@@ -209,28 +193,14 @@ func CallUserGetAbcd(c *Client, ctx context.Context, page uint8, size uint8) (re
 // 无返回值
 func CallUserSetSimInfo(c *Client, ctx context.Context, info *SimInfo) (errCode RpcErrCode) {
 	var buf bytes.Buffer
-	if info == nil {
-		return RpcReqErr
-	}
-	if err := ValidateSimInfo(info); err != nil {
-		return RpcReqErr
-	}
-	bodySize := 0
 	{
-		fieldSize, err := sizeSimInfo(info)
-		if err != nil { return RpcReqErr }
-		bodySize += fieldSize
-	}
-	buf.Grow(bodySize)
-	if err := SetSimInfo(&buf, info); err != nil {
-		return RpcReqErr
+		if err := SetSimInfo(&buf, info); err != nil { return RpcReqErr }
 	}
 
 	body, status := doClient(c, ctx, "/user.set_sim_info", buf.Bytes())
 	if status != RpcOk {
 		return status
 	}
-
 	if len(body) != 0 { return RpcRespErr }
 	return status
 }
@@ -238,24 +208,20 @@ func CallUserSetSimInfo(c *Client, ctx context.Context, info *SimInfo) (errCode 
 // CallGetCount 获取数量
 func CallGetCount(c *Client, ctx context.Context, page uint8) (result uint8, errCode RpcErrCode) {
 	var buf bytes.Buffer
-	bodySize := 0
-	bodySize += 1
-	buf.Grow(bodySize)
-	if err := SetU8(&buf, page); err != nil {
-		return result, RpcReqErr
+	{
+		if err := rt.SetU8(&buf, page); err != nil { return result, RpcReqErr }
 	}
 
 	body, status := doClient(c, ctx, "/get_count", buf.Bytes())
 	if status != RpcOk {
 		return result, status
 	}
-
 	respBuf := bytes.NewBuffer(body)
-	val, err := GetU8(respBuf)
-	if err != nil {
-		return result, RpcRespErr
+	{
+		value, err := rt.GetU8(respBuf)
+		if err != nil { return result, RpcRespErr }
+		result = value
 	}
-	result = val
 	if respBuf.Len() != 0 { return result, RpcRespErr }
 	return result, status
 }
@@ -263,24 +229,22 @@ func CallGetCount(c *Client, ctx context.Context, page uint8) (result uint8, err
 // CallGetBin 获取bin
 func CallGetBin(c *Client, ctx context.Context, page uint8) (result []byte, errCode RpcErrCode) {
 	var buf bytes.Buffer
-	bodySize := 0
-	bodySize += 1
-	buf.Grow(bodySize)
-	if err := SetU8(&buf, page); err != nil {
-		return result, RpcReqErr
+	{
+		if err := rt.SetU8(&buf, page); err != nil { return result, RpcReqErr }
 	}
 
 	body, status := doClient(c, ctx, "/get_bin", buf.Bytes())
 	if status != RpcOk {
 		return result, status
 	}
-
 	respBuf := bytes.NewBuffer(body)
-	val, err := GetBin(respBuf)
-	if err != nil {
-		return result, RpcRespErr
+	{
+		state, err := rt.GetU8(respBuf)
+		if err != nil { return result, RpcRespErr }
+		value, err := rt.GetBinCompactInto(respBuf, state, nil)
+		if err != nil { return result, RpcRespErr }
+		result = value
 	}
-	result = val
 	if respBuf.Len() != 0 { return result, RpcRespErr }
 	return result, status
 }
