@@ -40,7 +40,7 @@ export const eqRechargeB = (a: RechargeB, b: RechargeB): boolean => {
 
 export const getRechargeB = (buf: _.Buffer): [RechargeB, Error | null] => {
     const s = newRechargeB();
-    const bitmaskSize = Math.ceil(5 / 8);
+    const bitmaskSize = 1;
     const [bits, err] = buf.read(bitmaskSize);
     if (err !== null) return [s, err];
     if (_.GetBit(bits, 0)) {
@@ -74,40 +74,84 @@ export const getRechargeB = (buf: _.Buffer): [RechargeB, Error | null] => {
 
 export const setRechargeB = (buf: _.Buffer, s: RechargeB): Error | null => {
     if (s === null || s === undefined) return new Error(`set RechargeB: value is null or undefined`);
-    const bits = new Uint8Array(Math.ceil(5 / 8));
-    const body = new _.Buffer();
+    const startOffset = buf.write_offset;
+    const bits = new Uint8Array(1);
     if (!_.eqU32(s.id, 0)) {
-        const err = _.setU32(body, s.id);
-        if (err !== null) return err;
         _.SetBit(bits, 0, true);
     }
     if (s.type && s.type.length > 0) {
         if (!_.IsOrderStatusList(s.type as any)) return new Error("set RechargeB Type: invalid enum value");
-        const err = _.setU8List(body, s.type as any);
-        if (err !== null) return err;
         _.SetBit(bits, 1, true);
     }
     if (s.phone && s.phone.length > 0) {
-        const err = _.setTextList(body, s.phone);
-        if (err !== null) return err;
         _.SetBit(bits, 2, true);
     }
     if (s.si !== null && s.si !== undefined) {
-        const err = _.setSimInfo(body, s.si);
-        if (err !== null) return err;
         _.SetBit(bits, 3, true);
     }
     if (!_.eqU32(s.bid, 0)) {
-        const err = _.setU32(body, s.bid);
-        if (err !== null) return err;
         _.SetBit(bits, 4, true);
     }
 
     const errBits = buf.write(bits);
     if (errBits !== null) return errBits;
-    return buf.write(body.bytes);
+    if (!_.eqU32(s.id, 0)) {
+        const err = _.setU32(buf, s.id);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (s.type && s.type.length > 0) {
+        const err = _.setU8List(buf, s.type as any);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (s.phone && s.phone.length > 0) {
+        const err = _.setTextList(buf, s.phone);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (s.si !== null && s.si !== undefined) {
+        const err = _.setSimInfo(buf, s.si);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU32(s.bid, 0)) {
+        const err = _.setU32(buf, s.bid);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    return null;
 }
 
-export const getRechargeBList = (buf: _.Buffer): [RechargeB[], Error | null] => _.getList(buf, getRechargeB);
-export const setRechargeBList = (buf: _.Buffer, v: RechargeB[]): Error | null => _.setList(buf, v, setRechargeB);
+export const getRechargeBList = (buf: _.Buffer): [RechargeB[], Error | null] => {
+    const [count, err] = _.getU16(buf);
+    if (err !== null) return [[], err];
+    const list: RechargeB[] = new Array(count);
+    for (let i = 0; i < count; i++) {
+        const [item, err2] = getRechargeB(buf);
+        if (err2 !== null) return [[], err2];
+        list[i] = item;
+    }
+    return [list, null];
+}
+export const setRechargeBList = (buf: _.Buffer, v: RechargeB[]): Error | null => {
+    if (v.length > 65535) return new Error(`list length ${v.length} exceeds u16 max`);
+    const err = _.setU16(buf, v.length);
+    if (err !== null) return err;
+    for (const item of v) {
+        const err2 = setRechargeB(buf, item);
+        if (err2 !== null) return err2;
+    }
+    return null;
+}
 export const eqRechargeBList = (a: RechargeB[], b: RechargeB[]): boolean => _.eqList(a, b, eqRechargeB);

@@ -112,14 +112,10 @@ func doClient(c *Client, ctx context.Context, path string, body []byte) ([]byte,
 		}
 
 		c.headersMu.RLock()
-		headers := make(map[string]string, len(c.headers))
 		for k, v := range c.headers {
-			headers[k] = v
-		}
-		c.headersMu.RUnlock()
-		for k, v := range headers {
 			req.Header.Set(k, v)
 		}
+		c.headersMu.RUnlock()
 		if req.Header.Get("Content-Type") == "" {
 			req.Header.Set("Content-Type", "application/octet-stream")
 		}
@@ -169,14 +165,11 @@ func CallUserGetAbc(c *Client, ctx context.Context) (result OrderStatus, errCode
 	}
 
 	respBuf := bytes.NewBuffer(body)
-	if err := GetAll(respBuf, func(buf *bytes.Buffer) error {
-		val, err := GetOrderStatus(buf)
-		if err != nil { return err }
-		result = val
-		return nil
-	}); err != nil {
+	val, err := GetOrderStatus(respBuf)
+	if err != nil {
 		return result, RpcRespErr
 	}
+	result = val
 	if respBuf.Len() != 0 { return result, RpcRespErr }
 	if !IsOrderStatus(result) { return result, RpcRespErr }
 	return result, status
@@ -185,11 +178,14 @@ func CallUserGetAbc(c *Client, ctx context.Context) (result OrderStatus, errCode
 // CallUserGetAbcd 获取abcd
 func CallUserGetAbcd(c *Client, ctx context.Context, page uint8, size uint8) (result OrderStatus, errCode RpcErrCode) {
 	var buf bytes.Buffer
-	if err := SetAll(&buf, func(buf *bytes.Buffer) error {
-		return SetU8(buf, page)
-	}, func(buf *bytes.Buffer) error {
-		return SetU8(buf, size)
-	}); err != nil {
+	bodySize := 0
+	bodySize += 1
+	bodySize += 1
+	buf.Grow(bodySize)
+	if err := SetU8(&buf, page); err != nil {
+		return result, RpcReqErr
+	}
+	if err := SetU8(&buf, size); err != nil {
 		return result, RpcReqErr
 	}
 
@@ -199,14 +195,11 @@ func CallUserGetAbcd(c *Client, ctx context.Context, page uint8, size uint8) (re
 	}
 
 	respBuf := bytes.NewBuffer(body)
-	if err := GetAll(respBuf, func(buf *bytes.Buffer) error {
-		val, err := GetOrderStatus(buf)
-		if err != nil { return err }
-		result = val
-		return nil
-	}); err != nil {
+	val, err := GetOrderStatus(respBuf)
+	if err != nil {
 		return result, RpcRespErr
 	}
+	result = val
 	if respBuf.Len() != 0 { return result, RpcRespErr }
 	if !IsOrderStatus(result) { return result, RpcRespErr }
 	return result, status
@@ -219,9 +212,17 @@ func CallUserSetSimInfo(c *Client, ctx context.Context, info *SimInfo) (errCode 
 	if info == nil {
 		return RpcReqErr
 	}
-	if err := SetAll(&buf, func(buf *bytes.Buffer) error {
-		return SetSimInfo(buf, info)
-	}); err != nil {
+	if err := ValidateSimInfo(info); err != nil {
+		return RpcReqErr
+	}
+	bodySize := 0
+	{
+		fieldSize, err := sizeSimInfo(info)
+		if err != nil { return RpcReqErr }
+		bodySize += fieldSize
+	}
+	buf.Grow(bodySize)
+	if err := SetSimInfo(&buf, info); err != nil {
 		return RpcReqErr
 	}
 
@@ -237,9 +238,10 @@ func CallUserSetSimInfo(c *Client, ctx context.Context, info *SimInfo) (errCode 
 // CallGetCount 获取数量
 func CallGetCount(c *Client, ctx context.Context, page uint8) (result uint8, errCode RpcErrCode) {
 	var buf bytes.Buffer
-	if err := SetAll(&buf, func(buf *bytes.Buffer) error {
-		return SetU8(buf, page)
-	}); err != nil {
+	bodySize := 0
+	bodySize += 1
+	buf.Grow(bodySize)
+	if err := SetU8(&buf, page); err != nil {
 		return result, RpcReqErr
 	}
 
@@ -249,14 +251,11 @@ func CallGetCount(c *Client, ctx context.Context, page uint8) (result uint8, err
 	}
 
 	respBuf := bytes.NewBuffer(body)
-	if err := GetAll(respBuf, func(buf *bytes.Buffer) error {
-		val, err := GetU8(buf)
-		if err != nil { return err }
-		result = val
-		return nil
-	}); err != nil {
+	val, err := GetU8(respBuf)
+	if err != nil {
 		return result, RpcRespErr
 	}
+	result = val
 	if respBuf.Len() != 0 { return result, RpcRespErr }
 	return result, status
 }
@@ -264,9 +263,10 @@ func CallGetCount(c *Client, ctx context.Context, page uint8) (result uint8, err
 // CallGetBin 获取bin
 func CallGetBin(c *Client, ctx context.Context, page uint8) (result []byte, errCode RpcErrCode) {
 	var buf bytes.Buffer
-	if err := SetAll(&buf, func(buf *bytes.Buffer) error {
-		return SetU8(buf, page)
-	}); err != nil {
+	bodySize := 0
+	bodySize += 1
+	buf.Grow(bodySize)
+	if err := SetU8(&buf, page); err != nil {
 		return result, RpcReqErr
 	}
 
@@ -276,14 +276,11 @@ func CallGetBin(c *Client, ctx context.Context, page uint8) (result []byte, errC
 	}
 
 	respBuf := bytes.NewBuffer(body)
-	if err := GetAll(respBuf, func(buf *bytes.Buffer) error {
-		val, err := GetBin(buf)
-		if err != nil { return err }
-		result = val
-		return nil
-	}); err != nil {
+	val, err := GetBin(respBuf)
+	if err != nil {
 		return result, RpcRespErr
 	}
+	result = val
 	if respBuf.Len() != 0 { return result, RpcRespErr }
 	return result, status
 }

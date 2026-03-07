@@ -45,9 +45,17 @@ export class Buffer {
 
     public write = (data: Uint8Array): Error | null => {
         this.ensureCapacity(data.length);
+        this.writeUnsafe(data);
+        return null;
+    }
+
+    public writeUnsafe = (data: Uint8Array): void => {
         this._bytes.set(data, this._write_offset);
         this._write_offset += data.length;
-        return null;
+    }
+
+    public rewindWrite = (offset: number): void => {
+        this._write_offset = offset;
     }
 
     get read_offset(): number { return this._read_offset; }
@@ -95,6 +103,9 @@ const _checkRead = (buf: Buffer, len: number): Error | null => {
     return null;
 };
 
+const _textEncoder = new TextEncoder();
+const _textDecoder = new TextDecoder();
+
 // List Helpers
 export const getList = <T>(buf: Buffer, getter: (buf: Buffer) => [T, Error | null]): [T[], Error | null] => {
     const [count, err] = getU16(buf);
@@ -127,6 +138,33 @@ export const eqList = <T>(a: T[], b: T[], eq: (a: T, b: T) => boolean): boolean 
         if (!eq(a[i], b[i])) return false;
     }
     return true;
+};
+
+const _getFixedWidthList = <T>(buf: Buffer, elemSize: number, reader: (view: DataView, offset: number) => T): [T[], Error | null] => {
+    const [count, err] = getU16(buf);
+    if (err !== null) return [[], err];
+    const byteLength = count * elemSize;
+    const err2 = _checkRead(buf, byteLength);
+    if (err2 !== null) return [[], err2];
+    const offset = buf.read_offset;
+    const list: T[] = new Array(count);
+    for (let i = 0, pos = offset; i < count; i++, pos += elemSize) list[i] = reader(buf.view, pos);
+    (buf as any)._read_offset += byteLength;
+    return [list, null];
+};
+
+const _setFixedWidthList = <T>(buf: Buffer, list: T[], elemSize: number, writer: (view: DataView, offset: number, value: T) => void): Error | null => {
+    if (list.length > 65535) return new Error(`list length ${list.length} exceeds u16 max`);
+    buf.ensureCapacity(2 + list.length * elemSize);
+    const err = setU16(buf, list.length);
+    if (err !== null) return err;
+    let offset = buf.write_offset;
+    for (let i = 0; i < list.length; i++) {
+        writer(buf.view, offset, list[i]);
+        offset += elemSize;
+    }
+    (buf as any)._write_offset = offset;
+    return null;
 };
 
 // Primitives
@@ -275,9 +313,12 @@ export const getBin = (buf: Buffer): [Uint8Array, Error | null] => {
 };
 export const setBin = (buf: Buffer, value: Uint8Array): Error | null => {
     if (value.length > 4294967295) return new Error(`bin length ${value.length} exceeds u32 max`);
+    buf.ensureCapacity(4 + value.length);
     const err = setU32(buf, value.length);
     if (err !== null) return err;
-    return buf.write(value);
+    if (value.length === 0) return null;
+    buf.writeUnsafe(value);
+    return null;
 };
 export const eqBin = (a: Uint8Array, b: Uint8Array): boolean => {
     if (a === b) return true;
@@ -292,14 +333,17 @@ export const getText = (buf: Buffer): [string, Error | null] => {
     if (err !== null) return ["", err];
     const [data, err2] = buf.read(len);
     if (err2 !== null) return ["", err2];
-    return [new TextDecoder().decode(data), null];
+    return [_textDecoder.decode(data), null];
 };
 export const setText = (buf: Buffer, value: string): Error | null => {
-    const data = new TextEncoder().encode(value);
+    const data = _textEncoder.encode(value);
     if (data.length > 65535) return new Error(`text length ${data.length} exceeds u16 max`);
+    buf.ensureCapacity(2 + data.length);
     const err = setU16(buf, data.length);
     if (err !== null) return err;
-    return buf.write(data);
+    if (data.length === 0) return null;
+    buf.writeUnsafe(data);
+    return null;
 };
 export const eqText = (a: string, b: string): boolean => a === b;
 
@@ -322,52 +366,123 @@ export const setBoolList = (buf: Buffer, v: boolean[]): Error | null => {
 };
 export const eqBoolList = (a: boolean[], b: boolean[]): boolean => eqList(a, b, eqBool);
 
-export const getI8List = (buf: Buffer): [number[], Error | null] => getList(buf, getI8);
-export const setI8List = (buf: Buffer, v: number[]): Error | null => setList(buf, v, setI8);
+export const getI8List = (buf: Buffer): [number[], Error | null] => _getFixedWidthList(buf, 1, (view, offset) => view.getInt8(offset));
+export const setI8List = (buf: Buffer, v: number[]): Error | null => _setFixedWidthList(buf, v, 1, (view, offset, value) => view.setInt8(offset, value));
 export const eqI8List = (a: number[], b: number[]): boolean => eqList(a, b, eqI8);
 
-export const getU8List = (buf: Buffer): [number[], Error | null] => getList(buf, getU8);
-export const setU8List = (buf: Buffer, v: number[]): Error | null => setList(buf, v, setU8);
+export const getU8List = (buf: Buffer): [number[], Error | null] => {
+    const [count, err] = getU16(buf);
+    if (err !== null) return [[], err];
+    const [data, err2] = buf.read(count);
+    if (err2 !== null) return [[], err2];
+    return [Array.from(data), null];
+};
+export const setU8List = (buf: Buffer, v: number[]): Error | null => {
+    if (v.length > 65535) return new Error(`list length ${v.length} exceeds u16 max`);
+    buf.ensureCapacity(2 + v.length);
+    const err = setU16(buf, v.length);
+    if (err !== null) return err;
+    if (v.length === 0) return null;
+    buf.writeUnsafe(Uint8Array.from(v));
+    return null;
+};
 export const eqU8List = (a: number[], b: number[]): boolean => eqList(a, b, eqU8);
 
-export const getI16List = (buf: Buffer): [number[], Error | null] => getList(buf, getI16);
-export const setI16List = (buf: Buffer, v: number[]): Error | null => setList(buf, v, setI16);
+export const getI16List = (buf: Buffer): [number[], Error | null] => _getFixedWidthList(buf, 2, (view, offset) => view.getInt16(offset, true));
+export const setI16List = (buf: Buffer, v: number[]): Error | null => _setFixedWidthList(buf, v, 2, (view, offset, value) => view.setInt16(offset, value, true));
 export const eqI16List = (a: number[], b: number[]): boolean => eqList(a, b, eqI16);
 
-export const getU16List = (buf: Buffer): [number[], Error | null] => getList(buf, getU16);
-export const setU16List = (buf: Buffer, v: number[]): Error | null => setList(buf, v, setU16);
+export const getU16List = (buf: Buffer): [number[], Error | null] => _getFixedWidthList(buf, 2, (view, offset) => view.getUint16(offset, true));
+export const setU16List = (buf: Buffer, v: number[]): Error | null => _setFixedWidthList(buf, v, 2, (view, offset, value) => view.setUint16(offset, value, true));
 export const eqU16List = (a: number[], b: number[]): boolean => eqList(a, b, eqU16);
 
-export const getI32List = (buf: Buffer): [number[], Error | null] => getList(buf, getI32);
-export const setI32List = (buf: Buffer, v: number[]): Error | null => setList(buf, v, setI32);
+export const getI32List = (buf: Buffer): [number[], Error | null] => _getFixedWidthList(buf, 4, (view, offset) => view.getInt32(offset, true));
+export const setI32List = (buf: Buffer, v: number[]): Error | null => _setFixedWidthList(buf, v, 4, (view, offset, value) => view.setInt32(offset, value, true));
 export const eqI32List = (a: number[], b: number[]): boolean => eqList(a, b, eqI32);
 
-export const getU32List = (buf: Buffer): [number[], Error | null] => getList(buf, getU32);
-export const setU32List = (buf: Buffer, v: number[]): Error | null => setList(buf, v, setU32);
+export const getU32List = (buf: Buffer): [number[], Error | null] => _getFixedWidthList(buf, 4, (view, offset) => view.getUint32(offset, true));
+export const setU32List = (buf: Buffer, v: number[]): Error | null => _setFixedWidthList(buf, v, 4, (view, offset, value) => view.setUint32(offset, value, true));
 export const eqU32List = (a: number[], b: number[]): boolean => eqList(a, b, eqU32);
 
-export const getI64List = (buf: Buffer): [bigint[], Error | null] => getList(buf, getI64);
-export const setI64List = (buf: Buffer, v: bigint[]): Error | null => setList(buf, v, setI64);
+export const getI64List = (buf: Buffer): [bigint[], Error | null] => _getFixedWidthList(buf, 8, (view, offset) => view.getBigInt64(offset, true));
+export const setI64List = (buf: Buffer, v: bigint[]): Error | null => _setFixedWidthList(buf, v, 8, (view, offset, value) => view.setBigInt64(offset, value, true));
 export const eqI64List = (a: bigint[], b: bigint[]): boolean => eqList(a, b, eqI64);
 
-export const getU64List = (buf: Buffer): [bigint[], Error | null] => getList(buf, getU64);
-export const setU64List = (buf: Buffer, v: bigint[]): Error | null => setList(buf, v, setU64);
+export const getU64List = (buf: Buffer): [bigint[], Error | null] => _getFixedWidthList(buf, 8, (view, offset) => view.getBigUint64(offset, true));
+export const setU64List = (buf: Buffer, v: bigint[]): Error | null => _setFixedWidthList(buf, v, 8, (view, offset, value) => view.setBigUint64(offset, value, true));
 export const eqU64List = (a: bigint[], b: bigint[]): boolean => eqList(a, b, eqU64);
 
-export const getF32List = (buf: Buffer): [number[], Error | null] => getList(buf, getF32);
-export const setF32List = (buf: Buffer, v: number[]): Error | null => setList(buf, v, setF32);
+export const getF32List = (buf: Buffer): [number[], Error | null] => _getFixedWidthList(buf, 4, (view, offset) => view.getFloat32(offset, true));
+export const setF32List = (buf: Buffer, v: number[]): Error | null => _setFixedWidthList(buf, v, 4, (view, offset, value) => view.setFloat32(offset, value, true));
 export const eqF32List = (a: number[], b: number[]): boolean => eqList(a, b, eqF32);
 
-export const getF64List = (buf: Buffer): [number[], Error | null] => getList(buf, getF64);
-export const setF64List = (buf: Buffer, v: number[]): Error | null => setList(buf, v, setF64);
+export const getF64List = (buf: Buffer): [number[], Error | null] => _getFixedWidthList(buf, 8, (view, offset) => view.getFloat64(offset, true));
+export const setF64List = (buf: Buffer, v: number[]): Error | null => _setFixedWidthList(buf, v, 8, (view, offset, value) => view.setFloat64(offset, value, true));
 export const eqF64List = (a: number[], b: number[]): boolean => eqList(a, b, eqF64);
 
-export const getBinList = (buf: Buffer): [Uint8Array[], Error | null] => getList(buf, getBin);
-export const setBinList = (buf: Buffer, v: Uint8Array[]): Error | null => setList(buf, v, setBin);
+export const getBinList = (buf: Buffer): [Uint8Array[], Error | null] => {
+    const [count, err] = getU16(buf);
+    if (err !== null) return [[], err];
+    const list: Uint8Array[] = new Array(count);
+    for (let i = 0; i < count; i++) {
+        const [item, err2] = getBin(buf);
+        if (err2 !== null) return [[], err2];
+        list[i] = item;
+    }
+    return [list, null];
+};
+export const setBinList = (buf: Buffer, v: Uint8Array[]): Error | null => {
+    if (v.length > 65535) return new Error(`list length ${v.length} exceeds u16 max`);
+    let totalSize = 2;
+    for (const item of v) {
+        if (item.length > 4294967295) return new Error(`bin length ${item.length} exceeds u32 max`);
+        totalSize += 4 + item.length;
+    }
+    buf.ensureCapacity(totalSize);
+    const err = setU16(buf, v.length);
+    if (err !== null) return err;
+    for (const item of v) {
+        const err2 = setU32(buf, item.length);
+        if (err2 !== null) return err2;
+        if (item.length === 0) continue;
+        buf.writeUnsafe(item);
+    }
+    return null;
+};
 export const eqBinList = (a: Uint8Array[], b: Uint8Array[]): boolean => eqList(a, b, eqBin);
 
-export const getTextList = (buf: Buffer): [string[], Error | null] => getList(buf, getText);
-export const setTextList = (buf: Buffer, v: string[]): Error | null => setList(buf, v, setText);
+export const getTextList = (buf: Buffer): [string[], Error | null] => {
+    const [count, err] = getU16(buf);
+    if (err !== null) return [[], err];
+    const list: string[] = new Array(count);
+    for (let i = 0; i < count; i++) {
+        const [item, err2] = getText(buf);
+        if (err2 !== null) return [[], err2];
+        list[i] = item;
+    }
+    return [list, null];
+};
+export const setTextList = (buf: Buffer, v: string[]): Error | null => {
+    if (v.length > 65535) return new Error(`list length ${v.length} exceeds u16 max`);
+    const dataList: Uint8Array[] = new Array(v.length);
+    let totalSize = 2;
+    for (let i = 0; i < v.length; i++) {
+        const data = _textEncoder.encode(v[i]);
+        if (data.length > 65535) return new Error(`text length ${data.length} exceeds u16 max`);
+        dataList[i] = data;
+        totalSize += 2 + data.length;
+    }
+    buf.ensureCapacity(totalSize);
+    const err = setU16(buf, v.length);
+    if (err !== null) return err;
+    for (const data of dataList) {
+        const err2 = setU16(buf, data.length);
+        if (err2 !== null) return err2;
+        if (data.length === 0) continue;
+        buf.writeUnsafe(data);
+    }
+    return null;
+};
 export const eqTextList = (a: string[], b: string[]): boolean => eqList(a, b, eqText);
 
 // SetAll performs batch set operations. Supports values or functions.

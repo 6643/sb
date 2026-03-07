@@ -3,7 +3,6 @@ package sb
 import (
 	"bytes"
 	"fmt"
-	"math"
 	"slices"
 )
 
@@ -28,9 +27,86 @@ type SimOrder struct {
 	Status OrderStatus `bson:"status" json:"status"`
 }
 
+func sizeSimOrderBody(s *SimOrder, bits []byte) (int, error) {
+	if s == nil { return 0, fmt.Errorf("sizeSimOrder: nil value") }
+	bodySize := 0
+	if s.Id != 0 {
+		bodySize += 4
+		if bits != nil { SetBit(bits, uint8(0), true) }
+	}
+	if s.AccountId != 0 {
+		bodySize += 4
+		if bits != nil { SetBit(bits, uint8(1), true) }
+	}
+	if s.ItemId != 0 {
+		bodySize += 4
+		if bits != nil { SetBit(bits, uint8(2), true) }
+	}
+	if s.Name != "" {
+		fieldSize, err := sizeText(s.Name)
+		if err != nil { return 0, fmt.Errorf("sizeSimOrder Name: %w", err) }
+		bodySize += fieldSize
+		if bits != nil { SetBit(bits, uint8(3), true) }
+	}
+	if s.Phone != "" {
+		fieldSize, err := sizeText(s.Phone)
+		if err != nil { return 0, fmt.Errorf("sizeSimOrder Phone: %w", err) }
+		bodySize += fieldSize
+		if bits != nil { SetBit(bits, uint8(4), true) }
+	}
+	if s.IdNo != "" {
+		fieldSize, err := sizeText(s.IdNo)
+		if err != nil { return 0, fmt.Errorf("sizeSimOrder IdNo: %w", err) }
+		bodySize += fieldSize
+		if bits != nil { SetBit(bits, uint8(5), true) }
+	}
+	if s.CityCode != 0 {
+		bodySize += 4
+		if bits != nil { SetBit(bits, uint8(6), true) }
+	}
+	if s.Address != "" {
+		fieldSize, err := sizeText(s.Address)
+		if err != nil { return 0, fmt.Errorf("sizeSimOrder Address: %w", err) }
+		bodySize += fieldSize
+		if bits != nil { SetBit(bits, uint8(7), true) }
+	}
+	if s.NewPhone != "" {
+		fieldSize, err := sizeText(s.NewPhone)
+		if err != nil { return 0, fmt.Errorf("sizeSimOrder NewPhone: %w", err) }
+		bodySize += fieldSize
+		if bits != nil { SetBit(bits, uint8(8), true) }
+	}
+	if s.Commission != 0 {
+		bodySize += 2
+		if bits != nil { SetBit(bits, uint8(9), true) }
+	}
+	if s.Status != 0 {
+		bodySize += 1
+		if bits != nil { SetBit(bits, uint8(10), true) }
+	}
+	return bodySize, nil
+}
+
+func sizeSimOrder(s *SimOrder) (int, error) {
+	bodySize, err := sizeSimOrderBody(s, nil)
+	if err != nil { return 0, err }
+	return 2 + bodySize, nil
+}
+
+func sizeSimOrderList(v SimOrderList) (int, error) {
+	if len(v) > 65535 { return 0, fmt.Errorf("list length exceeds uint16 max") }
+	totalSize := 2
+	for i, item := range v {
+		itemSize, err := sizeSimOrder(item)
+		if err != nil { return 0, fmt.Errorf("sizeSimOrderList[%d]: %w", i, err) }
+		totalSize += itemSize
+	}
+	return totalSize, nil
+}
+
 func GetSimOrder(buf *bytes.Buffer, s *SimOrder) error {
 	if s == nil { return nil }
-	bitSize := int(math.Ceil(float64(11) / 8.0))
+	const bitSize = 2
 	if buf.Len() < bitSize { return fmt.Errorf("GetSimOrder bitmask: %d - %d", buf.Len(), bitSize) }
 	bits := buf.Next(bitSize)
 	if GetBit(bits, uint8(0)) {
@@ -96,55 +172,46 @@ func GetSimOrder(buf *bytes.Buffer, s *SimOrder) error {
 func SetSimOrder(buf *bytes.Buffer, s *SimOrder) error {
 	if s == nil { return fmt.Errorf("SetSimOrder: nil value") }
 	if err := ValidateSimOrder(s); err != nil { return fmt.Errorf("ValidateSimOrder: %w", err) }
-	bits := make([]byte, uint8(math.Ceil(float64(11)/8.0)))
-	body := bytes.NewBuffer(nil)
+	const bitSize = 2
+	var bits [2]byte
+	bodySize, err := sizeSimOrderBody(s, bits[:])
+	if err != nil { return err }
+	buf.Grow(bitSize + bodySize)
+	if _, err := buf.Write(bits[:]); err != nil { return fmt.Errorf("SetSimOrder write bitmask: %w", err) }
 	if s.Id != 0 {
-		if err := SetU32(body, s.Id); err != nil { return fmt.Errorf("SetSimOrder Id: %w", err) }
-		SetBit(bits, uint8(0), true)
+		if err := SetU32(buf, s.Id); err != nil { return fmt.Errorf("SetSimOrder Id: %w", err) }
 	}
 	if s.AccountId != 0 {
-		if err := SetU32(body, s.AccountId); err != nil { return fmt.Errorf("SetSimOrder AccountId: %w", err) }
-		SetBit(bits, uint8(1), true)
+		if err := SetU32(buf, s.AccountId); err != nil { return fmt.Errorf("SetSimOrder AccountId: %w", err) }
 	}
 	if s.ItemId != 0 {
-		if err := SetU32(body, s.ItemId); err != nil { return fmt.Errorf("SetSimOrder ItemId: %w", err) }
-		SetBit(bits, uint8(2), true)
+		if err := SetU32(buf, s.ItemId); err != nil { return fmt.Errorf("SetSimOrder ItemId: %w", err) }
 	}
 	if s.Name != "" {
-		if err := SetText(body, s.Name); err != nil { return fmt.Errorf("SetSimOrder Name: %w", err) }
-		SetBit(bits, uint8(3), true)
+		if err := SetText(buf, s.Name); err != nil { return fmt.Errorf("SetSimOrder Name: %w", err) }
 	}
 	if s.Phone != "" {
-		if err := SetText(body, s.Phone); err != nil { return fmt.Errorf("SetSimOrder Phone: %w", err) }
-		SetBit(bits, uint8(4), true)
+		if err := SetText(buf, s.Phone); err != nil { return fmt.Errorf("SetSimOrder Phone: %w", err) }
 	}
 	if s.IdNo != "" {
-		if err := SetText(body, s.IdNo); err != nil { return fmt.Errorf("SetSimOrder IdNo: %w", err) }
-		SetBit(bits, uint8(5), true)
+		if err := SetText(buf, s.IdNo); err != nil { return fmt.Errorf("SetSimOrder IdNo: %w", err) }
 	}
 	if s.CityCode != 0 {
-		if err := SetU32(body, s.CityCode); err != nil { return fmt.Errorf("SetSimOrder CityCode: %w", err) }
-		SetBit(bits, uint8(6), true)
+		if err := SetU32(buf, s.CityCode); err != nil { return fmt.Errorf("SetSimOrder CityCode: %w", err) }
 	}
 	if s.Address != "" {
-		if err := SetText(body, s.Address); err != nil { return fmt.Errorf("SetSimOrder Address: %w", err) }
-		SetBit(bits, uint8(7), true)
+		if err := SetText(buf, s.Address); err != nil { return fmt.Errorf("SetSimOrder Address: %w", err) }
 	}
 	if s.NewPhone != "" {
-		if err := SetText(body, s.NewPhone); err != nil { return fmt.Errorf("SetSimOrder NewPhone: %w", err) }
-		SetBit(bits, uint8(8), true)
+		if err := SetText(buf, s.NewPhone); err != nil { return fmt.Errorf("SetSimOrder NewPhone: %w", err) }
 	}
 	if s.Commission != 0 {
-		if err := SetU16(body, s.Commission); err != nil { return fmt.Errorf("SetSimOrder Commission: %w", err) }
-		SetBit(bits, uint8(9), true)
+		if err := SetU16(buf, s.Commission); err != nil { return fmt.Errorf("SetSimOrder Commission: %w", err) }
 	}
 	if s.Status != 0 {
-		if err := SetOrderStatus(body, s.Status); err != nil { return fmt.Errorf("SetSimOrder Status: %w", err) }
-		SetBit(bits, uint8(10), true)
+		if err := SetOrderStatus(buf, s.Status); err != nil { return fmt.Errorf("SetSimOrder Status: %w", err) }
 	}
-
-	if _, err := buf.Write(bits); err != nil { return fmt.Errorf("SetSimOrder write bitmask: %w", err) }
-	_, err := body.WriteTo(buf); return err
+	return nil
 }
 
 func ValidateSimOrder(s *SimOrder) error {
@@ -177,8 +244,27 @@ func ReadSimOrder(buf *bytes.Buffer) (*SimOrder, error) {
 }
 
 type SimOrderList []*SimOrder
-func GetSimOrderList(buf *bytes.Buffer) (SimOrderList, error) { return getList[*SimOrder, SimOrderList](buf, ReadSimOrder) }
-func SetSimOrderList(buf *bytes.Buffer, v SimOrderList) error { return setList(buf, v, SetSimOrder) }
+func GetSimOrderList(buf *bytes.Buffer) (SimOrderList, error) {
+	count, err := GetU16(buf)
+	if err != nil { return nil, err }
+	list := make([]*SimOrder, count)
+	for i := range list {
+		item, err := ReadSimOrder(buf)
+		if err != nil { return nil, err }
+		list[i] = item
+	}
+	return SimOrderList(list), nil
+}
+func SetSimOrderList(buf *bytes.Buffer, v SimOrderList) error {
+	totalSize, err := sizeSimOrderList(v)
+	if err != nil { return err }
+	buf.Grow(totalSize)
+	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
+	for _, item := range v {
+		if err := SetSimOrder(buf, item); err != nil { return err }
+	}
+	return nil
+}
 func ValidateSimOrderList(v SimOrderList) error {
 	for i, item := range v {
 		if item == nil { return fmt.Errorf("SimOrderList[%d]: nil item", i) }

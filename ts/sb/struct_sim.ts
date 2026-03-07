@@ -105,7 +105,7 @@ export const eqSim = (a: Sim, b: Sim): boolean => {
 
 export const getSim = (buf: _.Buffer): [Sim, Error | null] => {
     const s = newSim();
-    const bitmaskSize = Math.ceil(27 / 8);
+    const bitmaskSize = 4;
     const [bits, err] = buf.read(bitmaskSize);
     if (err !== null) return [s, err];
     if (_.GetBit(bits, 0)) {
@@ -248,149 +248,298 @@ export const getSim = (buf: _.Buffer): [Sim, Error | null] => {
 
 export const setSim = (buf: _.Buffer, s: Sim): Error | null => {
     if (s === null || s === undefined) return new Error(`set Sim: value is null or undefined`);
-    const bits = new Uint8Array(Math.ceil(27 / 8));
-    const body = new _.Buffer();
+    const startOffset = buf.write_offset;
+    const bits = new Uint8Array(4);
     if (!_.eqU32(s.id, 0)) {
-        const err = _.setU32(body, s.id);
-        if (err !== null) return err;
         _.SetBit(bits, 0, true);
     }
     if ((s.type as any) !== 0) {
         if (!_.IsType(s.type as any)) return new Error("set Sim Type: invalid enum value");
-        const err = _.setU8(body, s.type as any);
-        if (err !== null) return err;
         _.SetBit(bits, 1, true);
     }
     if ((s.status as any) !== 0) {
         if (!_.IsItemStatus(s.status as any)) return new Error("set Sim Status: invalid enum value");
-        const err = _.setU8(body, s.status as any);
-        if (err !== null) return err;
         _.SetBit(bits, 2, true);
     }
     if (!_.eqU16(s.commission, 0)) {
-        const err = _.setU16(body, s.commission);
-        if (err !== null) return err;
         _.SetBit(bits, 3, true);
     }
     if (!_.eqU32(s.supplier, 0)) {
-        const err = _.setU32(body, s.supplier);
-        if (err !== null) return err;
         _.SetBit(bits, 4, true);
     }
     if (!_.eqU32(s.aff, 0)) {
-        const err = _.setU32(body, s.aff);
-        if (err !== null) return err;
         _.SetBit(bits, 5, true);
     }
     if (!_.eqU8(s.contractDuration, 0)) {
-        const err = _.setU8(body, s.contractDuration);
-        if (err !== null) return err;
         _.SetBit(bits, 6, true);
     }
     if (!_.eqText(s.name, "")) {
-        const err = _.setText(body, s.name);
-        if (err !== null) return err;
         _.SetBit(bits, 7, true);
     }
     if ((s.operator as any) !== 0) {
         if (!_.IsSimOperator(s.operator as any)) return new Error("set Sim Operator: invalid enum value");
-        const err = _.setU8(body, s.operator as any);
-        if (err !== null) return err;
         _.SetBit(bits, 8, true);
     }
     if (!_.eqU16(s.monthly, 0)) {
-        const err = _.setU16(body, s.monthly);
-        if (err !== null) return err;
         _.SetBit(bits, 9, true);
     }
     if (!_.eqU16(s.flowUniversal, 0)) {
-        const err = _.setU16(body, s.flowUniversal);
-        if (err !== null) return err;
         _.SetBit(bits, 10, true);
     }
     if (!_.eqU16(s.flowDirectional, 0)) {
-        const err = _.setU16(body, s.flowDirectional);
-        if (err !== null) return err;
         _.SetBit(bits, 11, true);
     }
     _.SetBit(bits, 12, s.canMoveFlow as boolean);
     if (!_.eqU16(s.callMonth, 0)) {
-        const err = _.setU16(body, s.callMonth);
-        if (err !== null) return err;
         _.SetBit(bits, 13, true);
     }
     if (!_.eqU16(s.callPrice, 0)) {
-        const err = _.setU16(body, s.callPrice);
-        if (err !== null) return err;
         _.SetBit(bits, 14, true);
     }
     if (!_.eqU16(s.smsMonth, 0)) {
-        const err = _.setU16(body, s.smsMonth);
-        if (err !== null) return err;
         _.SetBit(bits, 15, true);
     }
     if (!_.eqU16(s.smsPrice, 0)) {
-        const err = _.setU16(body, s.smsPrice);
-        if (err !== null) return err;
         _.SetBit(bits, 16, true);
     }
     if (!_.eqU8(s.minAge, 0)) {
-        const err = _.setU8(body, s.minAge);
-        if (err !== null) return err;
         _.SetBit(bits, 17, true);
     }
     if (!_.eqU8(s.maxAge, 0)) {
-        const err = _.setU8(body, s.maxAge);
-        if (err !== null) return err;
         _.SetBit(bits, 18, true);
     }
     if (!_.eqU32(s.attribution, 0)) {
-        const err = _.setU32(body, s.attribution);
-        if (err !== null) return err;
         _.SetBit(bits, 19, true);
     }
     if (s.pickPhone && s.pickPhone.length > 0) {
         if (!_.IsSimPickPhoneList(s.pickPhone as any)) return new Error("set Sim PickPhone: invalid enum value");
-        const err = _.setU8List(body, s.pickPhone as any);
-        if (err !== null) return err;
         _.SetBit(bits, 20, true);
     }
     if (!_.eqText(s.firstChargeLink, "")) {
-        const err = _.setText(body, s.firstChargeLink);
-        if (err !== null) return err;
         _.SetBit(bits, 21, true);
     }
     if (!_.eqText(s.firstChargeMoney, "")) {
-        const err = _.setText(body, s.firstChargeMoney);
-        if (err !== null) return err;
         _.SetBit(bits, 22, true);
     }
     if (!_.eqText(s.firstChargeReturn, "")) {
-        const err = _.setText(body, s.firstChargeReturn);
-        if (err !== null) return err;
         _.SetBit(bits, 23, true);
     }
     if (s.banCity && s.banCity.length > 0) {
-        const err = _.setU32List(body, s.banCity);
-        if (err !== null) return err;
         _.SetBit(bits, 24, true);
     }
     if (s.info && s.info.length > 0) {
-        const err = _.setSimInfoList(body, s.info);
-        if (err !== null) return err;
         _.SetBit(bits, 25, true);
     }
     if (s.snapshot && s.snapshot.length > 0) {
-        const err = _.setTextList(body, s.snapshot);
-        if (err !== null) return err;
         _.SetBit(bits, 26, true);
     }
 
     const errBits = buf.write(bits);
     if (errBits !== null) return errBits;
-    return buf.write(body.bytes);
+    if (!_.eqU32(s.id, 0)) {
+        const err = _.setU32(buf, s.id);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if ((s.type as any) !== 0) {
+        const err = _.setU8(buf, s.type as any);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if ((s.status as any) !== 0) {
+        const err = _.setU8(buf, s.status as any);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU16(s.commission, 0)) {
+        const err = _.setU16(buf, s.commission);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU32(s.supplier, 0)) {
+        const err = _.setU32(buf, s.supplier);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU32(s.aff, 0)) {
+        const err = _.setU32(buf, s.aff);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU8(s.contractDuration, 0)) {
+        const err = _.setU8(buf, s.contractDuration);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqText(s.name, "")) {
+        const err = _.setText(buf, s.name);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if ((s.operator as any) !== 0) {
+        const err = _.setU8(buf, s.operator as any);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU16(s.monthly, 0)) {
+        const err = _.setU16(buf, s.monthly);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU16(s.flowUniversal, 0)) {
+        const err = _.setU16(buf, s.flowUniversal);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU16(s.flowDirectional, 0)) {
+        const err = _.setU16(buf, s.flowDirectional);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU16(s.callMonth, 0)) {
+        const err = _.setU16(buf, s.callMonth);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU16(s.callPrice, 0)) {
+        const err = _.setU16(buf, s.callPrice);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU16(s.smsMonth, 0)) {
+        const err = _.setU16(buf, s.smsMonth);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU16(s.smsPrice, 0)) {
+        const err = _.setU16(buf, s.smsPrice);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU8(s.minAge, 0)) {
+        const err = _.setU8(buf, s.minAge);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU8(s.maxAge, 0)) {
+        const err = _.setU8(buf, s.maxAge);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU32(s.attribution, 0)) {
+        const err = _.setU32(buf, s.attribution);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (s.pickPhone && s.pickPhone.length > 0) {
+        const err = _.setU8List(buf, s.pickPhone as any);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqText(s.firstChargeLink, "")) {
+        const err = _.setText(buf, s.firstChargeLink);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqText(s.firstChargeMoney, "")) {
+        const err = _.setText(buf, s.firstChargeMoney);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqText(s.firstChargeReturn, "")) {
+        const err = _.setText(buf, s.firstChargeReturn);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (s.banCity && s.banCity.length > 0) {
+        const err = _.setU32List(buf, s.banCity);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (s.info && s.info.length > 0) {
+        const err = _.setSimInfoList(buf, s.info);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (s.snapshot && s.snapshot.length > 0) {
+        const err = _.setTextList(buf, s.snapshot);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    return null;
 }
 
-export const getSimList = (buf: _.Buffer): [Sim[], Error | null] => _.getList(buf, getSim);
-export const setSimList = (buf: _.Buffer, v: Sim[]): Error | null => _.setList(buf, v, setSim);
+export const getSimList = (buf: _.Buffer): [Sim[], Error | null] => {
+    const [count, err] = _.getU16(buf);
+    if (err !== null) return [[], err];
+    const list: Sim[] = new Array(count);
+    for (let i = 0; i < count; i++) {
+        const [item, err2] = getSim(buf);
+        if (err2 !== null) return [[], err2];
+        list[i] = item;
+    }
+    return [list, null];
+}
+export const setSimList = (buf: _.Buffer, v: Sim[]): Error | null => {
+    if (v.length > 65535) return new Error(`list length ${v.length} exceeds u16 max`);
+    const err = _.setU16(buf, v.length);
+    if (err !== null) return err;
+    for (const item of v) {
+        const err2 = setSim(buf, item);
+        if (err2 !== null) return err2;
+    }
+    return null;
+}
 export const eqSimList = (a: Sim[], b: Sim[]): boolean => _.eqList(a, b, eqSim);

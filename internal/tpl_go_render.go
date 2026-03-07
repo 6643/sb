@@ -70,13 +70,13 @@ func (g *GoGenerator) renderGoEnumFile(enums []TplEnum) string {
 
 func (g *GoGenerator) renderGoStructFile(st TplStruct) string {
 	structName := PascalCase(st.Name)
+	bitSize := goBitmaskSize(len(st.Fields))
 	var w sourceWriter
 	w.Line("package sb")
 	w.Blank()
 	w.Line("import (")
 	w.Line("\t\"bytes\"")
 	w.Line("\t\"fmt\"")
-	w.Line("\t\"math\"")
 	w.Line("\t\"slices\"")
 	w.Line(")")
 	w.Blank()
@@ -92,9 +92,45 @@ func (g *GoGenerator) renderGoStructFile(st TplStruct) string {
 	}
 	w.Line("}")
 	w.Blank()
+	w.Linef("func size%sBody(s *%s, bits []byte) (int, error) {", structName, structName)
+	w.Linef("\tif s == nil { return 0, fmt.Errorf(\"size%s: nil value\") }", structName)
+	w.Line("\tbodySize := 0")
+	for i, field := range st.Fields {
+		fieldName := PascalCase(field.Name)
+		fieldRef := "s." + fieldName
+		if field.Type.Name == "bool" {
+			w.Linef("\tif bits != nil { SetBit(bits, uint8(%d), %s) }", i, fieldRef)
+			continue
+		}
+		checkExpr := g.goPresenceCheck(field.Type, fieldRef)
+		w.Linef("\tif %s {", checkExpr)
+		g.writeGoSizeAddLines(&w, "size"+structName, fieldName, field.Type, fieldRef, "bodySize", "\t\t")
+		w.Linef("\t\tif bits != nil { SetBit(bits, uint8(%d), true) }", i)
+		w.Line("\t}")
+	}
+	w.Line("\treturn bodySize, nil")
+	w.Line("}")
+	w.Blank()
+	w.Linef("func size%s(s *%s) (int, error) {", structName, structName)
+	w.Linef("\tbodySize, err := size%sBody(s, nil)", structName)
+	w.Line("\tif err != nil { return 0, err }")
+	w.Linef("\treturn %d + bodySize, nil", bitSize)
+	w.Line("}")
+	w.Blank()
+	w.Linef("func size%sList(v %sList) (int, error) {", structName, structName)
+	w.Line("\tif len(v) > 65535 { return 0, fmt.Errorf(\"list length exceeds uint16 max\") }")
+	w.Line("\ttotalSize := 2")
+	w.Line("\tfor i, item := range v {")
+	w.Linef("\t\titemSize, err := size%s(item)", structName)
+	w.Linef("\t\tif err != nil { return 0, fmt.Errorf(\"size%sList[%%d]: %%w\", i, err) }", structName)
+	w.Line("\t\ttotalSize += itemSize")
+	w.Line("\t}")
+	w.Line("\treturn totalSize, nil")
+	w.Line("}")
+	w.Blank()
 	w.Linef("func Get%s(buf *bytes.Buffer, s *%s) error {", structName, structName)
 	w.Line("\tif s == nil { return nil }")
-	w.Linef("\tbitSize := int(math.Ceil(float64(%d) / 8.0))", len(st.Fields))
+	w.Linef("\tconst bitSize = %d", bitSize)
 	w.Linef("\tif buf.Len() < bitSize { return fmt.Errorf(\"Get%s bitmask: %%d - %%d\", buf.Len(), bitSize) }", structName)
 	w.Line("\tbits := buf.Next(bitSize)")
 	for i, field := range st.Fields {
@@ -120,24 +156,24 @@ func (g *GoGenerator) renderGoStructFile(st TplStruct) string {
 	w.Linef("func Set%s(buf *bytes.Buffer, s *%s) error {", structName, structName)
 	w.Linef("\tif s == nil { return fmt.Errorf(\"Set%s: nil value\") }", structName)
 	w.Linef("\tif err := Validate%s(s); err != nil { return fmt.Errorf(\"Validate%s: %%w\", err) }", structName, structName)
-	w.Linef("\tbits := make([]byte, uint8(math.Ceil(float64(%d)/8.0)))", len(st.Fields))
-	w.Line("\tbody := bytes.NewBuffer(nil)")
-	for i, field := range st.Fields {
+	w.Linef("\tconst bitSize = %d", bitSize)
+	w.Linef("\tvar bits [%d]byte", bitSize)
+	w.Linef("\tbodySize, err := size%sBody(s, bits[:])", structName)
+	w.Line("\tif err != nil { return err }")
+	w.Line("\tbuf.Grow(bitSize + bodySize)")
+	w.Linef("\tif _, err := buf.Write(bits[:]); err != nil { return fmt.Errorf(\"Set%s write bitmask: %%w\", err) }", structName)
+	for _, field := range st.Fields {
 		fieldName := PascalCase(field.Name)
 		fieldRef := "s." + fieldName
 		if field.Type.Name == "bool" {
-			w.Linef("\tSetBit(bits, uint8(%d), %s)", i, fieldRef)
 			continue
 		}
 		checkExpr := g.goPresenceCheck(field.Type, fieldRef)
 		w.Linef("\tif %s {", checkExpr)
-		w.Linef("\t\tif err := %s; err != nil { return fmt.Errorf(\"Set%s %s: %%w\", err) }", g.goSetCall(field.Type, "body", fieldRef), structName, fieldName)
-		w.Linef("\t\tSetBit(bits, uint8(%d), true)", i)
+		w.Linef("\t\tif err := %s; err != nil { return fmt.Errorf(\"Set%s %s: %%w\", err) }", g.goSetCall(field.Type, "buf", fieldRef), structName, fieldName)
 		w.Line("\t}")
 	}
-	w.Blank()
-	w.Linef("\tif _, err := buf.Write(bits); err != nil { return fmt.Errorf(\"Set%s write bitmask: %%w\", err) }", structName)
-	w.Line("\t_, err := body.WriteTo(buf); return err")
+	w.Line("\treturn nil")
 	w.Line("}")
 	w.Blank()
 	w.Linef("func Validate%s(s *%s) error {", structName, structName)
@@ -186,8 +222,27 @@ func (g *GoGenerator) renderGoStructFile(st TplStruct) string {
 	w.Line("}")
 	w.Blank()
 	w.Linef("type %sList []*%s", structName, structName)
-	w.Linef("func Get%sList(buf *bytes.Buffer) (%sList, error) { return getList[*%s, %sList](buf, Read%s) }", structName, structName, structName, structName, structName)
-	w.Linef("func Set%sList(buf *bytes.Buffer, v %sList) error { return setList(buf, v, Set%s) }", structName, structName, structName)
+	w.Linef("func Get%sList(buf *bytes.Buffer) (%sList, error) {", structName, structName)
+	w.Line("\tcount, err := GetU16(buf)")
+	w.Line("\tif err != nil { return nil, err }")
+	w.Linef("\tlist := make([]*%s, count)", structName)
+	w.Line("\tfor i := range list {")
+	w.Linef("\t\titem, err := Read%s(buf)", structName)
+	w.Line("\t\tif err != nil { return nil, err }")
+	w.Line("\t\tlist[i] = item")
+	w.Line("\t}")
+	w.Linef("\treturn %sList(list), nil", structName)
+	w.Line("}")
+	w.Linef("func Set%sList(buf *bytes.Buffer, v %sList) error {", structName, structName)
+	w.Linef("\ttotalSize, err := size%sList(v)", structName)
+	w.Line("\tif err != nil { return err }")
+	w.Line("\tbuf.Grow(totalSize)")
+	w.Line("\tif err := SetU16(buf, uint16(len(v))); err != nil { return err }")
+	w.Line("\tfor _, item := range v {")
+	w.Linef("\t\tif err := Set%s(buf, item); err != nil { return err }", structName)
+	w.Line("\t}")
+	w.Line("\treturn nil")
+	w.Line("}")
 	w.Linef("func Validate%sList(v %sList) error {", structName, structName)
 	w.Line("\tfor i, item := range v {")
 	w.Linef("\t\tif item == nil { return fmt.Errorf(\"%sList[%%d]: nil item\", i) }", structName)
@@ -243,7 +298,20 @@ func (g *GoGenerator) renderGoAPIHandlers(apis []TplApi) string {
 			w.Linef("\tvar %s %s", arg.Name, g.goHandlerArgType(arg.Type))
 		}
 		w.Blank()
-		w.Linef("\tif !parseRequest(w, r%s) { return }", g.goParseArgs(api.Args))
+		if len(api.Args) == 0 {
+			w.Line("\tif !parseEmptyRequest(w, r) { return }")
+		} else {
+			w.Line("\tbuf, ok := parseRequest(w, r)")
+			w.Line("\tif !ok { return }")
+			for _, arg := range api.Args {
+				w.Line("\t{")
+				w.Linef("\t\tval, err := %s", g.goReadExpr(arg.Type, "buf"))
+				w.Line("\t\tif err != nil { w.WriteHeader(http.StatusBadRequest); return }")
+				w.Linef("\t\t%s = val", arg.Name)
+				w.Line("\t}")
+			}
+			w.Line("\tif buf.Len() != 0 { w.WriteHeader(http.StatusBadRequest); return }")
+		}
 		for _, arg := range api.Args {
 			name := arg.Name
 			typeName := PascalCase(arg.Type.Name)
@@ -275,7 +343,12 @@ func (g *GoGenerator) renderGoAPIHandlers(apis []TplApi) string {
 		w.Linef("\tresult, status := %s(r.Context()%s)", SnakeCase(api.Name), callArgs)
 		w.Line("\tstatus = normalizeHandlerStatus(r.Context(), status)")
 		w.Line("\tif !checkStatus(w, status) { return }")
-		w.Linef("\tsendResponse(w, func(buf *bytes.Buffer) error { return %s })", g.goResponseSetter(api.Result, "buf", "result"))
+		w.Line("\tvar resp bytes.Buffer")
+		w.Line("\trespSize := 0")
+		g.writeGoSizeAccumulateLines(&w, api.Result, "result", "respSize", "\t", "w.WriteHeader(http.StatusInternalServerError); return")
+		w.Line("\tresp.Grow(respSize)")
+		w.Linef("\tif err := %s; err != nil { w.WriteHeader(http.StatusInternalServerError); return }", g.goSetCall(api.Result, "&resp", "result"))
+		w.Line("\tsendResponse(w, resp.Bytes())")
 		w.Line("}")
 	}
 	w.Blank()
@@ -330,28 +403,24 @@ func (g *GoGenerator) renderGoAPIHandlers(apis []TplApi) string {
 	w.Line("\tw.WriteHeader(int(status)); return false")
 	w.Line("}")
 	w.Blank()
-	w.Line("func parseRequest(w http.ResponseWriter, r *http.Request, args ...Getter) bool {")
-	w.Line("\tif len(args) == 0 {")
-	w.Line("\t\tbody, err := io.ReadAll(io.LimitReader(r.Body, 1)); if err != nil { w.WriteHeader(http.StatusBadRequest); return false }")
-	w.Line("\t\tif len(body) != 0 { w.WriteHeader(http.StatusBadRequest); return false }")
-	w.Line("\t\treturn true")
-	w.Line("\t}")
-	w.Line("\treadLimit := defaultMaxReqBytes + 1")
-	w.Line("\tbody, err := io.ReadAll(io.LimitReader(r.Body, readLimit)); if err != nil { w.WriteHeader(http.StatusBadRequest); return false }")
-	w.Line("\tif int64(len(body)) > defaultMaxReqBytes { w.WriteHeader(http.StatusRequestEntityTooLarge); return false }")
-	w.Line("\tbuf := bytes.NewBuffer(body)")
-	w.Line("\tif err := GetAll(buf, args...); err != nil { w.WriteHeader(http.StatusBadRequest); return false }")
-	w.Line("\tif buf.Len() != 0 { w.WriteHeader(http.StatusBadRequest); return false }")
+	w.Line("func parseEmptyRequest(w http.ResponseWriter, r *http.Request) bool {")
+	w.Line("\tbody, err := io.ReadAll(io.LimitReader(r.Body, 1)); if err != nil { w.WriteHeader(http.StatusBadRequest); return false }")
+	w.Line("\tif len(body) != 0 { w.WriteHeader(http.StatusBadRequest); return false }")
 	w.Line("\treturn true")
 	w.Line("}")
 	w.Blank()
-	w.Line("func sendResponse(w http.ResponseWriter, setter Setter) {")
-	w.Line("\tvar buf bytes.Buffer")
-	w.Line("\tif err := SetAll(&buf, setter); err != nil { w.WriteHeader(http.StatusInternalServerError); return }")
+	w.Line("func parseRequest(w http.ResponseWriter, r *http.Request) (*bytes.Buffer, bool) {")
+	w.Line("\treadLimit := defaultMaxReqBytes + 1")
+	w.Line("\tbody, err := io.ReadAll(io.LimitReader(r.Body, readLimit)); if err != nil { w.WriteHeader(http.StatusBadRequest); return nil, false }")
+	w.Line("\tif int64(len(body)) > defaultMaxReqBytes { w.WriteHeader(http.StatusRequestEntityTooLarge); return nil, false }")
+	w.Line("\treturn bytes.NewBuffer(body), true")
+	w.Line("}")
+	w.Blank()
+	w.Line("func sendResponse(w http.ResponseWriter, body []byte) {")
 	w.Line("\tif w.Header().Get(\"Content-Type\") == \"\" {")
 	w.Line("\t\tw.Header().Set(\"Content-Type\", \"application/octet-stream\")")
 	w.Line("\t}")
-	w.Line("\tif _, err := w.Write(buf.Bytes()); err != nil { w.WriteHeader(http.StatusInternalServerError); return }")
+	w.Line("\tif _, err := w.Write(body); err != nil { w.WriteHeader(http.StatusInternalServerError); return }")
 	w.Line("}")
 	return w.String()
 }
@@ -472,14 +541,10 @@ func (g *GoGenerator) renderGoRPCFile(apis []TplApi) string {
 	w.Line("\t\t}")
 	w.Blank()
 	w.Line("\t\tc.headersMu.RLock()")
-	w.Line("\t\theaders := make(map[string]string, len(c.headers))")
 	w.Line("\t\tfor k, v := range c.headers {")
-	w.Line("\t\t\theaders[k] = v")
-	w.Line("\t\t}")
-	w.Line("\t\tc.headersMu.RUnlock()")
-	w.Line("\t\tfor k, v := range headers {")
 	w.Line("\t\t\treq.Header.Set(k, v)")
 	w.Line("\t\t}")
+	w.Line("\t\tc.headersMu.RUnlock()")
 	w.Line("\t\tif req.Header.Get(\"Content-Type\") == \"\" {")
 	w.Line("\t\t\treq.Header.Set(\"Content-Type\", \"application/octet-stream\")")
 	w.Line("\t\t}")
@@ -531,6 +596,14 @@ func (g *GoGenerator) renderGoRPCFile(apis []TplApi) string {
 					w.Linef("\tif %s == nil {", argName)
 					w.Linef("\t\treturn %s", g.goRPCReqErrReturn(api.Result))
 					w.Line("\t}")
+					w.Linef("\tif err := Validate%s(%s); err != nil {", PascalCase(arg.Type.Name), argName)
+					w.Linef("\t\treturn %s", g.goRPCReqErrReturn(api.Result))
+					w.Line("\t}")
+				}
+				if arg.Type.Kind == TplKindStruct && arg.Type.IsList {
+					w.Linef("\tif err := Validate%sList((%sList)(%s)); err != nil {", PascalCase(arg.Type.Name), PascalCase(arg.Type.Name), argName)
+					w.Linef("\t\treturn %s", g.goRPCReqErrReturn(api.Result))
+					w.Line("\t}")
 				}
 				if arg.Type.Kind == TplKindEnum {
 					typeName := PascalCase(arg.Type.Name)
@@ -545,9 +618,18 @@ func (g *GoGenerator) renderGoRPCFile(apis []TplApi) string {
 					}
 				}
 			}
-			w.Linef("\tif err := SetAll(&buf%s); err != nil {", g.goRPCSetters(api.Args))
-			w.Linef("\t\treturn %s", g.goRPCReqErrReturn(api.Result))
-			w.Line("\t}")
+			w.Line("\tbodySize := 0")
+			for _, arg := range api.Args {
+				argName := CamelCase(arg.Name)
+				g.writeGoSizeAccumulateLines(&w, arg.Type, argName, "bodySize", "\t", fmt.Sprintf("return %s", g.goRPCReqErrReturn(api.Result)))
+			}
+			w.Line("\tbuf.Grow(bodySize)")
+			for _, arg := range api.Args {
+				argName := CamelCase(arg.Name)
+				w.Linef("\tif err := %s; err != nil {", g.goRPCSetterCall(arg.Type, "&buf", argName))
+				w.Linef("\t\treturn %s", g.goRPCReqErrReturn(api.Result))
+				w.Line("\t}")
+			}
 		}
 		w.Blank()
 		w.Linef("\tbody, status := doClient(c, ctx, \"/%s\", buf.Bytes())", api.Name)
@@ -560,17 +642,14 @@ func (g *GoGenerator) renderGoRPCFile(apis []TplApi) string {
 			w.Line("\treturn status")
 			w.Line("}")
 			continue
-		}
-		w.Line("\trespBuf := bytes.NewBuffer(body)")
-		w.Line("\tif err := GetAll(respBuf, func(buf *bytes.Buffer) error {")
-		w.Linef("\t\tval, err := %s", g.goReadExpr(api.Result, "buf"))
-		w.Line("\t\tif err != nil { return err }")
-		w.Line("\t\tresult = val")
-		w.Line("\t\treturn nil")
-		w.Line("\t}); err != nil {")
-		w.Line("\t\treturn result, RpcRespErr")
-		w.Line("\t}")
-		w.Line("\tif respBuf.Len() != 0 { return result, RpcRespErr }")
+			}
+			w.Line("\trespBuf := bytes.NewBuffer(body)")
+			w.Linef("\tval, err := %s", g.goReadExpr(api.Result, "respBuf"))
+			w.Line("\tif err != nil {")
+			w.Line("\t\treturn result, RpcRespErr")
+			w.Line("\t}")
+			w.Line("\tresult = val")
+			w.Line("\tif respBuf.Len() != 0 { return result, RpcRespErr }")
 		if api.Result.Kind == TplKindEnum && api.Result.IsList {
 			typeName := PascalCase(api.Result.Name)
 			w.Linef("\tif !Is%sList((%sList)(result)) { return result, RpcRespErr }", typeName, typeName)
@@ -669,18 +748,6 @@ func (g *GoGenerator) goHandlerArgType(t TplType) string {
 	return g.getGoLogicType(t)
 }
 
-func (g *GoGenerator) goParseArgs(args []TplApiArg) string {
-	if len(args) == 0 {
-		return ""
-	}
-	var parts []string
-	for _, arg := range args {
-		readExpr := g.goReadExpr(arg.Type, "buf")
-		parts = append(parts, fmt.Sprintf(", func(buf *bytes.Buffer) error {\n\t\tval, err := %s\n\t\tif err != nil { return err }\n\t\t%s = val\n\t\treturn nil\n\t}", readExpr, arg.Name))
-	}
-	return strings.Join(parts, "")
-}
-
 func (g *GoGenerator) goHandlerCallArgs(args []TplApiArg) string {
 	if len(args) == 0 {
 		return ""
@@ -690,17 +757,6 @@ func (g *GoGenerator) goHandlerCallArgs(args []TplApiArg) string {
 		parts = append(parts, arg.Name)
 	}
 	return ", " + strings.Join(parts, ", ")
-}
-
-func (g *GoGenerator) goResponseSetter(t TplType, bufVar, resultVar string) string {
-	name := PascalCase(t.Name)
-	if t.IsList && t.Kind != TplKindBase {
-		return fmt.Sprintf("Set%sList(%s, (%sList)(%s))", name, bufVar, name, resultVar)
-	}
-	if t.IsList {
-		return fmt.Sprintf("Set%sList(%s, %s)", name, bufVar, resultVar)
-	}
-	return fmt.Sprintf("Set%s(%s, %s)", name, bufVar, resultVar)
 }
 
 func (g *GoGenerator) goRPCArgs(args []TplApiArg) string {
@@ -766,6 +822,94 @@ func (g *GoGenerator) goRPCSetters(args []TplApiArg) string {
 		parts = append(parts, fmt.Sprintf(", func(buf *bytes.Buffer) error {\n\t\treturn %s\n\t}", setCall))
 	}
 	return strings.Join(parts, "")
+}
+
+func goBitmaskSize(fieldCount int) int {
+	if fieldCount <= 0 {
+		return 0
+	}
+	return (fieldCount + 7) / 8
+}
+
+func goBaseEncodedWidth(name string) (int, bool) {
+	switch name {
+	case "bool", "i8", "u8":
+		return 1, true
+	case "i16", "u16":
+		return 2, true
+	case "i32", "u32", "f32":
+		return 4, true
+	case "i64", "u64", "f64":
+		return 8, true
+	default:
+		return 0, false
+	}
+}
+
+func (g *GoGenerator) goEncodedSizeExpr(t TplType, ref string) (int, string) {
+	if width, ok := goBaseEncodedWidth(t.Name); ok && !t.IsList && t.Kind == TplKindBase {
+		return width, ""
+	}
+	if t.Kind == TplKindEnum && !t.IsList {
+		return 1, ""
+	}
+	name := PascalCase(t.Name)
+	switch {
+	case t.Kind == TplKindBase && t.IsList:
+		switch t.Name {
+		case "bool":
+			return 0, fmt.Sprintf("sizeBoolList(%s)", ref)
+		case "text":
+			return 0, fmt.Sprintf("sizeTextList(%s)", ref)
+		case "bin":
+			return 0, fmt.Sprintf("sizeBinList(%s)", ref)
+		default:
+			width, _ := goBaseEncodedWidth(t.Name)
+			return 0, fmt.Sprintf("sizeFixedList(len(%s), %d)", ref, width)
+		}
+	case t.Kind == TplKindBase:
+		switch t.Name {
+		case "text":
+			return 0, fmt.Sprintf("sizeText(%s)", ref)
+		case "bin":
+			return 0, fmt.Sprintf("sizeBin(%s)", ref)
+		}
+	case t.Kind == TplKindEnum && t.IsList:
+		return 0, fmt.Sprintf("sizeFixedList(len(%s), 1)", ref)
+	case t.Kind == TplKindStruct && t.IsList:
+		return 0, fmt.Sprintf("size%sList((%sList)(%s))", name, name, ref)
+	case t.Kind == TplKindStruct:
+		return 0, fmt.Sprintf("size%s(%s)", name, ref)
+	}
+	return 0, ""
+}
+
+func (g *GoGenerator) writeGoSizeAddLines(w *sourceWriter, ownerName, fieldName string, t TplType, ref, targetVar, indent string) {
+	if width, expr := g.goEncodedSizeExpr(t, ref); width > 0 {
+		w.Linef("%s%s += %d", indent, targetVar, width)
+		return
+	} else if expr != "" {
+		w.Linef("%sfieldSize, err := %s", indent, expr)
+		w.Linef("%sif err != nil { return 0, fmt.Errorf(\"%s %s: %%w\", err) }", indent, ownerName, fieldName)
+		w.Linef("%s%s += fieldSize", indent, targetVar)
+	}
+}
+
+func (g *GoGenerator) writeGoSizeAccumulateLines(w *sourceWriter, t TplType, ref, targetVar, indent, onError string) {
+	if width, expr := g.goEncodedSizeExpr(t, ref); width > 0 {
+		w.Linef("%s%s += %d", indent, targetVar, width)
+		return
+	} else if expr != "" {
+		w.Linef("%s{", indent)
+		w.Linef("%s\tfieldSize, err := %s", indent, expr)
+		w.Linef("%s\tif err != nil { %s }", indent, onError)
+		w.Linef("%s\t%s += fieldSize", indent, targetVar)
+		w.Linef("%s}", indent)
+	}
+}
+
+func (g *GoGenerator) goRPCSetterCall(t TplType, bufVar, ref string) string {
+	return g.goSetCall(t, bufVar, ref)
 }
 
 func goListSuffix(t TplType) string {

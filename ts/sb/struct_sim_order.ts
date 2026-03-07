@@ -57,7 +57,7 @@ export const eqSimOrder = (a: SimOrder, b: SimOrder): boolean => {
 
 export const getSimOrder = (buf: _.Buffer): [SimOrder, Error | null] => {
     const s = newSimOrder();
-    const bitmaskSize = Math.ceil(11 / 8);
+    const bitmaskSize = 2;
     const [bits, err] = buf.read(bitmaskSize);
     if (err !== null) return [s, err];
     if (_.GetBit(bits, 0)) {
@@ -121,70 +121,144 @@ export const getSimOrder = (buf: _.Buffer): [SimOrder, Error | null] => {
 
 export const setSimOrder = (buf: _.Buffer, s: SimOrder): Error | null => {
     if (s === null || s === undefined) return new Error(`set SimOrder: value is null or undefined`);
-    const bits = new Uint8Array(Math.ceil(11 / 8));
-    const body = new _.Buffer();
+    const startOffset = buf.write_offset;
+    const bits = new Uint8Array(2);
     if (!_.eqU32(s.id, 0)) {
-        const err = _.setU32(body, s.id);
-        if (err !== null) return err;
         _.SetBit(bits, 0, true);
     }
     if (!_.eqU32(s.accountId, 0)) {
-        const err = _.setU32(body, s.accountId);
-        if (err !== null) return err;
         _.SetBit(bits, 1, true);
     }
     if (!_.eqU32(s.itemId, 0)) {
-        const err = _.setU32(body, s.itemId);
-        if (err !== null) return err;
         _.SetBit(bits, 2, true);
     }
     if (!_.eqText(s.name, "")) {
-        const err = _.setText(body, s.name);
-        if (err !== null) return err;
         _.SetBit(bits, 3, true);
     }
     if (!_.eqText(s.phone, "")) {
-        const err = _.setText(body, s.phone);
-        if (err !== null) return err;
         _.SetBit(bits, 4, true);
     }
     if (!_.eqText(s.idNo, "")) {
-        const err = _.setText(body, s.idNo);
-        if (err !== null) return err;
         _.SetBit(bits, 5, true);
     }
     if (!_.eqU32(s.cityCode, 0)) {
-        const err = _.setU32(body, s.cityCode);
-        if (err !== null) return err;
         _.SetBit(bits, 6, true);
     }
     if (!_.eqText(s.address, "")) {
-        const err = _.setText(body, s.address);
-        if (err !== null) return err;
         _.SetBit(bits, 7, true);
     }
     if (!_.eqText(s.newPhone, "")) {
-        const err = _.setText(body, s.newPhone);
-        if (err !== null) return err;
         _.SetBit(bits, 8, true);
     }
     if (!_.eqU16(s.commission, 0)) {
-        const err = _.setU16(body, s.commission);
-        if (err !== null) return err;
         _.SetBit(bits, 9, true);
     }
     if ((s.status as any) !== 0) {
         if (!_.IsOrderStatus(s.status as any)) return new Error("set SimOrder Status: invalid enum value");
-        const err = _.setU8(body, s.status as any);
-        if (err !== null) return err;
         _.SetBit(bits, 10, true);
     }
 
     const errBits = buf.write(bits);
     if (errBits !== null) return errBits;
-    return buf.write(body.bytes);
+    if (!_.eqU32(s.id, 0)) {
+        const err = _.setU32(buf, s.id);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU32(s.accountId, 0)) {
+        const err = _.setU32(buf, s.accountId);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU32(s.itemId, 0)) {
+        const err = _.setU32(buf, s.itemId);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqText(s.name, "")) {
+        const err = _.setText(buf, s.name);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqText(s.phone, "")) {
+        const err = _.setText(buf, s.phone);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqText(s.idNo, "")) {
+        const err = _.setText(buf, s.idNo);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU32(s.cityCode, 0)) {
+        const err = _.setU32(buf, s.cityCode);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqText(s.address, "")) {
+        const err = _.setText(buf, s.address);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqText(s.newPhone, "")) {
+        const err = _.setText(buf, s.newPhone);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqU16(s.commission, 0)) {
+        const err = _.setU16(buf, s.commission);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if ((s.status as any) !== 0) {
+        const err = _.setU8(buf, s.status as any);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    return null;
 }
 
-export const getSimOrderList = (buf: _.Buffer): [SimOrder[], Error | null] => _.getList(buf, getSimOrder);
-export const setSimOrderList = (buf: _.Buffer, v: SimOrder[]): Error | null => _.setList(buf, v, setSimOrder);
+export const getSimOrderList = (buf: _.Buffer): [SimOrder[], Error | null] => {
+    const [count, err] = _.getU16(buf);
+    if (err !== null) return [[], err];
+    const list: SimOrder[] = new Array(count);
+    for (let i = 0; i < count; i++) {
+        const [item, err2] = getSimOrder(buf);
+        if (err2 !== null) return [[], err2];
+        list[i] = item;
+    }
+    return [list, null];
+}
+export const setSimOrderList = (buf: _.Buffer, v: SimOrder[]): Error | null => {
+    if (v.length > 65535) return new Error(`list length ${v.length} exceeds u16 max`);
+    const err = _.setU16(buf, v.length);
+    if (err !== null) return err;
+    for (const item of v) {
+        const err2 = setSimOrder(buf, item);
+        if (err2 !== null) return err2;
+    }
+    return null;
+}
 export const eqSimOrderList = (a: SimOrder[], b: SimOrder[]): boolean => _.eqList(a, b, eqSimOrder);

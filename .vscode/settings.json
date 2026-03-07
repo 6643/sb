@@ -1,0 +1,10 @@
+{
+  "go.toolsEnvVars": {
+    "GOCACHE": "/tmp/go-build"
+  },
+  "gopls": {
+    "env": {
+      "GOCACHE": "/tmp/go-build"
+    }
+  }
+}

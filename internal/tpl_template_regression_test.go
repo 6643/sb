@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func TestTsRPCUsesSetterClosuresForAllArgKinds(t *testing.T) {
+func TestTsRPCWritesArgsDirectlyForAllArgKinds(t *testing.T) {
 	tmpDir := t.TempDir()
 	g := NewTsGenerator(Config{TsDir: tmpDir})
 
@@ -46,7 +46,12 @@ func TestTsRPCUsesSetterClosuresForAllArgKinds(t *testing.T) {
 	assertContains(t, text, "_.setI64(buf, score)")
 	assertContains(t, text, "_.setSimInfoList(buf, infos as any)")
 	assertContains(t, text, "_.setBool(buf, ok)")
-	assertContains(t, text, "_.setAll(buf, (buf: _.Buffer) => _.setU16List(buf, nums), (buf: _.Buffer) => _.setU64(buf, id), (buf: _.Buffer) => _.setI64(buf, score), (buf: _.Buffer) => _.setSimInfoList(buf, infos as any), (buf: _.Buffer) => _.setBool(buf, ok))")
+	assertContains(t, text, "let encodeErr: Error | null = null;")
+	assertContains(t, text, "if ((encodeErr = _.setU16List(buf, nums)) !== null) return RpcErrCode.ReqErr;")
+	assertContains(t, text, "if ((encodeErr = _.setU64(buf, id)) !== null) return RpcErrCode.ReqErr;")
+	assertContains(t, text, "if ((encodeErr = _.setI64(buf, score)) !== null) return RpcErrCode.ReqErr;")
+	assertContains(t, text, "if ((encodeErr = _.setSimInfoList(buf, infos as any)) !== null) return RpcErrCode.ReqErr;")
+	assertContains(t, text, "if ((encodeErr = _.setBool(buf, ok)) !== null) return RpcErrCode.ReqErr;")
 	assertContains(t, text, "const defaultMaxRespBytes = 4 * 1024 * 1024;")
 	assertContains(t, text, "const maxSafeRespBytes = Number.MAX_SAFE_INTEGER;")
 	assertContains(t, text, "const maxTimeoutMs = 2147483647;")
@@ -123,15 +128,38 @@ func TestRuntimeLengthPrefixesUpdated(t *testing.T) {
 	assertContains(t, goText, "count, err := GetU16(buf)")
 	assertContains(t, goText, "if len(list) > 65535 { return fmt.Errorf(\"list length exceeds uint16 max\") }")
 	assertContains(t, goText, "if err := SetU16(buf, uint16(len(list))); err != nil { return err }")
+	assertContains(t, goText, "b = binary.LittleEndian.AppendUint16(b, uint16(len(v)))")
+	assertContains(t, goText, "start := len(b)")
+	assertNotContains(t, goText, "bits := make([]byte, bitSize)")
 	assertContains(t, goText, "l, err := GetU32(buf)")
 	assertContains(t, goText, "func GetBinView(buf *bytes.Buffer) ([]byte, error) {")
 	assertContains(t, goText, "return buf.Next(int(l)), nil")
 	assertContains(t, goText, "res, err := GetBinView(buf)")
 	assertContains(t, goText, "return bytes.Clone(res), nil")
+	assertContains(t, goText, "func sizeFixedList(length int, elemSize int) (int, error) {")
+	assertContains(t, goText, "func GetU16List(buf *bytes.Buffer) ([]uint16, error) {")
+	assertContains(t, goText, "totalSize := int(count) * 2")
+	assertContains(t, goText, "for i := range list { list[i] = binary.LittleEndian.Uint16(data[i*2:]) }")
+	assertContains(t, goText, "func SetU32List(buf *bytes.Buffer, v []uint32) error {")
+	assertContains(t, goText, "for _, item := range v { b = binary.LittleEndian.AppendUint32(b, item) }")
+	assertContains(t, goText, "buf.Grow(2 + len(v))")
+	assertContains(t, goText, "b := buf.AvailableBuffer()")
 	assertContains(t, goText, "if uint64(len(v)) > uint64(^uint32(0)) { return fmt.Errorf(\"bin length exceeds uint32 max\") }")
 	assertContains(t, goText, "if err := SetU32(buf, uint32(len(v))); err != nil { return err }")
-	assertContains(t, goText, "if len(data) > 65535 { return fmt.Errorf(\"text length exceeds uint16 max\") }")
-	assertContains(t, goText, "if err := SetU16(buf, uint16(len(data))); err != nil { return err }")
+	assertContains(t, goText, "func SetBinList(buf *bytes.Buffer, v [][]byte) error {")
+	assertContains(t, goText, "func GetBinList(buf *bytes.Buffer) ([][]byte, error) {")
+	assertContains(t, goText, "item, err := GetBinView(buf)")
+	assertContains(t, goText, "list[i] = bytes.Clone(item)")
+	assertContains(t, goText, "totalSize, err := sizeBinList(v)")
+	assertContains(t, goText, "if err := SetU32(buf, uint32(len(item))); err != nil { return err }")
+	assertContains(t, goText, "if len(v) > 65535 { return fmt.Errorf(\"text length exceeds uint16 max\") }")
+	assertContains(t, goText, "if err := SetU16(buf, uint16(len(v))); err != nil { return err }")
+	assertContains(t, goText, "_, err := buf.WriteString(v)")
+	assertContains(t, goText, "func GetTextList(buf *bytes.Buffer) ([]string, error) {")
+	assertContains(t, goText, "item, err := GetText(buf)")
+	assertContains(t, goText, "func SetTextList(buf *bytes.Buffer, v []string) error {")
+	assertContains(t, goText, "totalSize, err := sizeTextList(v)")
+	assertContains(t, goText, "if _, err := buf.WriteString(item); err != nil { return err }")
 
 	tsType, err := os.ReadFile(filepath.Join(cfg.TsDir, "sb", "type.ts"))
 	if err != nil {
@@ -146,6 +174,105 @@ func TestRuntimeLengthPrefixesUpdated(t *testing.T) {
 	assertContains(t, tsText, "const err = setU32(buf, value.length);")
 	assertContains(t, tsText, "if (data.length > 65535) return new Error(`text length ${data.length} exceeds u16 max`);")
 	assertContains(t, tsText, "const err = setU16(buf, data.length);")
+	assertContains(t, tsText, "const _textEncoder = new TextEncoder();")
+	assertContains(t, tsText, "const _textDecoder = new TextDecoder();")
+	assertContains(t, tsText, "public writeUnsafe = (data: Uint8Array): void => {")
+	assertContains(t, tsText, "public rewindWrite = (offset: number): void => {")
+	assertContains(t, tsText, "const _getFixedWidthList = <T>(buf: Buffer, elemSize: number, reader: (view: DataView, offset: number) => T): [T[], Error | null] => {")
+	assertContains(t, tsText, "const _setFixedWidthList = <T>(buf: Buffer, list: T[], elemSize: number, writer: (view: DataView, offset: number, value: T) => void): Error | null => {")
+	assertContains(t, tsText, "return [_textDecoder.decode(data), null];")
+	assertContains(t, tsText, "const data = _textEncoder.encode(value);")
+	assertContains(t, tsText, "export const getU16List = (buf: Buffer): [number[], Error | null] => _getFixedWidthList(buf, 2, (view, offset) => view.getUint16(offset, true));")
+	assertContains(t, tsText, "export const setU64List = (buf: Buffer, v: bigint[]): Error | null => _setFixedWidthList(buf, v, 8, (view, offset, value) => view.setBigUint64(offset, value, true));")
+	assertContains(t, tsText, "export const getBinList = (buf: Buffer): [Uint8Array[], Error | null] => {")
+	assertContains(t, tsText, "const list: Uint8Array[] = new Array(count);")
+	assertContains(t, tsText, "let totalSize = 2;")
+	assertContains(t, tsText, "if (item.length > 4294967295) return new Error(`bin length ${item.length} exceeds u32 max`);")
+	assertContains(t, tsText, "buf.ensureCapacity(totalSize);")
+	assertContains(t, tsText, "buf.writeUnsafe(item);")
+	assertContains(t, tsText, "export const getTextList = (buf: Buffer): [string[], Error | null] => {")
+	assertContains(t, tsText, "const dataList: Uint8Array[] = new Array(v.length);")
+	assertContains(t, tsText, "if (data.length > 65535) return new Error(`text length ${data.length} exceeds u16 max`);")
+	assertContains(t, tsText, "buf.writeUnsafe(data);")
+	assertNotContains(t, tsText, "export const getBinList = (buf: Buffer): [Uint8Array[], Error | null] => getList(buf, getBin);")
+	assertNotContains(t, tsText, "export const setTextList = (buf: Buffer, v: string[]): Error | null => setList(buf, v, setText);")
+}
+
+func TestTsStructListUsesDirectLoops(t *testing.T) {
+	tmpDir := t.TempDir()
+	g := NewTsGenerator(Config{TsDir: tmpDir})
+
+	schema := &TplSchema{
+		Structs: []TplStruct{
+			{
+				Name: "sim_info",
+				Fields: []TplStructField{
+					{Name: "id", Type: TplType{Name: "u32", Kind: TplKindBase}},
+				},
+			},
+		},
+	}
+
+	if err := g.Generate(schema); err != nil {
+		t.Fatalf("generate ts failed: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(tmpDir, "sb", "struct_sim_info.ts"))
+	if err != nil {
+		t.Fatalf("read struct_sim_info.ts failed: %v", err)
+	}
+	text := string(content)
+
+	assertContains(t, text, "export const getSimInfoList = (buf: _.Buffer): [SimInfo[], Error | null] => {")
+	assertContains(t, text, "const [count, err] = _.getU16(buf);")
+	assertContains(t, text, "const [item, err2] = getSimInfo(buf);")
+	assertContains(t, text, "export const setSimInfoList = (buf: _.Buffer, v: SimInfo[]): Error | null => {")
+	assertContains(t, text, "const err = _.setU16(buf, v.length);")
+	assertContains(t, text, "const err2 = setSimInfo(buf, item);")
+	assertNotContains(t, text, "export const getSimInfoList = (buf: _.Buffer): [SimInfo[], Error | null] => _.getList(buf, getSimInfo);")
+	assertNotContains(t, text, "export const setSimInfoList = (buf: _.Buffer, v: SimInfo[]): Error | null => _.setList(buf, v, setSimInfo);")
+}
+
+func TestTsStructSetterWritesDirectlyWithRollback(t *testing.T) {
+	tmpDir := t.TempDir()
+	g := NewTsGenerator(Config{TsDir: tmpDir})
+
+	schema := &TplSchema{
+		Structs: []TplStruct{
+			{
+				Name: "sim_info",
+				Fields: []TplStructField{
+					{Name: "id", Type: TplType{Name: "u32", Kind: TplKindBase}},
+					{Name: "title", Type: TplType{Name: "text", Kind: TplKindBase}},
+					{Name: "ok", Type: TplType{Name: "bool", Kind: TplKindBase}},
+					{Name: "zip", Type: TplType{Name: "bin", Kind: TplKindBase}},
+				},
+			},
+		},
+	}
+
+	if err := g.Generate(schema); err != nil {
+		t.Fatalf("generate ts failed: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(tmpDir, "sb", "struct_sim_info.ts"))
+	if err != nil {
+		t.Fatalf("read struct_sim_info.ts failed: %v", err)
+	}
+	text := string(content)
+
+	assertContains(t, text, "const startOffset = buf.write_offset;")
+	assertContains(t, text, "const errBits = buf.write(bits);")
+	assertContains(t, text, "const err = _.setU32(buf, s.id);")
+	assertContains(t, text, "const err = _.setText(buf, s.title);")
+	assertContains(t, text, "const err = _.setBin(buf, s.zip);")
+	assertContains(t, text, "buf.rewindWrite(startOffset);")
+	assertNotContains(t, text, "const body = new _.Buffer();")
+	assertNotContains(t, text, "_.setU32(body, s.id)")
+	assertNotContains(t, text, "_.setText(body, s.title)")
+	assertNotContains(t, text, "_.setBin(body, s.zip)")
+	assertNotContains(t, text, "(buf as any)._write_offset = startOffset;")
+	assertNotContains(t, text, "return buf.write(body.bytes);")
 }
 
 func TestTsEnumValidationGeneratedAndWired(t *testing.T) {
@@ -194,6 +321,9 @@ func TestTsEnumValidationGeneratedAndWired(t *testing.T) {
 	enumText := string(enumContent)
 	assertContains(t, enumText, "export const IsSimOperator = (v: SimOperator): boolean => {")
 	assertContains(t, enumText, "export const IsSimOperatorList = (v: SimOperator[]): boolean => {")
+	assertContains(t, enumText, "case SimOperator.Zz:")
+	assertContains(t, enumText, "case SimOperator.Lt:")
+	assertNotContains(t, enumText, "case SimOperator.Zz, SimOperator.Lt")
 
 	structContent, err := os.ReadFile(filepath.Join(tmpDir, "sb", "struct_sim.ts"))
 	if err != nil {
@@ -263,7 +393,8 @@ func TestTsStructNestedFieldUsesNullablePresenceSemantics(t *testing.T) {
 	assertContains(t, text, "if (a.child !== null && b.child !== null && !_.eqChild(a.child, b.child)) return false;")
 	assertNotContains(t, text, "if (!_.eqChild(a.child, b.child)) return false;")
 	assertContains(t, text, "if (s.child !== null && s.child !== undefined) {")
-	assertContains(t, text, "const err = _.setChild(body, s.child);")
+	assertContains(t, text, "const startOffset = buf.write_offset;")
+	assertContains(t, text, "const err = _.setChild(buf, s.child);")
 }
 
 func TestGoRPCHandlesReadAllErrorAndUsesClientTimeout(t *testing.T) {
@@ -297,7 +428,9 @@ func TestGoRPCHandlesReadAllErrorAndUsesClientTimeout(t *testing.T) {
 	assertContains(t, text, "headersMu sync.RWMutex")
 	assertContains(t, text, "c.headersMu.Lock()")
 	assertContains(t, text, "c.headersMu.RLock()")
-	assertContains(t, text, "headers := make(map[string]string, len(c.headers))")
+	assertContains(t, text, "for k, v := range c.headers {")
+	assertContains(t, text, "req.Header.Set(k, v)")
+	assertNotContains(t, text, "headers := make(map[string]string, len(c.headers))")
 	assertContains(t, text, "if req.Header.Get(\"Content-Type\") == \"\" {")
 	assertContains(t, text, "req.Header.Set(\"Content-Type\", \"application/octet-stream\")")
 	assertContains(t, text, "maxRetries := c.Retries")
@@ -404,6 +537,58 @@ func TestGoRPCValidatesEnumArgsBeforeRequest(t *testing.T) {
 	assertContains(t, text, "if !IsSimOperator(operator) {")
 	assertContains(t, text, "if !IsSimOperatorList((SimOperatorList)(operators)) {")
 	assertContains(t, text, "return RpcReqErr")
+}
+
+func TestGoRPCAndHandlersPreGrowBuffers(t *testing.T) {
+	tmpDir := t.TempDir()
+	g := NewGoGenerator(Config{GoDir: tmpDir})
+
+	schema := &TplSchema{
+		Structs: []TplStruct{
+			{
+				Name: "sim_info",
+				Fields: []TplStructField{
+					{Name: "id", Type: TplType{Name: "u32", Kind: TplKindBase}},
+				},
+			},
+		},
+		Apis: []TplApi{
+			{
+				Name: "sim.echo",
+				Args: []TplApiArg{
+					{Name: "page", Type: TplType{Name: "u8", Kind: TplKindBase}},
+					{Name: "note", Type: TplType{Name: "text", Kind: TplKindBase}},
+					{Name: "info", Type: TplType{Name: "sim_info", Kind: TplKindStruct}},
+				},
+				Result: TplType{Name: "sim_info", Kind: TplKindStruct},
+			},
+		},
+	}
+
+	if err := g.Generate(schema); err != nil {
+		t.Fatalf("generate go failed: %v", err)
+	}
+
+	rpcContent, err := os.ReadFile(filepath.Join(tmpDir, "sb", "rpc.go"))
+	if err != nil {
+		t.Fatalf("read rpc.go failed: %v", err)
+	}
+	rpcText := string(rpcContent)
+	assertContains(t, rpcText, "bodySize := 0")
+	assertContains(t, rpcText, "bodySize += 1")
+	assertContains(t, rpcText, "fieldSize, err := sizeText(note)")
+	assertContains(t, rpcText, "fieldSize, err := sizeSimInfo(info)")
+	assertContains(t, rpcText, "buf.Grow(bodySize)")
+
+	apiContent, err := os.ReadFile(filepath.Join(tmpDir, "sb", "api._.go"))
+	if err != nil {
+		t.Fatalf("read api._.go failed: %v", err)
+	}
+	apiText := string(apiContent)
+	assertContains(t, apiText, "var resp bytes.Buffer")
+	assertContains(t, apiText, "respSize := 0")
+	assertContains(t, apiText, "fieldSize, err := sizeSimInfo(result)")
+	assertContains(t, apiText, "resp.Grow(respSize)")
 }
 
 func TestGoRPCRejectsNilStructArgsBeforeRequest(t *testing.T) {
@@ -539,9 +724,20 @@ func TestGoApiHandlersValidateEnumAndStructArgs(t *testing.T) {
 	assertContains(t, structText, "func ReadSim(buf *bytes.Buffer) (*Sim, error)")
 	assertContains(t, structText, "func SetSim(buf *bytes.Buffer, s *Sim) error")
 	assertContains(t, structText, "if s == nil { return fmt.Errorf(\"SetSim: nil value\") }")
+	assertContains(t, structText, "if _, err := buf.Write(bits[:]); err != nil { return fmt.Errorf(\"SetSim write bitmask: %w\", err) }")
 	assertNotContains(t, structText, "func SetSim(buf *bytes.Buffer, s *Sim) error {\n\tif s == nil { return nil }")
+	assertNotContains(t, structText, "var body bytes.Buffer")
+	assertNotContains(t, structText, "body.WriteTo(buf)")
 	assertContains(t, structText, "func GetSimList(buf *bytes.Buffer) (SimList, error)")
+	assertContains(t, structText, "count, err := GetU16(buf)")
+	assertContains(t, structText, "item, err := ReadSim(buf)")
+	assertContains(t, structText, "return SimList(list), nil")
+	assertNotContains(t, structText, "func GetSimList(buf *bytes.Buffer) (SimList, error) { return getList[*Sim, SimList](buf, ReadSim) }")
 	assertContains(t, structText, "func SetSimList(buf *bytes.Buffer, v SimList) error")
+	assertContains(t, structText, "totalSize, err := sizeSimList(v)")
+	assertContains(t, structText, "buf.Grow(totalSize)")
+	assertContains(t, structText, "if err := SetU16(buf, uint16(len(v))); err != nil { return err }")
+	assertNotContains(t, structText, "func SetSimList(buf *bytes.Buffer, v SimList) error { return setList(buf, v, SetSim) }")
 	assertContains(t, structText, "func EqSim(a, b *Sim) bool")
 	assertContains(t, structText, "func EqSimList(a, b SimList) bool")
 	assertContains(t, structText, "if !EqSimOperatorList(a.Operators, b.Operators) { return false }")
@@ -574,17 +770,26 @@ func TestGoApiHandlersValidateEnumAndStructArgs(t *testing.T) {
 	assertContains(t, apiText, "if ctx.Err() == context.DeadlineExceeded { return RpcTimeout }")
 	assertContains(t, apiText, "status = normalizeHandlerStatus(r.Context(), status)")
 	assertContains(t, apiText, "const defaultMaxReqBytes int64 = 4 * 1024 * 1024")
-	assertContains(t, apiText, "func parseRequest(w http.ResponseWriter, r *http.Request, args ...Getter) bool")
+	assertContains(t, apiText, "func parseEmptyRequest(w http.ResponseWriter, r *http.Request) bool {")
+	assertContains(t, apiText, "func parseRequest(w http.ResponseWriter, r *http.Request) (*bytes.Buffer, bool) {")
 	assertContains(t, apiText, "body, err := io.ReadAll(io.LimitReader(r.Body, 1))")
 	assertContains(t, apiText, "if len(body) != 0 { w.WriteHeader(http.StatusBadRequest); return false }")
 	assertContains(t, apiText, "body, err := io.ReadAll(io.LimitReader(r.Body, readLimit))")
-	assertContains(t, apiText, "buf := bytes.NewBuffer(body)")
-	assertContains(t, apiText, "if buf.Len() != 0 { w.WriteHeader(http.StatusBadRequest); return false }")
-	assertContains(t, apiText, "if int64(len(body)) > defaultMaxReqBytes { w.WriteHeader(http.StatusRequestEntityTooLarge); return false }")
+	assertContains(t, apiText, "return bytes.NewBuffer(body), true")
+	assertContains(t, apiText, "buf, ok := parseRequest(w, r)")
+	assertContains(t, apiText, "if !ok { return }")
+	assertContains(t, apiText, "val, err := GetSimOperator(buf)")
+	assertContains(t, apiText, "val, err := GetSimOperatorList(buf)")
+	assertContains(t, apiText, "val, err := ReadSim(buf)")
+	assertContains(t, apiText, "if buf.Len() != 0 { w.WriteHeader(http.StatusBadRequest); return }")
+	assertContains(t, apiText, "if int64(len(body)) > defaultMaxReqBytes { w.WriteHeader(http.StatusRequestEntityTooLarge); return nil, false }")
 	assertContains(t, apiText, "if w.Header().Get(\"Content-Type\") == \"\" {")
 	assertContains(t, apiText, "w.Header().Set(\"Content-Type\", \"application/octet-stream\")")
-	assertContains(t, apiText, "if _, err := w.Write(buf.Bytes()); err != nil { w.WriteHeader(http.StatusInternalServerError); return }")
-	assertContains(t, apiText, "func sendResponse(w http.ResponseWriter, setter Setter)")
+	assertContains(t, apiText, "if _, err := w.Write(body); err != nil { w.WriteHeader(http.StatusInternalServerError); return }")
+	assertContains(t, apiText, "func sendResponse(w http.ResponseWriter, body []byte)")
+	assertNotContains(t, apiText, "func parseRequest(w http.ResponseWriter, r *http.Request, args ...Getter) bool")
+	assertNotContains(t, apiText, "sendResponse(w, func(buf *bytes.Buffer) error {")
+	assertNotContains(t, apiText, "func sendResponse(w http.ResponseWriter, setter Setter)")
 
 	typeContent, err := os.ReadFile(filepath.Join(tmpDir, "sb", "type.go"))
 	if err != nil {
@@ -756,7 +961,8 @@ func TestTemplateGeneratorRendersMultilineNotesSafely(t *testing.T) {
 	tsRPCText := string(tsRPC)
 	assertContains(t, tsRPCText, "    // 设置sim信息\n    // 无返回值\n    public userSetSimInfo = async")
 	assertNotContains(t, tsRPCText, "        // 设置sim信息")
-	assertContains(t, tsRPCText, "_.setAll(buf, (buf: _.Buffer) => _.setSimInfo(buf, info as any))")
+	assertContains(t, tsRPCText, "let encodeErr: Error | null = null;")
+	assertContains(t, tsRPCText, "if ((encodeErr = _.setSimInfo(buf, info as any)) !== null) return RpcErrCode.ReqErr;")
 	assertNotContains(t, tsRPCText, "/** 设置sim信息")
 
 	doc, err := os.ReadFile(filepath.Join(cfg.GoDir, "sb", "DOC.md"))

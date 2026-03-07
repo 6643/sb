@@ -3,7 +3,6 @@ package sb
 import (
 	"bytes"
 	"fmt"
-	"math"
 	"slices"
 )
 
@@ -56,9 +55,153 @@ type Sim struct {
 	Snapshot []string `bson:"snapshot" json:"snapshot"`
 }
 
+func sizeSimBody(s *Sim, bits []byte) (int, error) {
+	if s == nil { return 0, fmt.Errorf("sizeSim: nil value") }
+	bodySize := 0
+	if s.Id != 0 {
+		bodySize += 4
+		if bits != nil { SetBit(bits, uint8(0), true) }
+	}
+	if s.Type != 0 {
+		bodySize += 1
+		if bits != nil { SetBit(bits, uint8(1), true) }
+	}
+	if s.Status != 0 {
+		bodySize += 1
+		if bits != nil { SetBit(bits, uint8(2), true) }
+	}
+	if s.Commission != 0 {
+		bodySize += 2
+		if bits != nil { SetBit(bits, uint8(3), true) }
+	}
+	if s.Supplier != 0 {
+		bodySize += 4
+		if bits != nil { SetBit(bits, uint8(4), true) }
+	}
+	if s.Aff != 0 {
+		bodySize += 4
+		if bits != nil { SetBit(bits, uint8(5), true) }
+	}
+	if s.ContractDuration != 0 {
+		bodySize += 1
+		if bits != nil { SetBit(bits, uint8(6), true) }
+	}
+	if s.Name != "" {
+		fieldSize, err := sizeText(s.Name)
+		if err != nil { return 0, fmt.Errorf("sizeSim Name: %w", err) }
+		bodySize += fieldSize
+		if bits != nil { SetBit(bits, uint8(7), true) }
+	}
+	if s.Operator != 0 {
+		bodySize += 1
+		if bits != nil { SetBit(bits, uint8(8), true) }
+	}
+	if s.Monthly != 0 {
+		bodySize += 2
+		if bits != nil { SetBit(bits, uint8(9), true) }
+	}
+	if s.FlowUniversal != 0 {
+		bodySize += 2
+		if bits != nil { SetBit(bits, uint8(10), true) }
+	}
+	if s.FlowDirectional != 0 {
+		bodySize += 2
+		if bits != nil { SetBit(bits, uint8(11), true) }
+	}
+	if bits != nil { SetBit(bits, uint8(12), s.CanMoveFlow) }
+	if s.CallMonth != 0 {
+		bodySize += 2
+		if bits != nil { SetBit(bits, uint8(13), true) }
+	}
+	if s.CallPrice != 0 {
+		bodySize += 2
+		if bits != nil { SetBit(bits, uint8(14), true) }
+	}
+	if s.SmsMonth != 0 {
+		bodySize += 2
+		if bits != nil { SetBit(bits, uint8(15), true) }
+	}
+	if s.SmsPrice != 0 {
+		bodySize += 2
+		if bits != nil { SetBit(bits, uint8(16), true) }
+	}
+	if s.MinAge != 0 {
+		bodySize += 1
+		if bits != nil { SetBit(bits, uint8(17), true) }
+	}
+	if s.MaxAge != 0 {
+		bodySize += 1
+		if bits != nil { SetBit(bits, uint8(18), true) }
+	}
+	if s.Attribution != 0 {
+		bodySize += 4
+		if bits != nil { SetBit(bits, uint8(19), true) }
+	}
+	if len(s.PickPhone) > 0 {
+		fieldSize, err := sizeFixedList(len(s.PickPhone), 1)
+		if err != nil { return 0, fmt.Errorf("sizeSim PickPhone: %w", err) }
+		bodySize += fieldSize
+		if bits != nil { SetBit(bits, uint8(20), true) }
+	}
+	if s.FirstChargeLink != "" {
+		fieldSize, err := sizeText(s.FirstChargeLink)
+		if err != nil { return 0, fmt.Errorf("sizeSim FirstChargeLink: %w", err) }
+		bodySize += fieldSize
+		if bits != nil { SetBit(bits, uint8(21), true) }
+	}
+	if s.FirstChargeMoney != "" {
+		fieldSize, err := sizeText(s.FirstChargeMoney)
+		if err != nil { return 0, fmt.Errorf("sizeSim FirstChargeMoney: %w", err) }
+		bodySize += fieldSize
+		if bits != nil { SetBit(bits, uint8(22), true) }
+	}
+	if s.FirstChargeReturn != "" {
+		fieldSize, err := sizeText(s.FirstChargeReturn)
+		if err != nil { return 0, fmt.Errorf("sizeSim FirstChargeReturn: %w", err) }
+		bodySize += fieldSize
+		if bits != nil { SetBit(bits, uint8(23), true) }
+	}
+	if len(s.BanCity) > 0 {
+		fieldSize, err := sizeFixedList(len(s.BanCity), 4)
+		if err != nil { return 0, fmt.Errorf("sizeSim BanCity: %w", err) }
+		bodySize += fieldSize
+		if bits != nil { SetBit(bits, uint8(24), true) }
+	}
+	if len(s.Info) > 0 {
+		fieldSize, err := sizeSimInfoList((SimInfoList)(s.Info))
+		if err != nil { return 0, fmt.Errorf("sizeSim Info: %w", err) }
+		bodySize += fieldSize
+		if bits != nil { SetBit(bits, uint8(25), true) }
+	}
+	if len(s.Snapshot) > 0 {
+		fieldSize, err := sizeTextList(s.Snapshot)
+		if err != nil { return 0, fmt.Errorf("sizeSim Snapshot: %w", err) }
+		bodySize += fieldSize
+		if bits != nil { SetBit(bits, uint8(26), true) }
+	}
+	return bodySize, nil
+}
+
+func sizeSim(s *Sim) (int, error) {
+	bodySize, err := sizeSimBody(s, nil)
+	if err != nil { return 0, err }
+	return 4 + bodySize, nil
+}
+
+func sizeSimList(v SimList) (int, error) {
+	if len(v) > 65535 { return 0, fmt.Errorf("list length exceeds uint16 max") }
+	totalSize := 2
+	for i, item := range v {
+		itemSize, err := sizeSim(item)
+		if err != nil { return 0, fmt.Errorf("sizeSimList[%d]: %w", i, err) }
+		totalSize += itemSize
+	}
+	return totalSize, nil
+}
+
 func GetSim(buf *bytes.Buffer, s *Sim) error {
 	if s == nil { return nil }
-	bitSize := int(math.Ceil(float64(27) / 8.0))
+	const bitSize = 4
 	if buf.Len() < bitSize { return fmt.Errorf("GetSim bitmask: %d - %d", buf.Len(), bitSize) }
 	bits := buf.Next(bitSize)
 	if GetBit(bits, uint8(0)) {
@@ -202,116 +345,91 @@ func GetSim(buf *bytes.Buffer, s *Sim) error {
 func SetSim(buf *bytes.Buffer, s *Sim) error {
 	if s == nil { return fmt.Errorf("SetSim: nil value") }
 	if err := ValidateSim(s); err != nil { return fmt.Errorf("ValidateSim: %w", err) }
-	bits := make([]byte, uint8(math.Ceil(float64(27)/8.0)))
-	body := bytes.NewBuffer(nil)
+	const bitSize = 4
+	var bits [4]byte
+	bodySize, err := sizeSimBody(s, bits[:])
+	if err != nil { return err }
+	buf.Grow(bitSize + bodySize)
+	if _, err := buf.Write(bits[:]); err != nil { return fmt.Errorf("SetSim write bitmask: %w", err) }
 	if s.Id != 0 {
-		if err := SetU32(body, s.Id); err != nil { return fmt.Errorf("SetSim Id: %w", err) }
-		SetBit(bits, uint8(0), true)
+		if err := SetU32(buf, s.Id); err != nil { return fmt.Errorf("SetSim Id: %w", err) }
 	}
 	if s.Type != 0 {
-		if err := SetType(body, s.Type); err != nil { return fmt.Errorf("SetSim Type: %w", err) }
-		SetBit(bits, uint8(1), true)
+		if err := SetType(buf, s.Type); err != nil { return fmt.Errorf("SetSim Type: %w", err) }
 	}
 	if s.Status != 0 {
-		if err := SetItemStatus(body, s.Status); err != nil { return fmt.Errorf("SetSim Status: %w", err) }
-		SetBit(bits, uint8(2), true)
+		if err := SetItemStatus(buf, s.Status); err != nil { return fmt.Errorf("SetSim Status: %w", err) }
 	}
 	if s.Commission != 0 {
-		if err := SetU16(body, s.Commission); err != nil { return fmt.Errorf("SetSim Commission: %w", err) }
-		SetBit(bits, uint8(3), true)
+		if err := SetU16(buf, s.Commission); err != nil { return fmt.Errorf("SetSim Commission: %w", err) }
 	}
 	if s.Supplier != 0 {
-		if err := SetU32(body, s.Supplier); err != nil { return fmt.Errorf("SetSim Supplier: %w", err) }
-		SetBit(bits, uint8(4), true)
+		if err := SetU32(buf, s.Supplier); err != nil { return fmt.Errorf("SetSim Supplier: %w", err) }
 	}
 	if s.Aff != 0 {
-		if err := SetU32(body, s.Aff); err != nil { return fmt.Errorf("SetSim Aff: %w", err) }
-		SetBit(bits, uint8(5), true)
+		if err := SetU32(buf, s.Aff); err != nil { return fmt.Errorf("SetSim Aff: %w", err) }
 	}
 	if s.ContractDuration != 0 {
-		if err := SetU8(body, s.ContractDuration); err != nil { return fmt.Errorf("SetSim ContractDuration: %w", err) }
-		SetBit(bits, uint8(6), true)
+		if err := SetU8(buf, s.ContractDuration); err != nil { return fmt.Errorf("SetSim ContractDuration: %w", err) }
 	}
 	if s.Name != "" {
-		if err := SetText(body, s.Name); err != nil { return fmt.Errorf("SetSim Name: %w", err) }
-		SetBit(bits, uint8(7), true)
+		if err := SetText(buf, s.Name); err != nil { return fmt.Errorf("SetSim Name: %w", err) }
 	}
 	if s.Operator != 0 {
-		if err := SetSimOperator(body, s.Operator); err != nil { return fmt.Errorf("SetSim Operator: %w", err) }
-		SetBit(bits, uint8(8), true)
+		if err := SetSimOperator(buf, s.Operator); err != nil { return fmt.Errorf("SetSim Operator: %w", err) }
 	}
 	if s.Monthly != 0 {
-		if err := SetU16(body, s.Monthly); err != nil { return fmt.Errorf("SetSim Monthly: %w", err) }
-		SetBit(bits, uint8(9), true)
+		if err := SetU16(buf, s.Monthly); err != nil { return fmt.Errorf("SetSim Monthly: %w", err) }
 	}
 	if s.FlowUniversal != 0 {
-		if err := SetU16(body, s.FlowUniversal); err != nil { return fmt.Errorf("SetSim FlowUniversal: %w", err) }
-		SetBit(bits, uint8(10), true)
+		if err := SetU16(buf, s.FlowUniversal); err != nil { return fmt.Errorf("SetSim FlowUniversal: %w", err) }
 	}
 	if s.FlowDirectional != 0 {
-		if err := SetU16(body, s.FlowDirectional); err != nil { return fmt.Errorf("SetSim FlowDirectional: %w", err) }
-		SetBit(bits, uint8(11), true)
+		if err := SetU16(buf, s.FlowDirectional); err != nil { return fmt.Errorf("SetSim FlowDirectional: %w", err) }
 	}
-	SetBit(bits, uint8(12), s.CanMoveFlow)
 	if s.CallMonth != 0 {
-		if err := SetU16(body, s.CallMonth); err != nil { return fmt.Errorf("SetSim CallMonth: %w", err) }
-		SetBit(bits, uint8(13), true)
+		if err := SetU16(buf, s.CallMonth); err != nil { return fmt.Errorf("SetSim CallMonth: %w", err) }
 	}
 	if s.CallPrice != 0 {
-		if err := SetU16(body, s.CallPrice); err != nil { return fmt.Errorf("SetSim CallPrice: %w", err) }
-		SetBit(bits, uint8(14), true)
+		if err := SetU16(buf, s.CallPrice); err != nil { return fmt.Errorf("SetSim CallPrice: %w", err) }
 	}
 	if s.SmsMonth != 0 {
-		if err := SetU16(body, s.SmsMonth); err != nil { return fmt.Errorf("SetSim SmsMonth: %w", err) }
-		SetBit(bits, uint8(15), true)
+		if err := SetU16(buf, s.SmsMonth); err != nil { return fmt.Errorf("SetSim SmsMonth: %w", err) }
 	}
 	if s.SmsPrice != 0 {
-		if err := SetU16(body, s.SmsPrice); err != nil { return fmt.Errorf("SetSim SmsPrice: %w", err) }
-		SetBit(bits, uint8(16), true)
+		if err := SetU16(buf, s.SmsPrice); err != nil { return fmt.Errorf("SetSim SmsPrice: %w", err) }
 	}
 	if s.MinAge != 0 {
-		if err := SetU8(body, s.MinAge); err != nil { return fmt.Errorf("SetSim MinAge: %w", err) }
-		SetBit(bits, uint8(17), true)
+		if err := SetU8(buf, s.MinAge); err != nil { return fmt.Errorf("SetSim MinAge: %w", err) }
 	}
 	if s.MaxAge != 0 {
-		if err := SetU8(body, s.MaxAge); err != nil { return fmt.Errorf("SetSim MaxAge: %w", err) }
-		SetBit(bits, uint8(18), true)
+		if err := SetU8(buf, s.MaxAge); err != nil { return fmt.Errorf("SetSim MaxAge: %w", err) }
 	}
 	if s.Attribution != 0 {
-		if err := SetU32(body, s.Attribution); err != nil { return fmt.Errorf("SetSim Attribution: %w", err) }
-		SetBit(bits, uint8(19), true)
+		if err := SetU32(buf, s.Attribution); err != nil { return fmt.Errorf("SetSim Attribution: %w", err) }
 	}
 	if len(s.PickPhone) > 0 {
-		if err := SetSimPickPhoneList(body, (SimPickPhoneList)(s.PickPhone)); err != nil { return fmt.Errorf("SetSim PickPhone: %w", err) }
-		SetBit(bits, uint8(20), true)
+		if err := SetSimPickPhoneList(buf, (SimPickPhoneList)(s.PickPhone)); err != nil { return fmt.Errorf("SetSim PickPhone: %w", err) }
 	}
 	if s.FirstChargeLink != "" {
-		if err := SetText(body, s.FirstChargeLink); err != nil { return fmt.Errorf("SetSim FirstChargeLink: %w", err) }
-		SetBit(bits, uint8(21), true)
+		if err := SetText(buf, s.FirstChargeLink); err != nil { return fmt.Errorf("SetSim FirstChargeLink: %w", err) }
 	}
 	if s.FirstChargeMoney != "" {
-		if err := SetText(body, s.FirstChargeMoney); err != nil { return fmt.Errorf("SetSim FirstChargeMoney: %w", err) }
-		SetBit(bits, uint8(22), true)
+		if err := SetText(buf, s.FirstChargeMoney); err != nil { return fmt.Errorf("SetSim FirstChargeMoney: %w", err) }
 	}
 	if s.FirstChargeReturn != "" {
-		if err := SetText(body, s.FirstChargeReturn); err != nil { return fmt.Errorf("SetSim FirstChargeReturn: %w", err) }
-		SetBit(bits, uint8(23), true)
+		if err := SetText(buf, s.FirstChargeReturn); err != nil { return fmt.Errorf("SetSim FirstChargeReturn: %w", err) }
 	}
 	if len(s.BanCity) > 0 {
-		if err := SetU32List(body, s.BanCity); err != nil { return fmt.Errorf("SetSim BanCity: %w", err) }
-		SetBit(bits, uint8(24), true)
+		if err := SetU32List(buf, s.BanCity); err != nil { return fmt.Errorf("SetSim BanCity: %w", err) }
 	}
 	if len(s.Info) > 0 {
-		if err := SetSimInfoList(body, (SimInfoList)(s.Info)); err != nil { return fmt.Errorf("SetSim Info: %w", err) }
-		SetBit(bits, uint8(25), true)
+		if err := SetSimInfoList(buf, (SimInfoList)(s.Info)); err != nil { return fmt.Errorf("SetSim Info: %w", err) }
 	}
 	if len(s.Snapshot) > 0 {
-		if err := SetTextList(body, s.Snapshot); err != nil { return fmt.Errorf("SetSim Snapshot: %w", err) }
-		SetBit(bits, uint8(26), true)
+		if err := SetTextList(buf, s.Snapshot); err != nil { return fmt.Errorf("SetSim Snapshot: %w", err) }
 	}
-
-	if _, err := buf.Write(bits); err != nil { return fmt.Errorf("SetSim write bitmask: %w", err) }
-	_, err := body.WriteTo(buf); return err
+	return nil
 }
 
 func ValidateSim(s *Sim) error {
@@ -366,8 +484,27 @@ func ReadSim(buf *bytes.Buffer) (*Sim, error) {
 }
 
 type SimList []*Sim
-func GetSimList(buf *bytes.Buffer) (SimList, error) { return getList[*Sim, SimList](buf, ReadSim) }
-func SetSimList(buf *bytes.Buffer, v SimList) error { return setList(buf, v, SetSim) }
+func GetSimList(buf *bytes.Buffer) (SimList, error) {
+	count, err := GetU16(buf)
+	if err != nil { return nil, err }
+	list := make([]*Sim, count)
+	for i := range list {
+		item, err := ReadSim(buf)
+		if err != nil { return nil, err }
+		list[i] = item
+	}
+	return SimList(list), nil
+}
+func SetSimList(buf *bytes.Buffer, v SimList) error {
+	totalSize, err := sizeSimList(v)
+	if err != nil { return err }
+	buf.Grow(totalSize)
+	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
+	for _, item := range v {
+		if err := SetSim(buf, item); err != nil { return err }
+	}
+	return nil
+}
 func ValidateSimList(v SimList) error {
 	for i, item := range v {
 		if item == nil { return fmt.Errorf("SimList[%d]: nil item", i) }

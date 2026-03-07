@@ -8,7 +8,9 @@ export enum AccountStatus {
 
 export const IsAccountStatus = (v: AccountStatus): boolean => {
     switch (v) {
-    case AccountStatus.Offline, AccountStatus.Online, AccountStatus.Deleted:
+    case AccountStatus.Offline:
+    case AccountStatus.Online:
+    case AccountStatus.Deleted:
         return true;
     default:
         return false;
@@ -30,7 +32,8 @@ export enum Type {
 
 export const IsType = (v: Type): boolean => {
     switch (v) {
-    case Type.Sim, Type.Recharge:
+    case Type.Sim:
+    case Type.Recharge:
         return true;
     default:
         return false;
@@ -59,7 +62,15 @@ export enum Status {
 
 export const IsStatus = (v: Status): boolean => {
     switch (v) {
-    case Status.Ok, Status.Err, Status.Two, Status.Three, Status.Four, Status.Five, Status.Six, Status.Seven, Status.One:
+    case Status.Ok:
+    case Status.Err:
+    case Status.Two:
+    case Status.Three:
+    case Status.Four:
+    case Status.Five:
+    case Status.Six:
+    case Status.Seven:
+    case Status.One:
         return true;
     default:
         return false;
@@ -87,7 +98,14 @@ export enum StatusA {
 
 export const IsStatusA = (v: StatusA): boolean => {
     switch (v) {
-    case StatusA.Ok, StatusA.One, StatusA.Two, StatusA.Three, StatusA.Four, StatusA.Five, StatusA.Six, StatusA.Seven:
+    case StatusA.Ok:
+    case StatusA.One:
+    case StatusA.Two:
+    case StatusA.Three:
+    case StatusA.Four:
+    case StatusA.Five:
+    case StatusA.Six:
+    case StatusA.Seven:
         return true;
     default:
         return false;
@@ -109,7 +127,8 @@ export enum ItemStatus {
 
 export const IsItemStatus = (v: ItemStatus): boolean => {
     switch (v) {
-    case ItemStatus.Offline, ItemStatus.Online:
+    case ItemStatus.Offline:
+    case ItemStatus.Online:
         return true;
     default:
         return false;
@@ -133,7 +152,10 @@ export enum SimPickPhone {
 
 export const IsSimPickPhone = (v: SimPickPhone): boolean => {
     switch (v) {
-    case SimPickPhone.No, SimPickPhone.Yes, SimPickPhone.Active, SimPickPhone.Abcc:
+    case SimPickPhone.No:
+    case SimPickPhone.Yes:
+    case SimPickPhone.Active:
+    case SimPickPhone.Abcc:
         return true;
     default:
         return false;
@@ -161,7 +183,14 @@ export enum SimOperator {
 
 export const IsSimOperator = (v: SimOperator): boolean => {
     switch (v) {
-    case SimOperator.Zz, SimOperator.Lt, SimOperator.Yd, SimOperator.Dx, SimOperator.Gd, SimOperator.Xx, SimOperator.A, SimOperator.B:
+    case SimOperator.Zz:
+    case SimOperator.Lt:
+    case SimOperator.Yd:
+    case SimOperator.Dx:
+    case SimOperator.Gd:
+    case SimOperator.Xx:
+    case SimOperator.A:
+    case SimOperator.B:
         return true;
     default:
         return false;
@@ -195,7 +224,13 @@ export enum OrderStatus {
 
 export const IsOrderStatus = (v: OrderStatus): boolean => {
     switch (v) {
-    case OrderStatus.Pending, OrderStatus.Closed, OrderStatus.Canceled, OrderStatus.Shipped, OrderStatus.Delivered, OrderStatus.Actived, OrderStatus.Settled:
+    case OrderStatus.Pending:
+    case OrderStatus.Closed:
+    case OrderStatus.Canceled:
+    case OrderStatus.Shipped:
+    case OrderStatus.Delivered:
+    case OrderStatus.Actived:
+    case OrderStatus.Settled:
         return true;
     default:
         return false;

@@ -20,6 +20,8 @@ func run() error {
 	goDir := flag.String("go", "./go", "Go 代码输出目录")
 	tsDir := flag.String("ts", "./ts", "TypeScript 代码输出目录")
 	goTag := flag.String("tag", "", "Go 结构体 tag，示例: bson,json")
+	goV2 := flag.Bool("go-v2", false, "同时生成 Go v2 代码到 go/sbv2（包含 struct/enum/API/RPC）")
+	tsV2 := flag.Bool("ts-v2", false, "同时生成 TypeScript v2 代码到 ts/sbv2（包含 struct/enum/RPC）")
 	flag.Parse()
 
 	args := flag.Args()
@@ -33,7 +35,7 @@ func run() error {
 		return err
 	}
 
-	cfg := sbint.Config{GoDir: *goDir, TsDir: *tsDir, GoTag: *goTag}
+	cfg := sbint.Config{GoDir: *goDir, TsDir: *tsDir, GoTag: *goTag, GoV2: *goV2, TsV2: *tsV2}
 	if err := sbint.Generate(schema, cfg); err != nil {
 		return fmt.Errorf("模板后端生成失败: %w", err)
 	}

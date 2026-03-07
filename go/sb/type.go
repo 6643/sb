@@ -47,6 +47,48 @@ func setList[T any](buf *bytes.Buffer, list []T, setItem func(*bytes.Buffer, T) 
 	return nil
 }
 
+func sizeFixedList(length int, elemSize int) (int, error) {
+	if length > 65535 { return 0, fmt.Errorf("list length exceeds uint16 max") }
+	return 2 + length*elemSize, nil
+}
+
+func sizeBoolList(v []bool) (int, error) {
+	if len(v) > 65535 { return 0, fmt.Errorf("list length exceeds uint16 max") }
+	return 2 + (len(v)+7)/8, nil
+}
+
+func sizeBin(v []byte) (int, error) {
+	if uint64(len(v)) > uint64(^uint32(0)) { return 0, fmt.Errorf("bin length exceeds uint32 max") }
+	return 4 + len(v), nil
+}
+
+func sizeBinList(v [][]byte) (int, error) {
+	if len(v) > 65535 { return 0, fmt.Errorf("list length exceeds uint16 max") }
+	size := 2
+	for i, item := range v {
+		itemSize, err := sizeBin(item)
+		if err != nil { return 0, fmt.Errorf("bin list[%d]: %w", i, err) }
+		size += itemSize
+	}
+	return size, nil
+}
+
+func sizeText(v string) (int, error) {
+	if len(v) > 65535 { return 0, fmt.Errorf("text length exceeds uint16 max") }
+	return 2 + len(v), nil
+}
+
+func sizeTextList(v []string) (int, error) {
+	if len(v) > 65535 { return 0, fmt.Errorf("list length exceeds uint16 max") }
+	size := 2
+	for i, item := range v {
+		itemSize, err := sizeText(item)
+		if err != nil { return 0, fmt.Errorf("text list[%d]: %w", i, err) }
+		size += itemSize
+	}
+	return size, nil
+}
+
 func GetBit(bits []byte, i uint8) bool {
 	if int(i/8) >= len(bits) { return false }
 	return (bits[i/8] & (1 << (i % 8))) != 0
@@ -82,10 +124,16 @@ func GetBoolList(buf *bytes.Buffer) ([]bool, error) {
 }
 func SetBoolList(buf *bytes.Buffer, v []bool) error {
 	if len(v) > 65535 { return fmt.Errorf("list length exceeds uint16 max") }
-	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
-	bits := make([]byte, (len(v)+7)/8)
-	for i, val := range v { SetBit(bits, uint8(i), val) }
-	_, err := buf.Write(bits)
+	bitSize := (len(v) + 7) / 8
+	buf.Grow(2 + bitSize)
+	b := buf.AvailableBuffer()
+	b = binary.LittleEndian.AppendUint16(b, uint16(len(v)))
+	start := len(b)
+	for i := 0; i < bitSize; i++ { b = append(b, 0) }
+	for i, val := range v {
+		if val { b[start+(i/8)] |= 1 << (uint(i) % 8) }
+	}
+	_, err := buf.Write(b)
 	return err
 }
 func EqBoolList(a, b []bool) bool { return slices.Equal(a, b) }
@@ -102,8 +150,25 @@ func SetI8(buf *bytes.Buffer, v int8) error {
 func EqI8(a, b int8) bool { return a == b }
 
 type I8List []int8
-func GetI8List(buf *bytes.Buffer) ([]int8, error) { return getList[int8, []int8](buf, GetI8) }
-func SetI8List(buf *bytes.Buffer, v []int8) error { return setList(buf, v, SetI8) }
+func GetI8List(buf *bytes.Buffer) ([]int8, error) {
+	count, err := GetU16(buf)
+	if err != nil { return nil, err }
+	if buf.Len() < int(count) { return nil, fmt.Errorf("not enough data") }
+	data := buf.Next(int(count))
+	list := make([]int8, count)
+	for i := range list { list[i] = int8(data[i]) }
+	return list, nil
+}
+func SetI8List(buf *bytes.Buffer, v []int8) error {
+	if len(v) > 65535 { return fmt.Errorf("list length exceeds uint16 max") }
+	buf.Grow(2 + len(v))
+	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
+	if len(v) == 0 { return nil }
+	b := buf.AvailableBuffer()
+	for _, item := range v { b = append(b, byte(item)) }
+	_, err := buf.Write(b)
+	return err
+}
 func EqI8List(a, b []int8) bool { return slices.Equal(a, b) }
 type U8 uint8
 func GetU8(buf *bytes.Buffer) (uint8, error) {
@@ -116,8 +181,20 @@ func SetU8(buf *bytes.Buffer, v uint8) error {
 func EqU8(a, b uint8) bool { return a == b }
 
 type U8List []uint8
-func GetU8List(buf *bytes.Buffer) ([]uint8, error) { return getList[uint8, []uint8](buf, GetU8) }
-func SetU8List(buf *bytes.Buffer, v []uint8) error { return setList(buf, v, SetU8) }
+func GetU8List(buf *bytes.Buffer) ([]uint8, error) {
+	count, err := GetU16(buf)
+	if err != nil { return nil, err }
+	if buf.Len() < int(count) { return nil, fmt.Errorf("not enough data") }
+	return bytes.Clone(buf.Next(int(count))), nil
+}
+func SetU8List(buf *bytes.Buffer, v []uint8) error {
+	if len(v) > 65535 { return fmt.Errorf("list length exceeds uint16 max") }
+	buf.Grow(2 + len(v))
+	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
+	if len(v) == 0 { return nil }
+	_, err := buf.Write(v)
+	return err
+}
 func EqU8List(a, b []uint8) bool { return slices.Equal(a, b) }
 type I16 int16
 func GetI16(buf *bytes.Buffer) (int16, error) {
@@ -126,16 +203,35 @@ func GetI16(buf *bytes.Buffer) (int16, error) {
 	return int16(binary.LittleEndian.Uint16(b[:])), nil
 }
 func SetI16(buf *bytes.Buffer, v int16) error {
-	var b [2]byte
-	binary.LittleEndian.PutUint16(b[:], uint16(v))
-	_, err := buf.Write(b[:])
+	buf.Grow(2)
+	b := buf.AvailableBuffer()
+	b = binary.LittleEndian.AppendUint16(b, uint16(v))
+	_, err := buf.Write(b)
 	return err
 }
 func EqI16(a, b int16) bool { return a == b }
 
 type I16List []int16
-func GetI16List(buf *bytes.Buffer) ([]int16, error) { return getList[int16, []int16](buf, GetI16) }
-func SetI16List(buf *bytes.Buffer, v []int16) error { return setList(buf, v, SetI16) }
+func GetI16List(buf *bytes.Buffer) ([]int16, error) {
+	count, err := GetU16(buf)
+	if err != nil { return nil, err }
+	totalSize := int(count) * 2
+	if buf.Len() < totalSize { return nil, fmt.Errorf("not enough data") }
+	data := buf.Next(totalSize)
+	list := make([]int16, count)
+	for i := range list { list[i] = int16(binary.LittleEndian.Uint16(data[i*2:])) }
+	return list, nil
+}
+func SetI16List(buf *bytes.Buffer, v []int16) error {
+	if len(v) > 65535 { return fmt.Errorf("list length exceeds uint16 max") }
+	buf.Grow(2 + len(v)*2)
+	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
+	if len(v) == 0 { return nil }
+	b := buf.AvailableBuffer()
+	for _, item := range v { b = binary.LittleEndian.AppendUint16(b, uint16(item)) }
+	_, err := buf.Write(b)
+	return err
+}
 func EqI16List(a, b []int16) bool { return slices.Equal(a, b) }
 type U16 uint16
 func GetU16(buf *bytes.Buffer) (uint16, error) {
@@ -144,16 +240,35 @@ func GetU16(buf *bytes.Buffer) (uint16, error) {
 	return uint16(binary.LittleEndian.Uint16(b[:])), nil
 }
 func SetU16(buf *bytes.Buffer, v uint16) error {
-	var b [2]byte
-	binary.LittleEndian.PutUint16(b[:], uint16(v))
-	_, err := buf.Write(b[:])
+	buf.Grow(2)
+	b := buf.AvailableBuffer()
+	b = binary.LittleEndian.AppendUint16(b, uint16(v))
+	_, err := buf.Write(b)
 	return err
 }
 func EqU16(a, b uint16) bool { return a == b }
 
 type U16List []uint16
-func GetU16List(buf *bytes.Buffer) ([]uint16, error) { return getList[uint16, []uint16](buf, GetU16) }
-func SetU16List(buf *bytes.Buffer, v []uint16) error { return setList(buf, v, SetU16) }
+func GetU16List(buf *bytes.Buffer) ([]uint16, error) {
+	count, err := GetU16(buf)
+	if err != nil { return nil, err }
+	totalSize := int(count) * 2
+	if buf.Len() < totalSize { return nil, fmt.Errorf("not enough data") }
+	data := buf.Next(totalSize)
+	list := make([]uint16, count)
+	for i := range list { list[i] = binary.LittleEndian.Uint16(data[i*2:]) }
+	return list, nil
+}
+func SetU16List(buf *bytes.Buffer, v []uint16) error {
+	if len(v) > 65535 { return fmt.Errorf("list length exceeds uint16 max") }
+	buf.Grow(2 + len(v)*2)
+	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
+	if len(v) == 0 { return nil }
+	b := buf.AvailableBuffer()
+	for _, item := range v { b = binary.LittleEndian.AppendUint16(b, item) }
+	_, err := buf.Write(b)
+	return err
+}
 func EqU16List(a, b []uint16) bool { return slices.Equal(a, b) }
 type I32 int32
 func GetI32(buf *bytes.Buffer) (int32, error) {
@@ -162,16 +277,35 @@ func GetI32(buf *bytes.Buffer) (int32, error) {
 	return int32(binary.LittleEndian.Uint32(b[:])), nil
 }
 func SetI32(buf *bytes.Buffer, v int32) error {
-	var b [4]byte
-	binary.LittleEndian.PutUint32(b[:], uint32(v))
-	_, err := buf.Write(b[:])
+	buf.Grow(4)
+	b := buf.AvailableBuffer()
+	b = binary.LittleEndian.AppendUint32(b, uint32(v))
+	_, err := buf.Write(b)
 	return err
 }
 func EqI32(a, b int32) bool { return a == b }
 
 type I32List []int32
-func GetI32List(buf *bytes.Buffer) ([]int32, error) { return getList[int32, []int32](buf, GetI32) }
-func SetI32List(buf *bytes.Buffer, v []int32) error { return setList(buf, v, SetI32) }
+func GetI32List(buf *bytes.Buffer) ([]int32, error) {
+	count, err := GetU16(buf)
+	if err != nil { return nil, err }
+	totalSize := int(count) * 4
+	if buf.Len() < totalSize { return nil, fmt.Errorf("not enough data") }
+	data := buf.Next(totalSize)
+	list := make([]int32, count)
+	for i := range list { list[i] = int32(binary.LittleEndian.Uint32(data[i*4:])) }
+	return list, nil
+}
+func SetI32List(buf *bytes.Buffer, v []int32) error {
+	if len(v) > 65535 { return fmt.Errorf("list length exceeds uint16 max") }
+	buf.Grow(2 + len(v)*4)
+	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
+	if len(v) == 0 { return nil }
+	b := buf.AvailableBuffer()
+	for _, item := range v { b = binary.LittleEndian.AppendUint32(b, uint32(item)) }
+	_, err := buf.Write(b)
+	return err
+}
 func EqI32List(a, b []int32) bool { return slices.Equal(a, b) }
 type U32 uint32
 func GetU32(buf *bytes.Buffer) (uint32, error) {
@@ -180,16 +314,35 @@ func GetU32(buf *bytes.Buffer) (uint32, error) {
 	return uint32(binary.LittleEndian.Uint32(b[:])), nil
 }
 func SetU32(buf *bytes.Buffer, v uint32) error {
-	var b [4]byte
-	binary.LittleEndian.PutUint32(b[:], uint32(v))
-	_, err := buf.Write(b[:])
+	buf.Grow(4)
+	b := buf.AvailableBuffer()
+	b = binary.LittleEndian.AppendUint32(b, uint32(v))
+	_, err := buf.Write(b)
 	return err
 }
 func EqU32(a, b uint32) bool { return a == b }
 
 type U32List []uint32
-func GetU32List(buf *bytes.Buffer) ([]uint32, error) { return getList[uint32, []uint32](buf, GetU32) }
-func SetU32List(buf *bytes.Buffer, v []uint32) error { return setList(buf, v, SetU32) }
+func GetU32List(buf *bytes.Buffer) ([]uint32, error) {
+	count, err := GetU16(buf)
+	if err != nil { return nil, err }
+	totalSize := int(count) * 4
+	if buf.Len() < totalSize { return nil, fmt.Errorf("not enough data") }
+	data := buf.Next(totalSize)
+	list := make([]uint32, count)
+	for i := range list { list[i] = binary.LittleEndian.Uint32(data[i*4:]) }
+	return list, nil
+}
+func SetU32List(buf *bytes.Buffer, v []uint32) error {
+	if len(v) > 65535 { return fmt.Errorf("list length exceeds uint16 max") }
+	buf.Grow(2 + len(v)*4)
+	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
+	if len(v) == 0 { return nil }
+	b := buf.AvailableBuffer()
+	for _, item := range v { b = binary.LittleEndian.AppendUint32(b, item) }
+	_, err := buf.Write(b)
+	return err
+}
 func EqU32List(a, b []uint32) bool { return slices.Equal(a, b) }
 type I64 int64
 func GetI64(buf *bytes.Buffer) (int64, error) {
@@ -198,16 +351,35 @@ func GetI64(buf *bytes.Buffer) (int64, error) {
 	return int64(binary.LittleEndian.Uint64(b[:])), nil
 }
 func SetI64(buf *bytes.Buffer, v int64) error {
-	var b [8]byte
-	binary.LittleEndian.PutUint64(b[:], uint64(v))
-	_, err := buf.Write(b[:])
+	buf.Grow(8)
+	b := buf.AvailableBuffer()
+	b = binary.LittleEndian.AppendUint64(b, uint64(v))
+	_, err := buf.Write(b)
 	return err
 }
 func EqI64(a, b int64) bool { return a == b }
 
 type I64List []int64
-func GetI64List(buf *bytes.Buffer) ([]int64, error) { return getList[int64, []int64](buf, GetI64) }
-func SetI64List(buf *bytes.Buffer, v []int64) error { return setList(buf, v, SetI64) }
+func GetI64List(buf *bytes.Buffer) ([]int64, error) {
+	count, err := GetU16(buf)
+	if err != nil { return nil, err }
+	totalSize := int(count) * 8
+	if buf.Len() < totalSize { return nil, fmt.Errorf("not enough data") }
+	data := buf.Next(totalSize)
+	list := make([]int64, count)
+	for i := range list { list[i] = int64(binary.LittleEndian.Uint64(data[i*8:])) }
+	return list, nil
+}
+func SetI64List(buf *bytes.Buffer, v []int64) error {
+	if len(v) > 65535 { return fmt.Errorf("list length exceeds uint16 max") }
+	buf.Grow(2 + len(v)*8)
+	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
+	if len(v) == 0 { return nil }
+	b := buf.AvailableBuffer()
+	for _, item := range v { b = binary.LittleEndian.AppendUint64(b, uint64(item)) }
+	_, err := buf.Write(b)
+	return err
+}
 func EqI64List(a, b []int64) bool { return slices.Equal(a, b) }
 type U64 uint64
 func GetU64(buf *bytes.Buffer) (uint64, error) {
@@ -216,16 +388,35 @@ func GetU64(buf *bytes.Buffer) (uint64, error) {
 	return uint64(binary.LittleEndian.Uint64(b[:])), nil
 }
 func SetU64(buf *bytes.Buffer, v uint64) error {
-	var b [8]byte
-	binary.LittleEndian.PutUint64(b[:], uint64(v))
-	_, err := buf.Write(b[:])
+	buf.Grow(8)
+	b := buf.AvailableBuffer()
+	b = binary.LittleEndian.AppendUint64(b, uint64(v))
+	_, err := buf.Write(b)
 	return err
 }
 func EqU64(a, b uint64) bool { return a == b }
 
 type U64List []uint64
-func GetU64List(buf *bytes.Buffer) ([]uint64, error) { return getList[uint64, []uint64](buf, GetU64) }
-func SetU64List(buf *bytes.Buffer, v []uint64) error { return setList(buf, v, SetU64) }
+func GetU64List(buf *bytes.Buffer) ([]uint64, error) {
+	count, err := GetU16(buf)
+	if err != nil { return nil, err }
+	totalSize := int(count) * 8
+	if buf.Len() < totalSize { return nil, fmt.Errorf("not enough data") }
+	data := buf.Next(totalSize)
+	list := make([]uint64, count)
+	for i := range list { list[i] = binary.LittleEndian.Uint64(data[i*8:]) }
+	return list, nil
+}
+func SetU64List(buf *bytes.Buffer, v []uint64) error {
+	if len(v) > 65535 { return fmt.Errorf("list length exceeds uint16 max") }
+	buf.Grow(2 + len(v)*8)
+	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
+	if len(v) == 0 { return nil }
+	b := buf.AvailableBuffer()
+	for _, item := range v { b = binary.LittleEndian.AppendUint64(b, item) }
+	_, err := buf.Write(b)
+	return err
+}
 func EqU64List(a, b []uint64) bool { return slices.Equal(a, b) }
 type F32 float32
 func GetF32(buf *bytes.Buffer) (float32, error) {
@@ -234,16 +425,35 @@ func GetF32(buf *bytes.Buffer) (float32, error) {
 	return math.Float32frombits(binary.LittleEndian.Uint32(b[:])), nil
 }
 func SetF32(buf *bytes.Buffer, v float32) error {
-	var b [4]byte
-	binary.LittleEndian.PutUint32(b[:], math.Float32bits(v))
-	_, err := buf.Write(b[:])
+	buf.Grow(4)
+	b := buf.AvailableBuffer()
+	b = binary.LittleEndian.AppendUint32(b, math.Float32bits(v))
+	_, err := buf.Write(b)
 	return err
 }
 func EqF32(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-6 }
 
 type F32List []float32
-func GetF32List(buf *bytes.Buffer) ([]float32, error) { return getList[float32, []float32](buf, GetF32) }
-func SetF32List(buf *bytes.Buffer, v []float32) error { return setList(buf, v, SetF32) }
+func GetF32List(buf *bytes.Buffer) ([]float32, error) {
+	count, err := GetU16(buf)
+	if err != nil { return nil, err }
+	totalSize := int(count) * 4
+	if buf.Len() < totalSize { return nil, fmt.Errorf("not enough data") }
+	data := buf.Next(totalSize)
+	list := make([]float32, count)
+	for i := range list { list[i] = math.Float32frombits(binary.LittleEndian.Uint32(data[i*4:])) }
+	return list, nil
+}
+func SetF32List(buf *bytes.Buffer, v []float32) error {
+	if len(v) > 65535 { return fmt.Errorf("list length exceeds uint16 max") }
+	buf.Grow(2 + len(v)*4)
+	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
+	if len(v) == 0 { return nil }
+	b := buf.AvailableBuffer()
+	for _, item := range v { b = binary.LittleEndian.AppendUint32(b, math.Float32bits(item)) }
+	_, err := buf.Write(b)
+	return err
+}
 func EqF32List(a, b []float32) bool { return slices.Equal(a, b) }
 type F64 float64
 func GetF64(buf *bytes.Buffer) (float64, error) {
@@ -252,16 +462,35 @@ func GetF64(buf *bytes.Buffer) (float64, error) {
 	return math.Float64frombits(binary.LittleEndian.Uint64(b[:])), nil
 }
 func SetF64(buf *bytes.Buffer, v float64) error {
-	var b [8]byte
-	binary.LittleEndian.PutUint64(b[:], math.Float64bits(v))
-	_, err := buf.Write(b[:])
+	buf.Grow(8)
+	b := buf.AvailableBuffer()
+	b = binary.LittleEndian.AppendUint64(b, math.Float64bits(v))
+	_, err := buf.Write(b)
 	return err
 }
 func EqF64(a, b float64) bool { return math.Abs(float64(a-b)) < 1e-9 }
 
 type F64List []float64
-func GetF64List(buf *bytes.Buffer) ([]float64, error) { return getList[float64, []float64](buf, GetF64) }
-func SetF64List(buf *bytes.Buffer, v []float64) error { return setList(buf, v, SetF64) }
+func GetF64List(buf *bytes.Buffer) ([]float64, error) {
+	count, err := GetU16(buf)
+	if err != nil { return nil, err }
+	totalSize := int(count) * 8
+	if buf.Len() < totalSize { return nil, fmt.Errorf("not enough data") }
+	data := buf.Next(totalSize)
+	list := make([]float64, count)
+	for i := range list { list[i] = math.Float64frombits(binary.LittleEndian.Uint64(data[i*8:])) }
+	return list, nil
+}
+func SetF64List(buf *bytes.Buffer, v []float64) error {
+	if len(v) > 65535 { return fmt.Errorf("list length exceeds uint16 max") }
+	buf.Grow(2 + len(v)*8)
+	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
+	if len(v) == 0 { return nil }
+	b := buf.AvailableBuffer()
+	for _, item := range v { b = binary.LittleEndian.AppendUint64(b, math.Float64bits(item)) }
+	_, err := buf.Write(b)
+	return err
+}
 func EqF64List(a, b []float64) bool { return slices.Equal(a, b) }
 
 
@@ -280,6 +509,7 @@ func GetBin(buf *bytes.Buffer) ([]byte, error) {
 }
 func SetBin(buf *bytes.Buffer, v []byte) error {
 	if uint64(len(v)) > uint64(^uint32(0)) { return fmt.Errorf("bin length exceeds uint32 max") }
+	buf.Grow(4 + len(v))
 	if err := SetU32(buf, uint32(len(v))); err != nil { return err }
 	_, err := buf.Write(v)
 	return err
@@ -287,8 +517,29 @@ func SetBin(buf *bytes.Buffer, v []byte) error {
 func EqBin(a, b []byte) bool { return bytes.Equal(a, b) }
 
 type BinList [][]byte
-func GetBinList(buf *bytes.Buffer) ([][]byte, error) { return getList[[]byte, [][]byte](buf, GetBin) }
-func SetBinList(buf *bytes.Buffer, v [][]byte) error { return setList(buf, v, SetBin) }
+func GetBinList(buf *bytes.Buffer) ([][]byte, error) {
+	count, err := GetU16(buf)
+	if err != nil { return nil, err }
+	list := make([][]byte, count)
+	for i := range list {
+		item, err := GetBinView(buf)
+		if err != nil { return nil, err }
+		list[i] = bytes.Clone(item)
+	}
+	return list, nil
+}
+func SetBinList(buf *bytes.Buffer, v [][]byte) error {
+	totalSize, err := sizeBinList(v)
+	if err != nil { return err }
+	buf.Grow(totalSize)
+	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
+	for _, item := range v {
+		if err := SetU32(buf, uint32(len(item))); err != nil { return err }
+		if len(item) == 0 { continue }
+		if _, err := buf.Write(item); err != nil { return err }
+	}
+	return nil
+}
 func EqBinList(a, b [][]byte) bool { return slices.EqualFunc(a, b, bytes.Equal) }
 
 // Text
@@ -300,15 +551,36 @@ func GetText(buf *bytes.Buffer) (string, error) {
 	return string(buf.Next(int(l))), nil
 }
 func SetText(buf *bytes.Buffer, v string) error {
-	data := []byte(v)
-	if len(data) > 65535 { return fmt.Errorf("text length exceeds uint16 max") }
-	if err := SetU16(buf, uint16(len(data))); err != nil { return err }
-	_, err := buf.Write(data)
+	if len(v) > 65535 { return fmt.Errorf("text length exceeds uint16 max") }
+	buf.Grow(2 + len(v))
+	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
+	_, err := buf.WriteString(v)
 	return err
 }
 func EqText(a, b string) bool { return a == b }
 
 type TextList []string
-func GetTextList(buf *bytes.Buffer) ([]string, error) { return getList[string, []string](buf, GetText) }
-func SetTextList(buf *bytes.Buffer, v []string) error { return setList(buf, v, SetText) }
+func GetTextList(buf *bytes.Buffer) ([]string, error) {
+	count, err := GetU16(buf)
+	if err != nil { return nil, err }
+	list := make([]string, count)
+	for i := range list {
+		item, err := GetText(buf)
+		if err != nil { return nil, err }
+		list[i] = item
+	}
+	return list, nil
+}
+func SetTextList(buf *bytes.Buffer, v []string) error {
+	totalSize, err := sizeTextList(v)
+	if err != nil { return err }
+	buf.Grow(totalSize)
+	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
+	for _, item := range v {
+		if err := SetU16(buf, uint16(len(item))); err != nil { return err }
+		if len(item) == 0 { continue }
+		if _, err := buf.WriteString(item); err != nil { return err }
+	}
+	return nil
+}
 func EqTextList(a, b []string) bool { return slices.Equal(a, b) }

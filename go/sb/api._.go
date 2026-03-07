@@ -12,45 +12,59 @@ import (
 
 func UserGetAbcHandler(w http.ResponseWriter, r *http.Request) {
 
-	if !parseRequest(w, r) { return }
+	if !parseEmptyRequest(w, r) { return }
 
 	result, status := user_get_abc(r.Context())
 	status = normalizeHandlerStatus(r.Context(), status)
 	if !checkStatus(w, status) { return }
-	sendResponse(w, func(buf *bytes.Buffer) error { return SetOrderStatus(buf, result) })
+	var resp bytes.Buffer
+	respSize := 0
+	respSize += 1
+	resp.Grow(respSize)
+	if err := SetOrderStatus(&resp, result); err != nil { w.WriteHeader(http.StatusInternalServerError); return }
+	sendResponse(w, resp.Bytes())
 }
 
 func UserGetAbcdHandler(w http.ResponseWriter, r *http.Request) {
 	var page uint8
 	var size uint8
 
-	if !parseRequest(w, r, func(buf *bytes.Buffer) error {
+	buf, ok := parseRequest(w, r)
+	if !ok { return }
+	{
 		val, err := GetU8(buf)
-		if err != nil { return err }
+		if err != nil { w.WriteHeader(http.StatusBadRequest); return }
 		page = val
-		return nil
-	}, func(buf *bytes.Buffer) error {
+	}
+	{
 		val, err := GetU8(buf)
-		if err != nil { return err }
+		if err != nil { w.WriteHeader(http.StatusBadRequest); return }
 		size = val
-		return nil
-	}) { return }
+	}
+	if buf.Len() != 0 { w.WriteHeader(http.StatusBadRequest); return }
 
 	result, status := user_get_abcd(r.Context(), page, size)
 	status = normalizeHandlerStatus(r.Context(), status)
 	if !checkStatus(w, status) { return }
-	sendResponse(w, func(buf *bytes.Buffer) error { return SetOrderStatus(buf, result) })
+	var resp bytes.Buffer
+	respSize := 0
+	respSize += 1
+	resp.Grow(respSize)
+	if err := SetOrderStatus(&resp, result); err != nil { w.WriteHeader(http.StatusInternalServerError); return }
+	sendResponse(w, resp.Bytes())
 }
 
 func UserSetSimInfoHandler(w http.ResponseWriter, r *http.Request) {
 	var info *SimInfo
 
-	if !parseRequest(w, r, func(buf *bytes.Buffer) error {
+	buf, ok := parseRequest(w, r)
+	if !ok { return }
+	{
 		val, err := ReadSimInfo(buf)
-		if err != nil { return err }
+		if err != nil { w.WriteHeader(http.StatusBadRequest); return }
 		info = val
-		return nil
-	}) { return }
+	}
+	if buf.Len() != 0 { w.WriteHeader(http.StatusBadRequest); return }
 	if err := ValidateSimInfo(info); err != nil { w.WriteHeader(http.StatusBadRequest); return }
 
 	status := user_set_sim_info(r.Context(), info)
@@ -62,33 +76,51 @@ func UserSetSimInfoHandler(w http.ResponseWriter, r *http.Request) {
 func GetCountHandler(w http.ResponseWriter, r *http.Request) {
 	var page uint8
 
-	if !parseRequest(w, r, func(buf *bytes.Buffer) error {
+	buf, ok := parseRequest(w, r)
+	if !ok { return }
+	{
 		val, err := GetU8(buf)
-		if err != nil { return err }
+		if err != nil { w.WriteHeader(http.StatusBadRequest); return }
 		page = val
-		return nil
-	}) { return }
+	}
+	if buf.Len() != 0 { w.WriteHeader(http.StatusBadRequest); return }
 
 	result, status := get_count(r.Context(), page)
 	status = normalizeHandlerStatus(r.Context(), status)
 	if !checkStatus(w, status) { return }
-	sendResponse(w, func(buf *bytes.Buffer) error { return SetU8(buf, result) })
+	var resp bytes.Buffer
+	respSize := 0
+	respSize += 1
+	resp.Grow(respSize)
+	if err := SetU8(&resp, result); err != nil { w.WriteHeader(http.StatusInternalServerError); return }
+	sendResponse(w, resp.Bytes())
 }
 
 func GetBinHandler(w http.ResponseWriter, r *http.Request) {
 	var page uint8
 
-	if !parseRequest(w, r, func(buf *bytes.Buffer) error {
+	buf, ok := parseRequest(w, r)
+	if !ok { return }
+	{
 		val, err := GetU8(buf)
-		if err != nil { return err }
+		if err != nil { w.WriteHeader(http.StatusBadRequest); return }
 		page = val
-		return nil
-	}) { return }
+	}
+	if buf.Len() != 0 { w.WriteHeader(http.StatusBadRequest); return }
 
 	result, status := get_bin(r.Context(), page)
 	status = normalizeHandlerStatus(r.Context(), status)
 	if !checkStatus(w, status) { return }
-	sendResponse(w, func(buf *bytes.Buffer) error { return SetBin(buf, result) })
+	var resp bytes.Buffer
+	respSize := 0
+	{
+		fieldSize, err := sizeBin(result)
+		if err != nil { w.WriteHeader(http.StatusInternalServerError); return }
+		respSize += fieldSize
+	}
+	resp.Grow(respSize)
+	if err := SetBin(&resp, result); err != nil { w.WriteHeader(http.StatusInternalServerError); return }
+	sendResponse(w, resp.Bytes())
 }
 
 // --- 路由注册 ---
@@ -141,26 +173,22 @@ func checkStatus(w http.ResponseWriter, status RpcErrCode) bool {
 	w.WriteHeader(int(status)); return false
 }
 
-func parseRequest(w http.ResponseWriter, r *http.Request, args ...Getter) bool {
-	if len(args) == 0 {
-		body, err := io.ReadAll(io.LimitReader(r.Body, 1)); if err != nil { w.WriteHeader(http.StatusBadRequest); return false }
-		if len(body) != 0 { w.WriteHeader(http.StatusBadRequest); return false }
-		return true
-	}
-	readLimit := defaultMaxReqBytes + 1
-	body, err := io.ReadAll(io.LimitReader(r.Body, readLimit)); if err != nil { w.WriteHeader(http.StatusBadRequest); return false }
-	if int64(len(body)) > defaultMaxReqBytes { w.WriteHeader(http.StatusRequestEntityTooLarge); return false }
-	buf := bytes.NewBuffer(body)
-	if err := GetAll(buf, args...); err != nil { w.WriteHeader(http.StatusBadRequest); return false }
-	if buf.Len() != 0 { w.WriteHeader(http.StatusBadRequest); return false }
+func parseEmptyRequest(w http.ResponseWriter, r *http.Request) bool {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1)); if err != nil { w.WriteHeader(http.StatusBadRequest); return false }
+	if len(body) != 0 { w.WriteHeader(http.StatusBadRequest); return false }
 	return true
 }
 
-func sendResponse(w http.ResponseWriter, setter Setter) {
-	var buf bytes.Buffer
-	if err := SetAll(&buf, setter); err != nil { w.WriteHeader(http.StatusInternalServerError); return }
+func parseRequest(w http.ResponseWriter, r *http.Request) (*bytes.Buffer, bool) {
+	readLimit := defaultMaxReqBytes + 1
+	body, err := io.ReadAll(io.LimitReader(r.Body, readLimit)); if err != nil { w.WriteHeader(http.StatusBadRequest); return nil, false }
+	if int64(len(body)) > defaultMaxReqBytes { w.WriteHeader(http.StatusRequestEntityTooLarge); return nil, false }
+	return bytes.NewBuffer(body), true
+}
+
+func sendResponse(w http.ResponseWriter, body []byte) {
 	if w.Header().Get("Content-Type") == "" {
 		w.Header().Set("Content-Type", "application/octet-stream")
 	}
-	if _, err := w.Write(buf.Bytes()); err != nil { w.WriteHeader(http.StatusInternalServerError); return }
+	if _, err := w.Write(body); err != nil { w.WriteHeader(http.StatusInternalServerError); return }
 }

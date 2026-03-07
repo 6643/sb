@@ -121,7 +121,9 @@ export class RpcClient {
     // 获取abcd
     public userGetAbcd = async (page: number, size: number): Promise<[_.OrderStatus, RpcErrCode]> => {
         const buf = new _.Buffer();
-        if (_.setAll(buf, (buf: _.Buffer) => _.setU8(buf, page), (buf: _.Buffer) => _.setU8(buf, size)) !== null) return [0 as _.OrderStatus, RpcErrCode.ReqErr];
+        let encodeErr: Error | null = null;
+        if ((encodeErr = _.setU8(buf, page)) !== null) return [0 as _.OrderStatus, RpcErrCode.ReqErr];
+        if ((encodeErr = _.setU8(buf, size)) !== null) return [0 as _.OrderStatus, RpcErrCode.ReqErr];
 
         const [bytes, status] = await this._fetch("user.get_abcd", buf.bytes);
         if (status !== RpcErrCode.Ok || bytes === null) return [0 as _.OrderStatus, status];
@@ -140,7 +142,8 @@ export class RpcClient {
     // 无返回值
     public userSetSimInfo = async (info: _.SimInfo): Promise<RpcErrCode> => {
         const buf = new _.Buffer();
-        if (_.setAll(buf, (buf: _.Buffer) => _.setSimInfo(buf, info as any)) !== null) return RpcErrCode.ReqErr;
+        let encodeErr: Error | null = null;
+        if ((encodeErr = _.setSimInfo(buf, info as any)) !== null) return RpcErrCode.ReqErr;
 
         const [bytes, status] = await this._fetch("user.set_sim_info", buf.bytes);
         if (status !== RpcErrCode.Ok || bytes === null) return status;
@@ -152,7 +155,8 @@ export class RpcClient {
     // 获取数量
     public getCount = async (page: number): Promise<[number, RpcErrCode]> => {
         const buf = new _.Buffer();
-        if (_.setAll(buf, (buf: _.Buffer) => _.setU8(buf, page)) !== null) return [0, RpcErrCode.ReqErr];
+        let encodeErr: Error | null = null;
+        if ((encodeErr = _.setU8(buf, page)) !== null) return [0, RpcErrCode.ReqErr];
 
         const [bytes, status] = await this._fetch("get_count", buf.bytes);
         if (status !== RpcErrCode.Ok || bytes === null) return [0, status];
@@ -169,7 +173,8 @@ export class RpcClient {
     // 获取bin
     public getBin = async (page: number): Promise<[Uint8Array, RpcErrCode]> => {
         const buf = new _.Buffer();
-        if (_.setAll(buf, (buf: _.Buffer) => _.setU8(buf, page)) !== null) return [new Uint8Array(0), RpcErrCode.ReqErr];
+        let encodeErr: Error | null = null;
+        if ((encodeErr = _.setU8(buf, page)) !== null) return [new Uint8Array(0), RpcErrCode.ReqErr];
 
         const [bytes, status] = await this._fetch("get_bin", buf.bytes);
         if (status !== RpcErrCode.Ok || bytes === null) return [new Uint8Array(0), status];

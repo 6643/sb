@@ -48,7 +48,7 @@ export const eqSimInfo = (a: SimInfo, b: SimInfo): boolean => {
 
 export const getSimInfo = (buf: _.Buffer): [SimInfo, Error | null] => {
     const s = newSimInfo();
-    const bitmaskSize = Math.ceil(8 / 8);
+    const bitmaskSize = 1;
     const [bits, err] = buf.read(bitmaskSize);
     if (err !== null) return [s, err];
     if (_.GetBit(bits, 0)) {
@@ -80,21 +80,15 @@ export const getSimInfo = (buf: _.Buffer): [SimInfo, Error | null] => {
 
 export const setSimInfo = (buf: _.Buffer, s: SimInfo): Error | null => {
     if (s === null || s === undefined) return new Error(`set SimInfo: value is null or undefined`);
-    const bits = new Uint8Array(Math.ceil(8 / 8));
-    const body = new _.Buffer();
+    const startOffset = buf.write_offset;
+    const bits = new Uint8Array(1);
     if (!_.eqU32(s.id, 0)) {
-        const err = _.setU32(body, s.id);
-        if (err !== null) return err;
         _.SetBit(bits, 0, true);
     }
     if (!_.eqText(s.title, "")) {
-        const err = _.setText(body, s.title);
-        if (err !== null) return err;
         _.SetBit(bits, 1, true);
     }
     if (!_.eqText(s.content, "")) {
-        const err = _.setText(body, s.content);
-        if (err !== null) return err;
         _.SetBit(bits, 2, true);
     }
     _.SetBit(bits, 3, s.a as boolean);
@@ -102,16 +96,61 @@ export const setSimInfo = (buf: _.Buffer, s: SimInfo): Error | null => {
     _.SetBit(bits, 5, s.c as boolean);
     _.SetBit(bits, 6, s.d as boolean);
     if (!_.eqBin(s.zip, new Uint8Array(0))) {
-        const err = _.setBin(body, s.zip);
-        if (err !== null) return err;
         _.SetBit(bits, 7, true);
     }
 
     const errBits = buf.write(bits);
     if (errBits !== null) return errBits;
-    return buf.write(body.bytes);
+    if (!_.eqU32(s.id, 0)) {
+        const err = _.setU32(buf, s.id);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqText(s.title, "")) {
+        const err = _.setText(buf, s.title);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqText(s.content, "")) {
+        const err = _.setText(buf, s.content);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    if (!_.eqBin(s.zip, new Uint8Array(0))) {
+        const err = _.setBin(buf, s.zip);
+        if (err !== null) {
+            buf.rewindWrite(startOffset);
+            return err;
+        }
+    }
+    return null;
 }
 
-export const getSimInfoList = (buf: _.Buffer): [SimInfo[], Error | null] => _.getList(buf, getSimInfo);
-export const setSimInfoList = (buf: _.Buffer, v: SimInfo[]): Error | null => _.setList(buf, v, setSimInfo);
+export const getSimInfoList = (buf: _.Buffer): [SimInfo[], Error | null] => {
+    const [count, err] = _.getU16(buf);
+    if (err !== null) return [[], err];
+    const list: SimInfo[] = new Array(count);
+    for (let i = 0; i < count; i++) {
+        const [item, err2] = getSimInfo(buf);
+        if (err2 !== null) return [[], err2];
+        list[i] = item;
+    }
+    return [list, null];
+}
+export const setSimInfoList = (buf: _.Buffer, v: SimInfo[]): Error | null => {
+    if (v.length > 65535) return new Error(`list length ${v.length} exceeds u16 max`);
+    const err = _.setU16(buf, v.length);
+    if (err !== null) return err;
+    for (const item of v) {
+        const err2 = setSimInfo(buf, item);
+        if (err2 !== null) return err2;
+    }
+    return null;
+}
 export const eqSimInfoList = (a: SimInfo[], b: SimInfo[]): boolean => _.eqList(a, b, eqSimInfo);

@@ -3,7 +3,6 @@ package sb
 import (
 	"bytes"
 	"fmt"
-	"math"
 	"slices"
 )
 
@@ -18,9 +17,58 @@ type SimInfo struct {
 	Zip []byte `bson:"zip" json:"zip"`
 }
 
+func sizeSimInfoBody(s *SimInfo, bits []byte) (int, error) {
+	if s == nil { return 0, fmt.Errorf("sizeSimInfo: nil value") }
+	bodySize := 0
+	if s.Id != 0 {
+		bodySize += 4
+		if bits != nil { SetBit(bits, uint8(0), true) }
+	}
+	if s.Title != "" {
+		fieldSize, err := sizeText(s.Title)
+		if err != nil { return 0, fmt.Errorf("sizeSimInfo Title: %w", err) }
+		bodySize += fieldSize
+		if bits != nil { SetBit(bits, uint8(1), true) }
+	}
+	if s.Content != "" {
+		fieldSize, err := sizeText(s.Content)
+		if err != nil { return 0, fmt.Errorf("sizeSimInfo Content: %w", err) }
+		bodySize += fieldSize
+		if bits != nil { SetBit(bits, uint8(2), true) }
+	}
+	if bits != nil { SetBit(bits, uint8(3), s.A) }
+	if bits != nil { SetBit(bits, uint8(4), s.B) }
+	if bits != nil { SetBit(bits, uint8(5), s.C) }
+	if bits != nil { SetBit(bits, uint8(6), s.D) }
+	if s.Zip != nil {
+		fieldSize, err := sizeBin(s.Zip)
+		if err != nil { return 0, fmt.Errorf("sizeSimInfo Zip: %w", err) }
+		bodySize += fieldSize
+		if bits != nil { SetBit(bits, uint8(7), true) }
+	}
+	return bodySize, nil
+}
+
+func sizeSimInfo(s *SimInfo) (int, error) {
+	bodySize, err := sizeSimInfoBody(s, nil)
+	if err != nil { return 0, err }
+	return 1 + bodySize, nil
+}
+
+func sizeSimInfoList(v SimInfoList) (int, error) {
+	if len(v) > 65535 { return 0, fmt.Errorf("list length exceeds uint16 max") }
+	totalSize := 2
+	for i, item := range v {
+		itemSize, err := sizeSimInfo(item)
+		if err != nil { return 0, fmt.Errorf("sizeSimInfoList[%d]: %w", i, err) }
+		totalSize += itemSize
+	}
+	return totalSize, nil
+}
+
 func GetSimInfo(buf *bytes.Buffer, s *SimInfo) error {
 	if s == nil { return nil }
-	bitSize := int(math.Ceil(float64(8) / 8.0))
+	const bitSize = 1
 	if buf.Len() < bitSize { return fmt.Errorf("GetSimInfo bitmask: %d - %d", buf.Len(), bitSize) }
 	bits := buf.Next(bitSize)
 	if GetBit(bits, uint8(0)) {
@@ -54,31 +102,25 @@ func GetSimInfo(buf *bytes.Buffer, s *SimInfo) error {
 func SetSimInfo(buf *bytes.Buffer, s *SimInfo) error {
 	if s == nil { return fmt.Errorf("SetSimInfo: nil value") }
 	if err := ValidateSimInfo(s); err != nil { return fmt.Errorf("ValidateSimInfo: %w", err) }
-	bits := make([]byte, uint8(math.Ceil(float64(8)/8.0)))
-	body := bytes.NewBuffer(nil)
+	const bitSize = 1
+	var bits [1]byte
+	bodySize, err := sizeSimInfoBody(s, bits[:])
+	if err != nil { return err }
+	buf.Grow(bitSize + bodySize)
+	if _, err := buf.Write(bits[:]); err != nil { return fmt.Errorf("SetSimInfo write bitmask: %w", err) }
 	if s.Id != 0 {
-		if err := SetU32(body, s.Id); err != nil { return fmt.Errorf("SetSimInfo Id: %w", err) }
-		SetBit(bits, uint8(0), true)
+		if err := SetU32(buf, s.Id); err != nil { return fmt.Errorf("SetSimInfo Id: %w", err) }
 	}
 	if s.Title != "" {
-		if err := SetText(body, s.Title); err != nil { return fmt.Errorf("SetSimInfo Title: %w", err) }
-		SetBit(bits, uint8(1), true)
+		if err := SetText(buf, s.Title); err != nil { return fmt.Errorf("SetSimInfo Title: %w", err) }
 	}
 	if s.Content != "" {
-		if err := SetText(body, s.Content); err != nil { return fmt.Errorf("SetSimInfo Content: %w", err) }
-		SetBit(bits, uint8(2), true)
+		if err := SetText(buf, s.Content); err != nil { return fmt.Errorf("SetSimInfo Content: %w", err) }
 	}
-	SetBit(bits, uint8(3), s.A)
-	SetBit(bits, uint8(4), s.B)
-	SetBit(bits, uint8(5), s.C)
-	SetBit(bits, uint8(6), s.D)
 	if s.Zip != nil {
-		if err := SetBin(body, s.Zip); err != nil { return fmt.Errorf("SetSimInfo Zip: %w", err) }
-		SetBit(bits, uint8(7), true)
+		if err := SetBin(buf, s.Zip); err != nil { return fmt.Errorf("SetSimInfo Zip: %w", err) }
 	}
-
-	if _, err := buf.Write(bits); err != nil { return fmt.Errorf("SetSimInfo write bitmask: %w", err) }
-	_, err := body.WriteTo(buf); return err
+	return nil
 }
 
 func ValidateSimInfo(s *SimInfo) error {
@@ -107,8 +149,27 @@ func ReadSimInfo(buf *bytes.Buffer) (*SimInfo, error) {
 }
 
 type SimInfoList []*SimInfo
-func GetSimInfoList(buf *bytes.Buffer) (SimInfoList, error) { return getList[*SimInfo, SimInfoList](buf, ReadSimInfo) }
-func SetSimInfoList(buf *bytes.Buffer, v SimInfoList) error { return setList(buf, v, SetSimInfo) }
+func GetSimInfoList(buf *bytes.Buffer) (SimInfoList, error) {
+	count, err := GetU16(buf)
+	if err != nil { return nil, err }
+	list := make([]*SimInfo, count)
+	for i := range list {
+		item, err := ReadSimInfo(buf)
+		if err != nil { return nil, err }
+		list[i] = item
+	}
+	return SimInfoList(list), nil
+}
+func SetSimInfoList(buf *bytes.Buffer, v SimInfoList) error {
+	totalSize, err := sizeSimInfoList(v)
+	if err != nil { return err }
+	buf.Grow(totalSize)
+	if err := SetU16(buf, uint16(len(v))); err != nil { return err }
+	for _, item := range v {
+		if err := SetSimInfo(buf, item); err != nil { return err }
+	}
+	return nil
+}
 func ValidateSimInfoList(v SimInfoList) error {
 	for i, item := range v {
 		if item == nil { return fmt.Errorf("SimInfoList[%d]: nil item", i) }

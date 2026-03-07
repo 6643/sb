@@ -1,5 +1,203 @@
 # Changelog
 
+## [2026-03-08 01:36:00] [type: refactor] [scope: tplgen,go,ts,v2]
+- [移除 Go/TS v2 API 参数与返回值的自动 wrapper struct 组装，改为在 handler / RPC client 中按参数顺序直接对 `buf` 调用基础 getter/setter 与 struct codec，显著减少生成代码量]
+- [停止生成 TS v2 的 `struct_api_*_{req,resp}.ts` 包装体文件，并在生成时清理旧 wrapper 产物，保持 Go server / Go client / TS client 的 v2 API wire format 一致]
+
+## [2026-03-08 00:52:10] [type: refactor] [scope: tplgen,go,v2]
+- [继续收紧 Go v2 的 API 导出边界：将 `api._.go` 中请求/响应包装体的主 codec 函数 `Size/Get/Set/Read/Eq` 改为包内私有，仅保留类型、handler、路由注册与 RPC 客户端入口导出]
+- [同步更新 `rpc.go` / `api._.go` 生成调用与生成器回归断言，确认私有 codec 仍能在同包内正常协作]
+
+## [2026-03-08 00:41:28] [type: refactor] [scope: tplgen,go,v2]
+- [继续收紧 Go v2 的导出边界：把枚举校验函数 `IsX` 也改为包内私有，仅保留结构体主编解码 API 和 RPC/路由相关导出]
+- [同步更新 `go/sbv2` 生成产物、`gopls check` 与生成器回归，确认导出面收口后仍可正常编译]
+
+## [2026-03-08 00:33:27] [type: refactor] [scope: tplgen,go,v2]
+- [收紧 Go v2 生成代码的导出边界：保留 `Get/Set/Read/Size/Eq` 这类主编解码 API，把 `Default/Normalize/IsDefault/IsAssignable/Reset/IsZero/Validate` 等 helper 改为包内私有，减少不必要的导出符号]
+- [同步更新 `go/sbv2` 生成产物与生成器回归断言，保持同包文件间调用不变]
+
+## [2026-03-08 00:09:14] [type: refactor] [scope: runtime,tplgen,go,v2]
+- [补回缺失的 `go/sb/v2` 最小 runtime，实现 `HeaderSize`、`BitReader`、紧凑 `text/bin/list`、bitmap list 与 ptr-list 泛型 helper，恢复 `go/sbv2` 的真实可编译与可验证状态]
+- [继续收敛 Go v2 的基础数值 list 模板：移除 `get/set/sizeXListBody` 这类重复生成包装，改为生成代码直接调用 `rt.GetZeroFixedListCompactInto`、`rt.SetZeroFixedListCompactSized`、`rt.SizeZeroFixedListCompact`]
+
+## [2026-03-07 23:56:11] [type: refactor] [scope: runtime,tplgen,go,v2]
+- [继续下沉 Go v2 的 `[]*Struct` 泛型复用：新增 `SizeBitmapPtrListCompactValidated` 与 `SetBitmapPtrListCompactValidated`，让生成器与手写 `GameList` 统一复用 ptr-list 验证/编码逻辑]
+- [同步更新生成器回归与 `GameList` 路径，保持 nil-item 语义与现有测试一致]
+
+## [2026-03-07 23:44:02] [type: refactor] [scope: runtime,tplgen,go,v2]
+- [为 Go v2 runtime 新增 `GetBitmapPtrListCompactInto` 泛型 helper，并让生成器用它收敛 `[]*Struct` / `[]*ApiReqResp` 的 bitmap list 解码逻辑，减少重复生成代码]
+- [补充 `go/sbv2` 回归，固定 `getSimListBodyReuse` 会复用同索引已有对象指针]
+
+## [2026-03-07 23:30:18] [type: fix] [scope: tplgen,ts,v2]
+- [修正 TS v2 生成器在嵌套 struct 字段编码时的空值收窄，`isZeroX` 分支内改用非空断言调用 `setX`，消除 `SimInfo | null` 传给 `setSimInfo` 的类型错误]
+
+## [2026-03-07 23:19:44] [type: chore] [scope: tplgen,go,v2]
+- [移除 Go v2 生成代码里可由编译器推断的泛型实参，清掉 `go/sbv2/api._.go` 等文件中的 `unnecessary type arguments` 诊断]
+
+## [2026-03-07 23:10:21] [type: feat] [scope: protocol,runtime,v2]
+- [将 v2 `list` 的外层 `count` 收紧为仅支持 `empty/u8`，`>255` 直接报错，`10/11` 状态对 `list count` 视为非法]
+- [同步更新 Go/TS v2 runtime、协议草案和一致性边界样本，把 `256` 元素 list 的旧边界改为非法路径]
+
+## [2026-03-07 22:55:33] [type: test] [scope: go,ts,v2]
+- [为 `go/sbv2` 与 `ts/sbv2` 新增 `runtime_consistency` 回归，固定 `Sim` 与 `Sim list body` 在零值 / 常规 / 边界态样本上的 `encode -> decode -> re-encode` 数据一致性]
+- [一致性回归同时校验对象 roundtrip 与字节级 re-encode 稳定性，不再把重点放在跨语言互通脚本上]
+
+## [2026-03-07 22:36:54] [type: perf] [scope: runtime,tplgen,go,v2]
+- [将 Go v2 struct header 编码改为生成期直接位写入，去掉 `BitWriter` 的头部临时对象，使 `SetSimV2` 和 `SetSimListV2` 降到 `0 allocs/op`]
+- [将 `text/bin/bitmap list` 的读路径改为直接遍历 state/bitmap block，并把 `struct list` 解码改成 backing slice + 指针视图，去掉中间 `[]bool` / `[]uint8` 临时切片和每元素单独 struct 分配，降低 `GetSimV2` 与 `GetSimListV2` 的分配]
+- [为 Go v2 生成器拆出 `size/set<Struct>Validated` 内部函数，去掉 `Set -> Size -> Validate` 和 `struct list` 内的重复校验；同时移除 `Get` 路径末尾的重复 `Validate` 与 enum 默认值重复赋值]
+- [补充 Go v2 复用解码回归与 benchmark：重复向同一 `Sim` / `[]*Sim` 目标解码时会复用已有 struct/list 容量，`GetSimV2Reuse` 较普通路径少 5 次分配]
+
+## [2026-03-07 20:44:31] [type: feat] [scope: bench,v1,v2]
+- [新增 `bench_v1_v2.sh`，统一串起 `go/sb`、`go/sbv2`、`ts/sb` 与 `ts/sbv2` 的对照 benchmark，并支持通过环境变量调节 schema、迭代次数和是否跳过生成]
+- [在 `README.md` 补充 `v1/v2` 基准对比入口和常用环境变量，避免每次手工拼 benchmark 命令]
+
+## [2026-03-07 20:36:52] [type: test] [scope: go,ts,v2]
+- [为 `go/sbv2` 新增 `runtime_smoke_test.go`，固定 `Sim` 与 `Sim list body` 的 roundtrip 回归]
+- [为 `ts/sbv2` 新增 `runtime_smoke.test.ts`，通过 Bun 固定 `Sim` 与 `Sim list body` 的 roundtrip 回归]
+
+## [2026-03-07 20:28:36] [type: feat] [scope: tplgen,ts,v2]
+- [新增 `-ts-v2` 开关，并接入 `ts/sbv2` 生成流程，当前会生成 TypeScript `v2` 的 runtime、`enum/struct`、API 请求/响应 wrapper 和 RPC 客户端]
+- [新增 `internal/tpl_ts_v2_generator.go` 与 `internal/tpl_ts_v2_generator_test.go`，并通过 Bun 对 `ts/sbv2` 的 smoke test 与 `Sim` roundtrip 做真实验证]
+
+## [2026-03-07 20:03:41] [type: docs] [scope: readme,protocol,cli]
+- [更新 `-go-v2` 帮助文本，去掉“暂不包含 API”的过期描述，并明确当前会生成 `struct/enum/API/RPC`]
+- [同步修正 `README.md` 与 `PROTOCOL_V2.md` 的状态说明，补充 `go/sbv2` 与 `go/sb/v2` 的当前落地范围和 `-go-v2` 用法]
+
+## [2026-03-07 19:42:18] [type: feat] [scope: tplgen,go,v2,api]
+- [为 Go v2 生成器补上 API/RPC：生成 `go/sbv2/api._.go`、`go/sbv2/rpc.go` 和带 fingerprint 的 `api.<name>.go` stub]
+- [v2 API 采用“请求/响应合成 struct”方案复用现有 v2 struct 编码，不再单独定义顶层裸值 wire format]
+
+## [2026-03-07 19:14:27] [type: feat] [scope: tplgen,go,v2]
+- [新增 `-go-v2` 开关，并把 Go v2 生成接入主流程；开启后会额外落盘到 `go/sbv2/schema.gen.go`，当前范围为 `enum/struct`，暂不生成 API]
+- [新增 `internal/tpl_go_v2_generator.go` 与回归测试，基于 `go/sb/v2` runtime 生成 `header + fixed block + var tail` 风格的 Go v2 struct/enum 代码]
+
+## [2026-03-07 18:39:11] [type: feat] [scope: runtime,go,v2]
+- [为 `go/sb/v2` 增加三类 list body 原型：`[bool]` 的 `count + bitset`、`[text]/[bin]` 的 `count + item header block + item tail`，以及 `[struct]` 的 `count + bitmap + non-default bodies`]
+- [补充 bitmap/state block 的 padding 零位校验，并为 `GameList`、`text/bin list` 与非法 padding/非法状态增加回归测试]
+
+## [2026-03-07 18:24:18] [type: feat] [scope: runtime,go,v2]
+- [为 `go/sb/v2` 增加紧凑字段 helper：`text/bin/list count` 的状态选择、读写与 canonical 校验，以及 `u16/u32` 小端读写辅助]
+- [新增手写 `Game` 的 `v2` 编解码原型，落地 `header + fixed block + var tail`，并用文档中的 `0x20 / 0x80 / 0xA0` 示例做回归验证]
+
+## [2026-03-07 18:01:32] [type: feat] [scope: runtime,go,v2]
+- [新增独立 Go `v2` 子包 `go/sb/v2`，提供最小运行时骨架：连续 bitstream 的 `BitWriter/BitReader`、`u24` 读写、紧凑长度状态选择、bitmap/state block helper]
+- [新增 `go/sb/v2/runtime_test.go`，覆盖 `Game` header、跨字节 header、`item header block`、`u24` 与长度状态选择等文档示例]
+
+## [2026-03-07 17:34:42] [type: docs] [scope: protocol]
+- [将 `PROTOCOL_V2.md` 的“待确认项”收敛为正式规则，明确 v2 采用严格解码并拒绝所有 non-canonical encoding]
+- [补充 v2 运行时错误信息建议字段，要求至少包含路径、阶段、偏移、状态和值域信息]
+
+## [2026-03-07 17:27:26] [type: docs] [scope: protocol]
+- [为 `PROTOCOL_V2.md` 新增“实现任务清单”，按运行时、代码生成器、辅助函数、测试与落地顺序拆出可执行步骤]
+- [收紧 `PROTOCOL_V2.md` 的待确认项，去掉已在正文中定死的 `enum` 默认值问题]
+
+## [2026-03-07 17:16:11] [type: docs] [scope: protocol]
+- [将 `PROTOCOL_V2.md` 中 `[struct]` 也并入统一的 `count + value bitmap + non-default bodies` 模型，把除 `[bool]` 外的 `1-bit default-state` list 收敛为同一套规则]
+- [补充 `[struct]` list 的语义示例，并明确 `struct` 默认值按“所有字段都为默认值”判断]
+
+## [2026-03-07 17:07:55] [type: docs] [scope: protocol]
+- [将 `PROTOCOL_V2.md` 中 `[i8/u8/enum]` 也统一到 `count + value bitmap + non-default bodies`，把非 `bool` 的定宽标量 list 收敛为一套规则]
+- [补充 `[i8] = [1, 2, 0, 0, 3]` 的位图示例，并明确 `enum` list 的默认值按 schema 第一项判断]
+
+## [2026-03-07 17:02:08] [type: docs] [scope: protocol]
+- [在 `PROTOCOL_V2.md` 中把 list 编码细化为三类：`[bool]` 继续使用 `count + bitset`，宽定宽标量 list 使用 `count + value bitmap + non-default bodies`，`[i8/u8/enum]` 维持 dense 编码]
+- [补充宽定宽标量 list 的规范编码要求，并新增 `[u32] = [1, 2, 0, 0, 3]` 的位图示例]
+
+## [2026-03-07 16:44:11] [type: docs] [scope: protocol]
+- [补充 `PROTOCOL_V2.md` 对 `[text]` / `[bin]` 的 `item header block` 说明，明确该块整体会跨多个字节，但单个 `2 bit` 元素状态不会跨字节]
+- [新增 `item header block` 示例，使用 5 个元素状态展示 `49 00` 的打包结果]
+
+## [2026-03-07 16:37:18] [type: docs] [scope: protocol]
+- [在 `PROTOCOL_V2.md` 增加跨字节 header 示例，使用 9-bit 的 `Demo` 结构展示 `2 bit` tag 被拆到两个字节时的具体落位]
+
+## [2026-03-07 16:31:44] [type: docs] [scope: protocol]
+- [将 `PROTOCOL_V2.md` 的 header 位打包规则改为“连续 bitstream + MSB -> LSB + 可跨字节”，并明确 `2 bit` tag 按高位在前写入]
+- [同步更新 `Game` 示例中的 header 字节值，将示例从原先的低位在前写法改为 `0x20 / 0x80 / 0xA0`]
+
+## [2026-03-07 16:18:57] [type: docs] [scope: protocol]
+- [将 `PROTOCOL_V2.md` 中 `[text]` / `[bin]` 的列表元素编码也收敛到 v2 紧凑长度规则，定义为 `count + item header block + item tail`]
+- [补充列表元素的规范编码要求，明确 `[text]` 使用 `u8/u16`，`[bin]` 使用 `u8/u16/u24` 的最短长度编码]
+
+## [2026-03-07 16:08:44] [type: docs] [scope: protocol]
+- [将 `PROTOCOL_V2.md` 中 `bin` 的紧凑长度状态从 `u32` 收敛为 `u24`，把单字段上限明确为 `16777215` (`16MB-1`)]
+- [保留 `README.md` 中当前实现的 `bin=u32` 描述不变，避免把协议草案与现有实现混淆]
+
+## [2026-03-07 15:20:36] [type: docs] [scope: protocol,readme]
+- [新增 `PROTOCOL_V2.md`，整理 `SB v2` 的非兼容协议草案，明确零值省略、`text/bin/list` 的紧凑长度状态和 `header + fixed block + var tail` 布局]
+- [在 `README.md` 增加协议草案入口，明确当前实现仍以 README 描述为准，`PROTOCOL_V2.md` 仅用于设计讨论]
+
+## [2026-03-07 14:24:51] [type: perf] [scope: benchmark,go,ts]
+- [新增 `go/sb/runtime_bench_test.go`，为 `Sim` / `SimList` 提供标准 `testing.B` 编码与解码基准，覆盖单结构与结构体列表的完整编解码热路径]
+- [新增 `ts/sb/runtime_bench.ts`，提供基于 Bun 的可执行基准脚本，并在脚本启动阶段先做 `Sim` / `SimList` roundtrip 校验]
+- [确认当前 Bun 环境不支持 `bun:test` 的 `bench` 导出，因此选择无需额外依赖的可执行脚本路径]
+- [修复 TypeScript 枚举校验函数的 `switch case` 生成错误，避免只有最后一个枚举值会被识别为合法；并新增 `ts/sb/enum_smoke.test.ts` 做运行时校验]
+
+## [2026-03-07 13:54:14] [type: perf] [scope: runtime,tplgen,ts]
+- [为生成的 TypeScript 运行时新增 `Buffer.writeUnsafe` / `Buffer.rewindWrite`，将已预扩容的 `u8/text/bin` 及相关 list 写路径切到无重复容量检查的直接写入]
+- [将生成的 TypeScript 结构体 setter 回滚改为调用 `buf.rewindWrite(startOffset)`，避免继续使用内部字段写回]
+- [修复生成的 TypeScript RPC 客户端里请求编码变量与响应解码变量同作用域重名的问题，并通过 `bun test ts/sb/rpc_smoke.test.ts` 验证]
+
+## [2026-03-07 13:38:30] [type: perf] [scope: tplgen,ts]
+- [将生成的 TypeScript 结构体 setter 改为直接写入目标 `Buffer`，去掉中间 `body` 缓冲与尾部拷贝]
+- [为直接写入路径增加 `startOffset` 回滚，保持 setter 出错时不会在目标 `Buffer` 中留下部分写入]
+- [补充模板回归断言，并通过真实生成命令与 `go test ./...` 验证]
+
+## [2026-03-07 13:27:14] [type: perf] [scope: tplgen,go,ts]
+- [将生成的 Go `struct list` 解码改为直接顺序循环，去掉 `getList(ReadStruct)` 泛型分发]
+- [将生成的 TypeScript `struct list` 编解码改为直接顺序循环，去掉 `_.getList` / `_.setList` 分发]
+- [补充对应模板回归断言，并通过真实生成命令与 `go test ./...` 验证]
+
+## [2026-03-07 13:17:42] [type: perf] [scope: runtime,go,ts]
+- [为 Go 运行时的 `GetBinList` / `GetTextList` 增加专用循环路径，去掉泛型 `getList` + getter 闭包分发]
+- [为 TypeScript 运行时的 `get/setBinList` 与 `get/setTextList` 增加专用循环与预扩容路径，减少通用 `getList` / `setList` 分发与重复扩容]
+- [补充模板回归断言，并通过真实生成命令与 `go test ./...` 验证]
+
+## [2026-03-07 13:07:10] [type: perf] [scope: runtime,tplgen,go]
+- [优化 Go 运行时 `bool list` 编码，改为直接向目标缓冲追加长度和位图字节，去掉中间 `bits` 临时切片]
+- [为生成的 Go `struct list` setter 增加总大小预估与一次性 `Grow`，避免列表编码退回到通用 `setList` 的逐步扩容路径]
+- [优化 Go RPC 请求头写入路径，直接在 `RLock` 下把 `c.headers` 写入请求头，去掉每次调用的中间 map 拷贝]
+
+## [2026-03-07 12:59:26] [type: perf] [scope: runtime,tplgen,go]
+- [优化 Go 运行时的 `text` / `bin` 列表编码：`SetText` 改用 `WriteString` 避免字符串转 `[]byte` 分配，`SetTextList` / `SetBinList` 改为基于总大小预估的一次性扩容写入]
+- [为生成的 Go RPC 请求缓冲和 API handler 响应缓冲增加大小预估与 `Grow`，减少多参数/大响应场景下的重复扩容]
+- [补充对应模板回归断言，并通过真实生成命令与 `go test ./...` 验证]
+
+## [2026-03-07 12:50:02] [type: perf] [scope: tplgen,go]
+- [将生成的 Go API handler 改为直接顺序解码请求参数并直接编码响应，去掉 `parseRequest(...Getter)` / `sendResponse(...Setter)` 这层闭包与批处理分发]
+- [保留现有请求体大小限制、空请求校验与状态码语义，同时将响应写入简化为原始 `[]byte` 输出]
+- [补充模板回归断言，并通过真实生成命令与 `go test ./...` 验证]
+
+## [2026-03-07 12:36:24] [type: perf] [scope: tplgen,go]
+- [将生成的 Go 结构体 setter 改为在完成 bitmask/body 大小预估后直接写入目标 `bytes.Buffer`，去掉中间 `body` 缓冲与二次拷贝]
+- [保持现有完整编解码语义不变，继续复用 `size<Struct>Body` 预估结果来一次性扩容目标缓冲]
+- [补充模板回归断言，并再次通过真实生成命令与 `go test ./...` 验证]
+
+## [2026-03-07 12:26:49] [type: perf] [scope: runtime,tplgen,go,ts]
+- [为 Go 生成运行时新增定宽 primitive list 批量编解码快路径, 覆盖 `i8/i16/u16/i32/u32/i64/u64/f32/f64`，减少逐元素 getter/setter 调用与重复 buffer 操作]
+- [为 TypeScript 生成运行时新增 `_getFixedWidthList` / `_setFixedWidthList`，将定宽 number/bigint list 切换为批量 DataView 读写路径]
+- [补充模板回归断言并再次通过真实生成命令与 `go test ./...` 验证]
+
+## [2026-03-07 11:44:22] [type: perf] [scope: runtime,tplgen,go,ts]
+- [优化生成运行时的编码热路径: Go 定宽数值改为基于 `bytes.Buffer.AvailableBuffer` 的追加写入, `U8List`/`text`/`bin`/`bool list` 写入减少额外分配]
+- [为生成的 Go 结构体 setter 增加常量 bitmask 大小与 body 预估扩容, 避免 `math.Ceil` 和动态 body 扩容带来的额外开销]
+- [优化生成的 Go/TS RPC 客户端参数编码路径, 去掉 `SetAll` 闭包包装; TypeScript 运行时复用 `TextEncoder`/`TextDecoder` 并为 `U8List` 增加直接读写快路径]
+
+## [2026-03-07 10:29:29] [type: docs] [scope: docs,readme]
+- [在 `README.md` 的序列化对比章节补充性能对比说明, 新增定性性能表与 `SB` 相对 `JSON`、`Protocol Buffers`、`SBE`、`FlatBuffers`、`MessagePack` 的性能取舍说明]
+
+## [2026-03-07 10:21:19] [type: docs] [scope: docs,readme]
+- [在 `README.md` 的序列化对比章节补充精简选型建议表，便于快速判断 `SB`、`JSON`、`Protocol Buffers`、`SBE`、`FlatBuffers` 与 `MessagePack` 的适用场景]
+
+## [2026-03-07 10:17:54] [type: docs] [scope: docs,readme]
+- [在 `README.md` 的序列化选型对比中补充 `SBE`，并新增 `SB vs SBE` 的场景判断]
+
+## [2026-03-07 10:08:19] [type: docs] [scope: docs,readme]
+- [扩展 `README.md` 序列化对比章节, 新增 `FlatBuffers` 对照, 并将说明重写为以 `SB` 为中心的选型比较]
+
+## [2026-03-07 10:00:01] [type: docs] [scope: docs,readme]
+- [在 `README.md` 中新增 SB 与 `JSON`、`Protocol Buffers`、`MessagePack` 的优缺点对比, 明确当前二进制格式的适用边界]
+
 ## [2026-03-07 00:58:43] [type: docs] [scope: docs,readme]
 - [将 Go 服务端示例更新为“两层超时”推荐配置: `http.Server` 连接级超时 + `TimeoutMiddleware` 请求级超时]
 - [补充模板回归断言，固化 `DOC.md` 中 `http.Server` 超时字段、`rpcTimeout` 变量和 `ListenAndServe` 示例]
