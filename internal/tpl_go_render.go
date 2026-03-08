@@ -492,7 +492,7 @@ func (g *GoGenerator) renderEnum(w *sourceWriter, enum TplEnum) {
 	w.Line("}")
 	w.Blank()
 	w.Linef("func get%sListBodyReuse(buf *bytes.Buffer, state uint8, dst []%s) ([]%s, error) {", enumName, enumName, enumName)
-	w.Line("\treturn rt.GetBitmapListCompactInto(")
+	w.Line("\treturn rt.GetDefaultListInto(")
 	w.Line("\t\tbuf,")
 	w.Line("\t\tstate,")
 	w.Line("\t\tdst,")
@@ -502,7 +502,7 @@ func (g *GoGenerator) renderEnum(w *sourceWriter, enum TplEnum) {
 	w.Line("}")
 	w.Blank()
 	w.Linef("func set%sListBody(buf *bytes.Buffer, state uint8, v []%s) error {", enumName, enumName)
-	w.Line("\treturn rt.SetBitmapListCompactSized(")
+	w.Line("\treturn rt.SetDefaultList(")
 	w.Line("\t\tbuf,")
 	w.Line("\t\tstate,")
 	w.Line("\t\tv,")
@@ -513,7 +513,7 @@ func (g *GoGenerator) renderEnum(w *sourceWriter, enum TplEnum) {
 	w.Line("}")
 	w.Blank()
 	w.Linef("func size%sListBody(v []%s) (int, error) {", enumName, enumName)
-	w.Line("\treturn rt.SizeBitmapListCompact(")
+	w.Line("\treturn rt.SizeDefaultList(")
 	w.Line("\t\tv,")
 	w.Linef("\t\t%s,", isDefaultFunc)
 	w.Linef("\t\tsize%sListItem,", enumName)
@@ -634,11 +634,11 @@ func (g *GoGenerator) renderStruct(w *sourceWriter, st TplStruct) {
 		switch {
 		case field.Type.Name == "bool":
 		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "text":
-			w.Linef("\t%s, err := rt.SizeTextCompact(%s)", sizeVar, ref)
+			w.Linef("\t%s, err := rt.SizeText(%s)", sizeVar, ref)
 			w.Linef("\tif err != nil { return 0, fmt.Errorf(\"Size%s %s: %%w\", err) }", structName, fieldName)
 			w.Linef("\tsize += %s", sizeVar)
 		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "bin":
-			w.Linef("\t%s, err := rt.SizeBinCompact(%s)", sizeVar, ref)
+			w.Linef("\t%s, err := rt.SizeBin(%s)", sizeVar, ref)
 			w.Linef("\tif err != nil { return 0, fmt.Errorf(\"Size%s %s: %%w\", err) }", structName, fieldName)
 			w.Linef("\tsize += %s", sizeVar)
 		case field.Type.Kind == TplKindBase && field.Type.IsList:
@@ -720,11 +720,11 @@ func (g *GoGenerator) renderStruct(w *sourceWriter, st TplStruct) {
 		case field.Type.Name == "bool":
 			w.Linef("\t%s = %sState", ref, CamelCase(fieldName))
 		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "text":
-			w.Linef("\tvalue%s, err := rt.GetTextCompact(buf, %sState)", fieldName, CamelCase(fieldName))
+			w.Linef("\tvalue%s, err := rt.GetText(buf, %sState)", fieldName, CamelCase(fieldName))
 			w.Linef("\tif err != nil { return fmt.Errorf(\"Get%s %s: %%w\", err) }", structName, fieldName)
 			w.Linef("\t%s = value%s", ref, fieldName)
 		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "bin":
-			w.Linef("\tvalue%s, err := rt.GetBinCompactInto(buf, %sState, reuse%s)", fieldName, CamelCase(fieldName), fieldName)
+			w.Linef("\tvalue%s, err := rt.GetBinInto(buf, %sState, reuse%s)", fieldName, CamelCase(fieldName), fieldName)
 			w.Linef("\tif err != nil { return fmt.Errorf(\"Get%s %s: %%w\", err) }", structName, fieldName)
 			w.Linef("\t%s = value%s", ref, fieldName)
 		case field.Type.Kind == TplKindBase && field.Type.IsList:
@@ -804,9 +804,9 @@ func (g *GoGenerator) renderStruct(w *sourceWriter, st TplStruct) {
 		switch {
 		case field.Type.Name == "bool":
 		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "text":
-			w.Linef("\tif err := rt.SetTextCompact(buf, %sState, %s); err != nil { return fmt.Errorf(\"Set%s %s: %%w\", err) }", CamelCase(fieldName), ref, structName, fieldName)
+			w.Linef("\tif err := rt.SetText(buf, %sState, %s); err != nil { return fmt.Errorf(\"Set%s %s: %%w\", err) }", CamelCase(fieldName), ref, structName, fieldName)
 		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "bin":
-			w.Linef("\tif err := rt.SetBinCompact(buf, %sState, %s); err != nil { return fmt.Errorf(\"Set%s %s: %%w\", err) }", CamelCase(fieldName), ref, structName, fieldName)
+			w.Linef("\tif err := rt.SetBin(buf, %sState, %s); err != nil { return fmt.Errorf(\"Set%s %s: %%w\", err) }", CamelCase(fieldName), ref, structName, fieldName)
 		case field.Type.Kind == TplKindBase && field.Type.IsList:
 			w.Linef("\tif err := %s; err != nil { return fmt.Errorf(\"Set%s %s: %%w\", err) }", g.listSetCall(field.Type, ref, CamelCase(fieldName)+"State"), structName, fieldName)
 		case field.Type.Kind == TplKindStruct && field.Type.IsList:
@@ -870,11 +870,11 @@ func (g *GoGenerator) renderStructListBodyHelpers(w *sourceWriter, st TplStruct)
 	w.Line("}")
 	w.Blank()
 	w.Linef("func get%sListBodyReuse(buf *bytes.Buffer, state uint8, dst []*%s) ([]*%s, error) {", structName, structName, structName)
-	w.Linef("\treturn rt.GetBitmapPtrListCompactInto(buf, state, dst, %s, %s)", g.structDefaultName(structName), getFunc)
+	w.Linef("\treturn rt.GetDefaultPtrListInto(buf, state, dst, %s, %s)", g.structDefaultName(structName), getFunc)
 	w.Line("}")
 	w.Blank()
 	w.Linef("func set%sListBody(buf *bytes.Buffer, state uint8, v []*%s) error {", structName, structName)
-	w.Line("\treturn rt.SetBitmapPtrListCompactValidated(")
+	w.Line("\treturn rt.SetDefaultPtrList(")
 	w.Line("\t\tbuf,")
 	w.Line("\t\tstate,")
 	w.Line("\t\tv,")
@@ -887,7 +887,7 @@ func (g *GoGenerator) renderStructListBodyHelpers(w *sourceWriter, st TplStruct)
 	w.Line("}")
 	w.Blank()
 	w.Linef("func size%sListBody(v []*%s) (int, error) {", structName, structName)
-	w.Line("\treturn rt.SizeBitmapPtrListCompactValidated(")
+	w.Line("\treturn rt.SizeDefaultPtrList(")
 	w.Line("\t\tv,")
 	w.Linef("\t\t%q,", structName)
 	w.Linef("\t\t%s,", g.structValidateName(structName))
@@ -1077,19 +1077,19 @@ func (g *GoGenerator) primitiveSetter(name string) string {
 func (g *GoGenerator) listSizeExpr(t TplType, ref string) string {
 	switch t.Name {
 	case "bool":
-		return fmt.Sprintf("rt.SizeBoolListCompact(%s)", ref)
+		return fmt.Sprintf("rt.SizeBoolList(%s)", ref)
 	case "text":
-		return fmt.Sprintf("rt.SizeTextListCompact(%s)", ref)
+		return fmt.Sprintf("rt.SizeTextList(%s)", ref)
 	case "bin":
-		return fmt.Sprintf("rt.SizeBinListCompact(%s)", ref)
+		return fmt.Sprintf("rt.SizeBinList(%s)", ref)
 	default:
 		if t.Kind == TplKindBase {
 			width, _ := goBaseEncodedWidth(t.Name)
-			return fmt.Sprintf("rt.SizeZeroFixedListCompact(%s, %d)", ref, width)
+			return fmt.Sprintf("rt.SizeZeroList(%s, %d)", ref, width)
 		}
 		defaultFactory, callbacks := g.bitmapListCallbacks(t)
 		_ = defaultFactory
-		return fmt.Sprintf("rt.SizeBitmapListCompact(%s, %s, %s)", ref, callbacks[0], callbacks[1])
+		return fmt.Sprintf("rt.SizeDefaultList(%s, %s, %s)", ref, callbacks[0], callbacks[1])
 	}
 }
 
@@ -1100,36 +1100,36 @@ func (g *GoGenerator) listGetExpr(t TplType, stateVar string) string {
 func (g *GoGenerator) listGetReuseExpr(t TplType, stateVar, dstVar string) string {
 	switch t.Name {
 	case "bool":
-		return fmt.Sprintf("rt.GetBoolListCompactInto(buf, %s, %s)", stateVar, dstVar)
+		return fmt.Sprintf("rt.GetBoolListInto(buf, %s, %s)", stateVar, dstVar)
 	case "text":
-		return fmt.Sprintf("rt.GetTextListCompactInto(buf, %s, %s)", stateVar, dstVar)
+		return fmt.Sprintf("rt.GetTextListInto(buf, %s, %s)", stateVar, dstVar)
 	case "bin":
-		return fmt.Sprintf("rt.GetBinListCompactInto(buf, %s, %s)", stateVar, dstVar)
+		return fmt.Sprintf("rt.GetBinListInto(buf, %s, %s)", stateVar, dstVar)
 	default:
 		if t.Kind == TplKindBase {
 			_, getter := g.primitiveGetter(t.Name)
-			return fmt.Sprintf("rt.GetZeroFixedListCompactInto(buf, %s, %s, rt.%s)", stateVar, dstVar, getter)
+			return fmt.Sprintf("rt.GetZeroListInto(buf, %s, %s, rt.%s)", stateVar, dstVar, getter)
 		}
 		defaultFactory, callbacks := g.bitmapListCallbacks(t)
-		return fmt.Sprintf("rt.GetBitmapListCompactInto(buf, %s, %s, %s, %s)", stateVar, dstVar, defaultFactory, callbacks[2])
+		return fmt.Sprintf("rt.GetDefaultListInto(buf, %s, %s, %s, %s)", stateVar, dstVar, defaultFactory, callbacks[2])
 	}
 }
 
 func (g *GoGenerator) listSetCall(t TplType, ref, stateVar string) string {
 	switch t.Name {
 	case "bool":
-		return fmt.Sprintf("rt.SetBoolListCompact(buf, %s, %s)", stateVar, ref)
+		return fmt.Sprintf("rt.SetBoolList(buf, %s, %s)", stateVar, ref)
 	case "text":
-		return fmt.Sprintf("rt.SetTextListCompact(buf, %s, %s)", stateVar, ref)
+		return fmt.Sprintf("rt.SetTextList(buf, %s, %s)", stateVar, ref)
 	case "bin":
-		return fmt.Sprintf("rt.SetBinListCompact(buf, %s, %s)", stateVar, ref)
+		return fmt.Sprintf("rt.SetBinList(buf, %s, %s)", stateVar, ref)
 	default:
 		if t.Kind == TplKindBase {
 			width, _ := goBaseEncodedWidth(t.Name)
-			return fmt.Sprintf("rt.SetZeroFixedListCompactSized(buf, %s, %s, %d, rt.%s)", stateVar, ref, width, g.primitiveSetter(t.Name))
+			return fmt.Sprintf("rt.SetZeroList(buf, %s, %s, %d, rt.%s)", stateVar, ref, width, g.primitiveSetter(t.Name))
 		}
 		_, callbacks := g.bitmapListCallbacks(t)
-		return fmt.Sprintf("rt.SetBitmapListCompactSized(buf, %s, %s, %s, %s, %s)", stateVar, ref, callbacks[0], callbacks[1], callbacks[3])
+		return fmt.Sprintf("rt.SetDefaultList(buf, %s, %s, %s, %s, %s)", stateVar, ref, callbacks[0], callbacks[1], callbacks[3])
 	}
 }
 
@@ -1346,13 +1346,13 @@ func (g *GoGenerator) directRead(w *sourceWriter, t TplType, target, bufVar, onE
 	case t.Kind == TplKindBase && !t.IsList && t.Name == "text":
 		w.Linef("\t\tstate, err := rt.GetU8(%s)", bufVar)
 		w.Linef("\t\tif err != nil { %s }", onErr)
-		w.Linef("\t\tvalue, err := rt.GetTextCompact(%s, state)", bufVar)
+		w.Linef("\t\tvalue, err := rt.GetText(%s, state)", bufVar)
 		w.Linef("\t\tif err != nil { %s }", onErr)
 		w.Linef("\t\t%s = value", target)
 	case t.Kind == TplKindBase && !t.IsList && t.Name == "bin":
 		w.Linef("\t\tstate, err := rt.GetU8(%s)", bufVar)
 		w.Linef("\t\tif err != nil { %s }", onErr)
-		w.Linef("\t\tvalue, err := rt.GetBinCompactInto(%s, state, nil)", bufVar)
+		w.Linef("\t\tvalue, err := rt.GetBinInto(%s, state, nil)", bufVar)
 		w.Linef("\t\tif err != nil { %s }", onErr)
 		w.Linef("\t\t%s = value", target)
 	case t.IsList:
@@ -1392,12 +1392,12 @@ func (g *GoGenerator) directWrite(w *sourceWriter, t TplType, ref, bufVar, onErr
 		w.Linef("\t\tstate, err := rt.TextState(len(%s))", ref)
 		w.Linef("\t\tif err != nil { %s }", onErr)
 		w.Linef("\t\tif err := rt.SetU8(%s, state); err != nil { %s }", bufVar, onErr)
-		w.Linef("\t\tif err := rt.SetTextCompact(%s, state, %s); err != nil { %s }", bufVar, ref, onErr)
+		w.Linef("\t\tif err := rt.SetText(%s, state, %s); err != nil { %s }", bufVar, ref, onErr)
 	case t.Kind == TplKindBase && !t.IsList && t.Name == "bin":
 		w.Linef("\t\tstate, err := rt.BinState(len(%s))", ref)
 		w.Linef("\t\tif err != nil { %s }", onErr)
 		w.Linef("\t\tif err := rt.SetU8(%s, state); err != nil { %s }", bufVar, onErr)
-		w.Linef("\t\tif err := rt.SetBinCompact(%s, state, %s); err != nil { %s }", bufVar, ref, onErr)
+		w.Linef("\t\tif err := rt.SetBin(%s, state, %s); err != nil { %s }", bufVar, ref, onErr)
 	case t.IsList:
 		w.Linef("\t\tstate, err := rt.ListCountState(len(%s))", ref)
 		w.Linef("\t\tif err != nil { %s }", onErr)
@@ -1418,14 +1418,14 @@ func (g *GoGenerator) directWrite(w *sourceWriter, t TplType, ref, bufVar, onErr
 func (g *GoGenerator) directListGetExpr(t TplType, stateVar, bufVar string) string {
 	switch {
 	case t.Name == "bool":
-		return fmt.Sprintf("rt.GetBoolListCompactInto(%s, %s, nil)", bufVar, stateVar)
+		return fmt.Sprintf("rt.GetBoolListInto(%s, %s, nil)", bufVar, stateVar)
 	case t.Name == "text":
-		return fmt.Sprintf("rt.GetTextListCompactInto(%s, %s, nil)", bufVar, stateVar)
+		return fmt.Sprintf("rt.GetTextListInto(%s, %s, nil)", bufVar, stateVar)
 	case t.Name == "bin":
-		return fmt.Sprintf("rt.GetBinListCompactInto(%s, %s, nil)", bufVar, stateVar)
+		return fmt.Sprintf("rt.GetBinListInto(%s, %s, nil)", bufVar, stateVar)
 	case t.Kind == TplKindBase:
 		_, getter := g.primitiveGetter(t.Name)
-		return fmt.Sprintf("rt.GetZeroFixedListCompactInto(%s, %s, nil, rt.%s)", bufVar, stateVar, getter)
+		return fmt.Sprintf("rt.GetZeroListInto(%s, %s, nil, rt.%s)", bufVar, stateVar, getter)
 	case t.Kind == TplKindEnum:
 		return fmt.Sprintf("get%sListBody(%s, %s)", PascalCase(t.Name), bufVar, stateVar)
 	default:
@@ -1436,14 +1436,14 @@ func (g *GoGenerator) directListGetExpr(t TplType, stateVar, bufVar string) stri
 func (g *GoGenerator) directListSetExpr(t TplType, ref, stateVar, bufVar string) string {
 	switch {
 	case t.Name == "bool":
-		return fmt.Sprintf("rt.SetBoolListCompact(%s, %s, %s)", bufVar, stateVar, ref)
+		return fmt.Sprintf("rt.SetBoolList(%s, %s, %s)", bufVar, stateVar, ref)
 	case t.Name == "text":
-		return fmt.Sprintf("rt.SetTextListCompact(%s, %s, %s)", bufVar, stateVar, ref)
+		return fmt.Sprintf("rt.SetTextList(%s, %s, %s)", bufVar, stateVar, ref)
 	case t.Name == "bin":
-		return fmt.Sprintf("rt.SetBinListCompact(%s, %s, %s)", bufVar, stateVar, ref)
+		return fmt.Sprintf("rt.SetBinList(%s, %s, %s)", bufVar, stateVar, ref)
 	case t.Kind == TplKindBase:
 		width, _ := goBaseEncodedWidth(t.Name)
-		return fmt.Sprintf("rt.SetZeroFixedListCompactSized(%s, %s, %s, %d, rt.%s)", bufVar, stateVar, ref, width, g.primitiveSetter(t.Name))
+		return fmt.Sprintf("rt.SetZeroList(%s, %s, %s, %d, rt.%s)", bufVar, stateVar, ref, width, g.primitiveSetter(t.Name))
 	case t.Kind == TplKindEnum:
 		return fmt.Sprintf("set%sListBody(%s, %s, %s)", PascalCase(t.Name), bufVar, stateVar, ref)
 	default:

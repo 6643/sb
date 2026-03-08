@@ -241,7 +241,7 @@ func CallGetBin(c *Client, ctx context.Context, page uint8) (result []byte, errC
 	{
 		state, err := rt.GetU8(respBuf)
 		if err != nil { return result, RpcRespErr }
-		value, err := rt.GetBinCompactInto(respBuf, state, nil)
+		value, err := rt.GetBinInto(respBuf, state, nil)
 		if err != nil { return result, RpcRespErr }
 		result = value
 	}

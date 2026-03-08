@@ -30,7 +30,7 @@ export const eqAccountStatusValue = (a: AccountStatus, b: AccountStatus): boolea
 export const eqAccountStatusList = (a: AccountStatus[], b: AccountStatus[]): boolean => rt.eqList(a, b, eqAccountStatusValue);
 
 export const getAccountStatusListBody = (buf: rt.Buffer, state: number): [AccountStatus[], rt.Err] => {
-    const [list, err] = rt.getBitmapListCompact<AccountStatus>(
+    const [list, err] = rt.getDefaultList<AccountStatus>(
         buf,
         state,
         () => DefaultAccountStatus(),
@@ -46,7 +46,7 @@ export const getAccountStatusListBody = (buf: rt.Buffer, state: number): [Accoun
 };
 
 export const setAccountStatusListBody = (buf: rt.Buffer, state: number, v: AccountStatus[]): rt.Err => {
-    return rt.setBitmapListCompact<AccountStatus>(
+    return rt.setDefaultList<AccountStatus>(
         buf,
         state,
         v,
@@ -86,7 +86,7 @@ export const eqTypeValue = (a: Type, b: Type): boolean => NormalizeType(a) === N
 export const eqTypeList = (a: Type[], b: Type[]): boolean => rt.eqList(a, b, eqTypeValue);
 
 export const getTypeListBody = (buf: rt.Buffer, state: number): [Type[], rt.Err] => {
-    const [list, err] = rt.getBitmapListCompact<Type>(
+    const [list, err] = rt.getDefaultList<Type>(
         buf,
         state,
         () => DefaultType(),
@@ -102,7 +102,7 @@ export const getTypeListBody = (buf: rt.Buffer, state: number): [Type[], rt.Err]
 };
 
 export const setTypeListBody = (buf: rt.Buffer, state: number, v: Type[]): rt.Err => {
-    return rt.setBitmapListCompact<Type>(
+    return rt.setDefaultList<Type>(
         buf,
         state,
         v,
@@ -156,7 +156,7 @@ export const eqStatusValue = (a: Status, b: Status): boolean => NormalizeStatus(
 export const eqStatusList = (a: Status[], b: Status[]): boolean => rt.eqList(a, b, eqStatusValue);
 
 export const getStatusListBody = (buf: rt.Buffer, state: number): [Status[], rt.Err] => {
-    const [list, err] = rt.getBitmapListCompact<Status>(
+    const [list, err] = rt.getDefaultList<Status>(
         buf,
         state,
         () => DefaultStatus(),
@@ -172,7 +172,7 @@ export const getStatusListBody = (buf: rt.Buffer, state: number): [Status[], rt.
 };
 
 export const setStatusListBody = (buf: rt.Buffer, state: number, v: Status[]): rt.Err => {
-    return rt.setBitmapListCompact<Status>(
+    return rt.setDefaultList<Status>(
         buf,
         state,
         v,
@@ -224,7 +224,7 @@ export const eqStatusAValue = (a: StatusA, b: StatusA): boolean => NormalizeStat
 export const eqStatusAList = (a: StatusA[], b: StatusA[]): boolean => rt.eqList(a, b, eqStatusAValue);
 
 export const getStatusAListBody = (buf: rt.Buffer, state: number): [StatusA[], rt.Err] => {
-    const [list, err] = rt.getBitmapListCompact<StatusA>(
+    const [list, err] = rt.getDefaultList<StatusA>(
         buf,
         state,
         () => DefaultStatusA(),
@@ -240,7 +240,7 @@ export const getStatusAListBody = (buf: rt.Buffer, state: number): [StatusA[], r
 };
 
 export const setStatusAListBody = (buf: rt.Buffer, state: number, v: StatusA[]): rt.Err => {
-    return rt.setBitmapListCompact<StatusA>(
+    return rt.setDefaultList<StatusA>(
         buf,
         state,
         v,
@@ -280,7 +280,7 @@ export const eqItemStatusValue = (a: ItemStatus, b: ItemStatus): boolean => Norm
 export const eqItemStatusList = (a: ItemStatus[], b: ItemStatus[]): boolean => rt.eqList(a, b, eqItemStatusValue);
 
 export const getItemStatusListBody = (buf: rt.Buffer, state: number): [ItemStatus[], rt.Err] => {
-    const [list, err] = rt.getBitmapListCompact<ItemStatus>(
+    const [list, err] = rt.getDefaultList<ItemStatus>(
         buf,
         state,
         () => DefaultItemStatus(),
@@ -296,7 +296,7 @@ export const getItemStatusListBody = (buf: rt.Buffer, state: number): [ItemStatu
 };
 
 export const setItemStatusListBody = (buf: rt.Buffer, state: number, v: ItemStatus[]): rt.Err => {
-    return rt.setBitmapListCompact<ItemStatus>(
+    return rt.setDefaultList<ItemStatus>(
         buf,
         state,
         v,
@@ -340,7 +340,7 @@ export const eqSimPickPhoneValue = (a: SimPickPhone, b: SimPickPhone): boolean =
 export const eqSimPickPhoneList = (a: SimPickPhone[], b: SimPickPhone[]): boolean => rt.eqList(a, b, eqSimPickPhoneValue);
 
 export const getSimPickPhoneListBody = (buf: rt.Buffer, state: number): [SimPickPhone[], rt.Err] => {
-    const [list, err] = rt.getBitmapListCompact<SimPickPhone>(
+    const [list, err] = rt.getDefaultList<SimPickPhone>(
         buf,
         state,
         () => DefaultSimPickPhone(),
@@ -356,7 +356,7 @@ export const getSimPickPhoneListBody = (buf: rt.Buffer, state: number): [SimPick
 };
 
 export const setSimPickPhoneListBody = (buf: rt.Buffer, state: number, v: SimPickPhone[]): rt.Err => {
-    return rt.setBitmapListCompact<SimPickPhone>(
+    return rt.setDefaultList<SimPickPhone>(
         buf,
         state,
         v,
@@ -408,7 +408,7 @@ export const eqSimOperatorValue = (a: SimOperator, b: SimOperator): boolean => N
 export const eqSimOperatorList = (a: SimOperator[], b: SimOperator[]): boolean => rt.eqList(a, b, eqSimOperatorValue);
 
 export const getSimOperatorListBody = (buf: rt.Buffer, state: number): [SimOperator[], rt.Err] => {
-    const [list, err] = rt.getBitmapListCompact<SimOperator>(
+    const [list, err] = rt.getDefaultList<SimOperator>(
         buf,
         state,
         () => DefaultSimOperator(),
@@ -424,7 +424,7 @@ export const getSimOperatorListBody = (buf: rt.Buffer, state: number): [SimOpera
 };
 
 export const setSimOperatorListBody = (buf: rt.Buffer, state: number, v: SimOperator[]): rt.Err => {
-    return rt.setBitmapListCompact<SimOperator>(
+    return rt.setDefaultList<SimOperator>(
         buf,
         state,
         v,
@@ -481,7 +481,7 @@ export const eqOrderStatusValue = (a: OrderStatus, b: OrderStatus): boolean => N
 export const eqOrderStatusList = (a: OrderStatus[], b: OrderStatus[]): boolean => rt.eqList(a, b, eqOrderStatusValue);
 
 export const getOrderStatusListBody = (buf: rt.Buffer, state: number): [OrderStatus[], rt.Err] => {
-    const [list, err] = rt.getBitmapListCompact<OrderStatus>(
+    const [list, err] = rt.getDefaultList<OrderStatus>(
         buf,
         state,
         () => DefaultOrderStatus(),
@@ -497,7 +497,7 @@ export const getOrderStatusListBody = (buf: rt.Buffer, state: number): [OrderSta
 };
 
 export const setOrderStatusListBody = (buf: rt.Buffer, state: number, v: OrderStatus[]): rt.Err => {
-    return rt.setBitmapListCompact<OrderStatus>(
+    return rt.setDefaultList<OrderStatus>(
         buf,
         state,
         v,

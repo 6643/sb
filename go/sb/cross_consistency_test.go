@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,7 +34,17 @@ type crossWireOutput struct {
 }
 
 func TestCrossLanguageWireConsistency(t *testing.T) {
-	cases := buildCrossWireCases()
+	runCrossLanguageWireConsistency(t, buildCrossWireCases())
+}
+
+func TestCrossLanguageWireConsistencyRandom(t *testing.T) {
+	const rounds = 12
+	const seed int64 = 20260308
+	runCrossLanguageWireConsistency(t, buildRandomCrossWireCases(seed, rounds))
+}
+
+func runCrossLanguageWireConsistency(t *testing.T, cases []crossWireCase) {
+	t.Helper()
 	inputs := make([]crossWireInput, 0, len(cases))
 	expected := make(map[string]string, len(cases))
 
@@ -236,6 +247,292 @@ func buildCrossWireCases() []crossWireCase {
 	}
 }
 
+func buildRandomCrossWireCases(seed int64, rounds int) []crossWireCase {
+	r := rand.New(rand.NewSource(seed))
+	cases := make([]crossWireCase, 0, rounds*17)
+	for i := 0; i < rounds; i++ {
+		prefix := fmt.Sprintf("random.%02d", i)
+		cases = append(cases,
+			structWireCase(prefix+".struct.recharge", "struct.recharge", randRecharge(r), SetRecharge, ReadRecharge, EqRecharge),
+			structWireCase(prefix+".struct.rechargeA", "struct.rechargeA", randRechargeA(r), SetRechargeA, ReadRechargeA, EqRechargeA),
+			structWireCase(prefix+".struct.rechargeB", "struct.rechargeB", randRechargeB(r), SetRechargeB, ReadRechargeB, EqRechargeB),
+			structWireCase(prefix+".struct.simInfo", "struct.simInfo", randSimInfo(r), SetSimInfo, ReadSimInfo, EqSimInfo),
+			structWireCase(prefix+".struct.sim", "struct.sim", randSim(r), SetSim, ReadSim, EqSim),
+			structWireCase(prefix+".struct.simOrder2", "struct.simOrder2", randSimOrder2(r), SetSimOrder2, ReadSimOrder2, EqSimOrder2),
+			structWireCase(prefix+".struct.simOrder", "struct.simOrder", randSimOrder(r), SetSimOrder, ReadSimOrder, EqSimOrder),
+			emptyWireCase(prefix+".api.user.get_abc.req.empty", "api.user.get_abc.req"),
+			orderStatusWireCase(prefix+".api.user.get_abc.resp", "api.user.get_abc.resp", randOrderStatus(r)),
+			u8PairWireCase(prefix+".api.user.get_abcd.req", "api.user.get_abcd.req", randU8(r), randU8(r)),
+			orderStatusWireCase(prefix+".api.user.get_abcd.resp", "api.user.get_abcd.resp", randOrderStatus(r)),
+			structWireCase(prefix+".api.user.set_sim_info.req", "api.user.set_sim_info.req", randSimInfo(r), SetSimInfo, ReadSimInfo, EqSimInfo),
+			emptyWireCase(prefix+".api.user.set_sim_info.resp.empty", "api.user.set_sim_info.resp"),
+			u8WireCase(prefix+".api.get_count.req", "api.get_count.req", randU8(r)),
+			u8WireCase(prefix+".api.get_count.resp", "api.get_count.resp", randU8(r)),
+			u8WireCase(prefix+".api.get_bin.req", "api.get_bin.req", randU8(r)),
+			binRespWireCase(prefix+".api.get_bin.resp", "api.get_bin.resp", randBin(r, 384)),
+		)
+	}
+	return cases
+}
+
+var randomASCII = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_ /")
+
+func randInt(r *rand.Rand, max int, edges ...int) int {
+	if max <= 0 {
+		return 0
+	}
+	filtered := make([]int, 0, len(edges))
+	for _, edge := range edges {
+		if edge >= 0 && edge <= max {
+			filtered = append(filtered, edge)
+		}
+	}
+	if len(filtered) > 0 && r.Intn(4) == 0 {
+		return filtered[r.Intn(len(filtered))]
+	}
+	return r.Intn(max + 1)
+}
+
+func randU8(r *rand.Rand) uint8 {
+	return uint8(randInt(r, 0xFF, 0, 1, 2, 3, 7, 15, 31, 63, 127, 254, 255))
+}
+
+func randU16(r *rand.Rand) uint16 {
+	return uint16(randInt(r, 0xFFFF, 0, 1, 2, 3, 7, 15, 31, 63, 127, 255, 256, 1023, 4095, 65535))
+}
+
+func randU32(r *rand.Rand) uint32 {
+	return uint32(randInt(r, 1<<20, 0, 1, 2, 3, 7, 15, 31, 63, 127, 255, 256, 1023, 4095, 65535, 1<<20))
+}
+
+func randText(r *rand.Rand, maxLen int) string {
+	n := randInt(r, maxLen, 0, 1, 2, 3, 7, 15, 31, 63, 127, 255, 256)
+	if n == 0 {
+		return ""
+	}
+	buf := make([]byte, n)
+	for i := range buf {
+		buf[i] = randomASCII[r.Intn(len(randomASCII))]
+	}
+	return string(buf)
+}
+
+func randBin(r *rand.Rand, maxLen int) []byte {
+	n := randInt(r, maxLen, 0, 1, 2, 3, 7, 15, 31, 63, 127, 255, 256)
+	if n == 0 {
+		return nil
+	}
+	buf := make([]byte, n)
+	for i := range buf {
+		buf[i] = byte(r.Intn(256))
+	}
+	return buf
+}
+
+func randListCount(r *rand.Rand, max int) int {
+	return randInt(r, max, 0, 1, 2, 3, 7, 15, 31)
+}
+
+func randOrderStatus(r *rand.Rand) OrderStatus {
+	values := [...]OrderStatus{
+		OrderStatusPending,
+		OrderStatusClosed,
+		OrderStatusCanceled,
+		OrderStatusShipped,
+		OrderStatusDelivered,
+		OrderStatusActived,
+		OrderStatusSettled,
+	}
+	return values[r.Intn(len(values))]
+}
+
+func randType(r *rand.Rand) Type {
+	values := [...]Type{TypeSim, TypeRecharge}
+	return values[r.Intn(len(values))]
+}
+
+func randItemStatus(r *rand.Rand) ItemStatus {
+	values := [...]ItemStatus{ItemStatusOffline, ItemStatusOnline}
+	return values[r.Intn(len(values))]
+}
+
+func randSimPickPhone(r *rand.Rand) SimPickPhone {
+	values := [...]SimPickPhone{SimPickPhoneNo, SimPickPhoneYes, SimPickPhoneActive, SimPickPhoneAbcc}
+	return values[r.Intn(len(values))]
+}
+
+func randSimOperator(r *rand.Rand) SimOperator {
+	values := [...]SimOperator{
+		SimOperatorZz,
+		SimOperatorLt,
+		SimOperatorYd,
+		SimOperatorDx,
+		SimOperatorGd,
+		SimOperatorXx,
+		SimOperatorA,
+		SimOperatorB,
+	}
+	return values[r.Intn(len(values))]
+}
+
+func randOrderStatusList(r *rand.Rand, max int) []OrderStatus {
+	count := randListCount(r, max)
+	out := make([]OrderStatus, count)
+	for i := range out {
+		out[i] = randOrderStatus(r)
+	}
+	return out
+}
+
+func randSimPickPhoneList(r *rand.Rand, max int) []SimPickPhone {
+	count := randListCount(r, max)
+	out := make([]SimPickPhone, count)
+	for i := range out {
+		out[i] = randSimPickPhone(r)
+	}
+	return out
+}
+
+func randTextList(r *rand.Rand, maxCount int, maxItemLen int) []string {
+	count := randListCount(r, maxCount)
+	out := make([]string, count)
+	for i := range out {
+		out[i] = randText(r, maxItemLen)
+	}
+	return out
+}
+
+func randU32List(r *rand.Rand, maxCount int) []uint32 {
+	count := randListCount(r, maxCount)
+	out := make([]uint32, count)
+	for i := range out {
+		out[i] = randU32(r)
+	}
+	return out
+}
+
+func randMaybeSimInfo(r *rand.Rand) *SimInfo {
+	switch r.Intn(4) {
+	case 0:
+		return nil
+	case 1:
+		return &SimInfo{}
+	default:
+		return randSimInfo(r)
+	}
+}
+
+func randSimInfoList(r *rand.Rand, maxCount int) []*SimInfo {
+	count := randListCount(r, maxCount)
+	out := make([]*SimInfo, count)
+	for i := range out {
+		out[i] = randMaybeSimInfo(r)
+	}
+	return out
+}
+
+func randSimInfo(r *rand.Rand) *SimInfo {
+	return &SimInfo{
+		Id:      randU32(r),
+		Title:   randText(r, 320),
+		Content: randText(r, 320),
+		A:       r.Intn(2) == 1,
+		B:       r.Intn(2) == 1,
+		C:       r.Intn(2) == 1,
+		D:       r.Intn(2) == 1,
+		Zip:     randBin(r, 384),
+	}
+}
+
+func randRecharge(r *rand.Rand) *Recharge {
+	return &Recharge{
+		Id:    randU32(r),
+		Type:  randOrderStatusList(r, 24),
+		Phone: randTextList(r, 18, 96),
+		Si:    randMaybeSimInfo(r),
+	}
+}
+
+func randRechargeA(r *rand.Rand) *RechargeA {
+	return &RechargeA{
+		Id:    randU32(r),
+		Type:  randOrderStatusList(r, 24),
+		Phone: randTextList(r, 18, 96),
+		Si:    randMaybeSimInfo(r),
+		Aid:   randU32(r),
+	}
+}
+
+func randRechargeB(r *rand.Rand) *RechargeB {
+	return &RechargeB{
+		Id:    randU32(r),
+		Type:  randOrderStatusList(r, 24),
+		Phone: randTextList(r, 18, 96),
+		Si:    randMaybeSimInfo(r),
+		Bid:   randU32(r),
+	}
+}
+
+func randSim(r *rand.Rand) *Sim {
+	return &Sim{
+		Id:                randU32(r),
+		Type:              randType(r),
+		Status:            randItemStatus(r),
+		Commission:        randU16(r),
+		Supplier:          randU32(r),
+		Aff:               randU32(r),
+		ContractDuration:  randU8(r),
+		Name:              randText(r, 128),
+		Operator:          randSimOperator(r),
+		Monthly:           randU16(r),
+		FlowUniversal:     randU16(r),
+		FlowDirectional:   randU16(r),
+		CanMoveFlow:       r.Intn(2) == 1,
+		CallMonth:         randU16(r),
+		CallPrice:         randU16(r),
+		SmsMonth:          randU16(r),
+		SmsPrice:          randU16(r),
+		MinAge:            randU8(r),
+		MaxAge:            randU8(r),
+		Attribution:       randU32(r),
+		PickPhone:         randSimPickPhoneList(r, 20),
+		FirstChargeLink:   randText(r, 128),
+		FirstChargeMoney:  randText(r, 64),
+		FirstChargeReturn: randText(r, 64),
+		BanCity:           randU32List(r, 20),
+		Info:              randSimInfoList(r, 12),
+		Snapshot:          randTextList(r, 16, 96),
+	}
+}
+
+func randSimOrder2(r *rand.Rand) *SimOrder2 {
+	return &SimOrder2{
+		Id:       randU32(r),
+		Name:     randText(r, 96),
+		Phone:    randText(r, 32),
+		IdNo:     randText(r, 32),
+		CityCode: randU32(r),
+		Address:  randText(r, 192),
+		NewPhone: randText(r, 32),
+	}
+}
+
+func randSimOrder(r *rand.Rand) *SimOrder {
+	return &SimOrder{
+		Id:         randU32(r),
+		AccountId:  randU32(r),
+		ItemId:     randU32(r),
+		Name:       randText(r, 96),
+		Phone:      randText(r, 32),
+		IdNo:       randText(r, 32),
+		CityCode:   randU32(r),
+		Address:    randText(r, 192),
+		NewPhone:   randText(r, 32),
+		Commission: randU16(r),
+		Status:     randOrderStatus(r),
+	}
+}
+
 func structWireCase[T any](name string, kind string, value *T, set func(*bytes.Buffer, *T) error, read func(*bytes.Buffer) (*T, error), eq func(*T, *T) bool) crossWireCase {
 	return crossWireCase{
 		name: name,
@@ -422,7 +719,7 @@ func binRespWireCase(name string, kind string, value []byte) crossWireCase {
 			if err := rt.SetU8(&buf, state); err != nil {
 				return nil, err
 			}
-			if err := rt.SetBinCompact(&buf, state, value); err != nil {
+			if err := rt.SetBin(&buf, state, value); err != nil {
 				return nil, err
 			}
 			return bytes.Clone(buf.Bytes()), nil
@@ -433,7 +730,7 @@ func binRespWireCase(name string, kind string, value []byte) crossWireCase {
 			if err != nil {
 				return err
 			}
-			got, err := rt.GetBinCompactInto(buf, state, nil)
+			got, err := rt.GetBinInto(buf, state, nil)
 			if err != nil {
 				return err
 			}
@@ -454,7 +751,7 @@ func binRespWireCase(name string, kind string, value []byte) crossWireCase {
 			if err := rt.SetU8(&re, canonical); err != nil {
 				return err
 			}
-			if err := rt.SetBinCompact(&re, canonical, got); err != nil {
+			if err := rt.SetBin(&re, canonical, got); err != nil {
 				return err
 			}
 			if !bytes.Equal(data, re.Bytes()) {

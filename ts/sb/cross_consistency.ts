@@ -102,7 +102,7 @@ const roundTripBinResp = (name: string, bytes: Uint8Array): string => {
     const buf = new _.Buffer(bytes);
     const [state, errState] = _.getU8(buf);
     mustNullErr(errState, `${name} decode state`);
-    const [value, errValue] = _.getBinCompact(buf, state);
+    const [value, errValue] = _.getBin(buf, state);
     mustNullErr(errValue, `${name} decode body`);
     ensureConsumed(buf, `${name} decode`);
     const [canonical, errCanonical] = _.binState(value.byteLength);
@@ -110,7 +110,7 @@ const roundTripBinResp = (name: string, bytes: Uint8Array): string => {
     if (canonical !== state) throw new Error(`${name}: non-canonical state ${state}, want ${canonical}`);
     const out = new _.Buffer();
     mustNullErr(_.setU8(out, canonical), `${name} encode state`);
-    mustNullErr(_.setBinCompact(out, canonical, value), `${name} encode body`);
+    mustNullErr(_.setBin(out, canonical, value), `${name} encode body`);
     return toHex(out.bytes);
 };
 

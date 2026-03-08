@@ -108,7 +108,7 @@ func (g *TsGenerator) renderEnumFile(enums []TplEnum) string {
 		w.Linef("export const eq%sList = (a: %s[], b: %s[]): boolean => rt.eqList(a, b, eq%sValue);", enumName, enumName, enumName, enumName)
 		w.Blank()
 		w.Linef("export const get%sListBody = (buf: rt.Buffer, state: number): [%s[], rt.Err] => {", enumName, enumName)
-		w.Linef("    const [list, err] = rt.getBitmapListCompact<%s>(", enumName)
+		w.Linef("    const [list, err] = rt.getDefaultList<%s>(", enumName)
 		w.Line("        buf,")
 		w.Line("        state,")
 		w.Linef("        () => Default%s(),", enumName)
@@ -124,7 +124,7 @@ func (g *TsGenerator) renderEnumFile(enums []TplEnum) string {
 		w.Line("};")
 		w.Blank()
 		w.Linef("export const set%sListBody = (buf: rt.Buffer, state: number, v: %s[]): rt.Err => {", enumName, enumName)
-		w.Linef("    return rt.setBitmapListCompact<%s>(", enumName)
+		w.Linef("    return rt.setDefaultList<%s>(", enumName)
 		w.Line("        buf,")
 		w.Line("        state,")
 		w.Line("        v,")
@@ -256,9 +256,9 @@ func (g *TsGenerator) renderStructFile(st TplStruct) string {
 		case field.Type.Name == "bool":
 			w.Linef("    %s = %sState;", fieldVar, stateVar)
 		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "text":
-			w.Linef("    { const [value, err] = rt.getTextCompact(buf, %sState); if (err !== null) return [s, new Error(`get %s %s: ${err.message}`)]; %s = value; }", stateVar, name, fieldName, fieldVar)
+			w.Linef("    { const [value, err] = rt.getText(buf, %sState); if (err !== null) return [s, new Error(`get %s %s: ${err.message}`)]; %s = value; }", stateVar, name, fieldName, fieldVar)
 		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "bin":
-			w.Linef("    { const [value, err] = rt.getBinCompact(buf, %sState); if (err !== null) return [s, new Error(`get %s %s: ${err.message}`)]; %s = value; }", stateVar, name, fieldName, fieldVar)
+			w.Linef("    { const [value, err] = rt.getBin(buf, %sState); if (err !== null) return [s, new Error(`get %s %s: ${err.message}`)]; %s = value; }", stateVar, name, fieldName, fieldVar)
 		case field.Type.Kind == TplKindBase && field.Type.IsList:
 			if field.Type.Name == "bool" || field.Type.Name == "text" || field.Type.Name == "bin" {
 				w.Linef("    { const [value, err] = %s; if (err !== null) return [s, new Error(`get %s %s: ${err.message}`)]; %s = value; }", g.listGetExpr(field.Type, stateVar+"State"), name, fieldName, fieldVar)
@@ -342,9 +342,9 @@ func (g *TsGenerator) renderStructFile(st TplStruct) string {
 		switch {
 		case field.Type.Name == "bool":
 		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "text":
-			w.Linef("    { const err = rt.setTextCompact(buf, %sState, %s); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set %s %s: ${err.message}`); } }", CamelCase(fieldName), ref, name, fieldName)
+			w.Linef("    { const err = rt.setText(buf, %sState, %s); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set %s %s: ${err.message}`); } }", CamelCase(fieldName), ref, name, fieldName)
 		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "bin":
-			w.Linef("    { const err = rt.setBinCompact(buf, %sState, %s); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set %s %s: ${err.message}`); } }", CamelCase(fieldName), ref, name, fieldName)
+			w.Linef("    { const err = rt.setBin(buf, %sState, %s); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set %s %s: ${err.message}`); } }", CamelCase(fieldName), ref, name, fieldName)
 		case field.Type.Kind == TplKindBase && field.Type.IsList:
 			if field.Type.Name == "bool" || field.Type.Name == "text" || field.Type.Name == "bin" {
 				w.Linef("    { const err = %s; if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set %s %s: ${err.message}`); } }", g.listSetExpr(field.Type, ref, CamelCase(fieldName)+"State"), name, fieldName)
@@ -394,7 +394,7 @@ func (g *TsGenerator) renderStructFile(st TplStruct) string {
 func (g *TsGenerator) renderStructListBodyHelpers(w *sourceWriter, st TplStruct) {
 	name := PascalCase(st.Name)
 	w.Linef("export const get%sListBody = (buf: rt.Buffer, state: number): [%s[], rt.Err] => {", name, name)
-	w.Linef("    const [list, err] = rt.getBitmapListCompact<%s>(", name)
+	w.Linef("    const [list, err] = rt.getDefaultList<%s>(", name)
 	w.Line("        buf,")
 	w.Line("        state,")
 	w.Linef("        () => new%s(),", name)
@@ -404,7 +404,7 @@ func (g *TsGenerator) renderStructListBodyHelpers(w *sourceWriter, st TplStruct)
 	w.Line("};")
 	w.Blank()
 	w.Linef("export const set%sListBody = (buf: rt.Buffer, state: number, v: %s[]): rt.Err => {", name, name)
-	w.Linef("    return rt.setBitmapListCompact<%s>(", name)
+	w.Linef("    return rt.setDefaultList<%s>(", name)
 	w.Line("        buf,")
 	w.Line("        state,")
 	w.Line("        v,")
@@ -461,95 +461,114 @@ func (g *TsGenerator) renderRPCFile(apis []TplApi) string {
 	w.Line("    maxRespBytes?: number;")
 	w.Line("}")
 	w.Blank()
-	w.Line("export class RpcClient {")
-	w.Line("    private headers: Record<string, string> = {};")
-	w.Line("    private timeout: number;")
-	w.Line("    private retries: number;")
-	w.Line("    private maxRespBytes: number;")
+	w.Line("export interface RpcClient {")
+	w.Line("    setHeader: (key: string, value: string) => void;")
+	w.Line("    getHeader: (key: string) => string | undefined;")
+	w.Line("    removeHeader: (key: string) => void;")
+	w.Line("    setAuthorization: (token: string) => void;")
+	w.Line("    getAuthorization: () => string | undefined;")
+	w.Line("    removeAuthorization: () => void;")
+	w.Line("    isAuthorized: () => boolean;")
+	for _, api := range apis {
+		methodName := CamelCase(api.Name)
+		w.Linef("    %s: (%s) => Promise<%s>;", methodName, g.rpcArgList(api.Args), g.rpcPromiseType(api.Result))
+	}
+	w.Line("}")
 	w.Blank()
-	w.Line("    constructor(private config: RpcConfig) {")
-	w.Line("        this.config = { ...config, host: config.host.replace(/\\/+$/, \"\") };")
-	w.Line("        if (config.headers) this.headers = { ...config.headers };")
-	w.Line("        const cfgTimeout = config.timeout;")
-	w.Line("        this.timeout = cfgTimeout !== undefined && Number.isFinite(cfgTimeout) && cfgTimeout >= 0 ? Math.min(Math.floor(cfgTimeout), maxTimeoutMs) : 5000;")
-	w.Line("        const cfgRetries = config.retries;")
-	w.Line("        this.retries = cfgRetries !== undefined && Number.isFinite(cfgRetries) && cfgRetries >= 0 ? Math.floor(cfgRetries) : 3;")
-	w.Line("        const cfgMaxRespBytes = config.maxRespBytes;")
-	w.Line("        this.maxRespBytes = cfgMaxRespBytes !== undefined && Number.isFinite(cfgMaxRespBytes) && cfgMaxRespBytes > 0 ? Math.min(Math.floor(cfgMaxRespBytes), maxSafeRespBytes) : defaultMaxRespBytes;")
-	w.Line("    }")
+	w.Line("type _RpcClientState = RpcClient & {")
+	w.Line("    config: RpcConfig;")
+	w.Line("    headers: Record<string, string>;")
+	w.Line("    timeout: number;")
+	w.Line("    retries: number;")
+	w.Line("    maxRespBytes: number;")
+	w.Line("    _fetch: (path: string, body: Uint8Array) => Promise<[Uint8Array | null, RpcErrCode]>;")
+	w.Line("};")
+	w.Line("type RpcClientCtor = new (config: RpcConfig) => RpcClient;")
 	w.Blank()
-	w.Line("    public setHeader = (key: string, value: string): void => { this.headers[key] = value; };")
-	w.Line("    public getHeader = (key: string): string | undefined => this.headers[key];")
-	w.Line("    public removeHeader = (key: string): void => { delete this.headers[key]; };")
+	w.Line("function _RpcClientCtor(this: _RpcClientState, config: RpcConfig): void {")
+	w.Line("    this.config = { ...config, host: config.host.replace(/\\/+$/, \"\") };")
+	w.Line("    this.headers = config.headers ? { ...config.headers } : {};")
+	w.Line("    const cfgTimeout = config.timeout;")
+	w.Line("    this.timeout = cfgTimeout !== undefined && Number.isFinite(cfgTimeout) && cfgTimeout >= 0 ? Math.min(Math.floor(cfgTimeout), maxTimeoutMs) : 5000;")
+	w.Line("    const cfgRetries = config.retries;")
+	w.Line("    this.retries = cfgRetries !== undefined && Number.isFinite(cfgRetries) && cfgRetries >= 0 ? Math.floor(cfgRetries) : 3;")
+	w.Line("    const cfgMaxRespBytes = config.maxRespBytes;")
+	w.Line("    this.maxRespBytes = cfgMaxRespBytes !== undefined && Number.isFinite(cfgMaxRespBytes) && cfgMaxRespBytes > 0 ? Math.min(Math.floor(cfgMaxRespBytes), maxSafeRespBytes) : defaultMaxRespBytes;")
+	w.Line("}")
+	w.Line("const _rpcClientProto = _RpcClientCtor.prototype as _RpcClientState;")
 	w.Blank()
-	w.Line("    public setAuthorization = (token: string): void => { this.setHeader(\"Authorization\", `Bearer ${token}`); };")
-	w.Line("    public getAuthorization = (): string | undefined => this.getHeader(\"Authorization\");")
-	w.Line("    public removeAuthorization = (): void => { this.removeHeader(\"Authorization\"); };")
-	w.Line("    public isAuthorized = (): boolean => !!this.getAuthorization();")
+	w.Line("_rpcClientProto.setHeader = function(this: _RpcClientState, key: string, value: string): void { this.headers[key] = value; };")
+	w.Line("_rpcClientProto.getHeader = function(this: _RpcClientState, key: string): string | undefined { return this.headers[key]; };")
+	w.Line("_rpcClientProto.removeHeader = function(this: _RpcClientState, key: string): void { delete this.headers[key]; };")
 	w.Blank()
-	w.Line("    private async _fetch(path: string, body: Uint8Array): Promise<[Uint8Array | null, RpcErrCode]> {")
-	w.Line("        let lastStatus = RpcErrCode.NoConn;")
-	w.Line("        for (let i = 0; i <= this.retries; i++) {")
-	w.Line("            if (i > 0) await new Promise((res) => setTimeout(res, i * 1000));")
-	w.Line("            const controller = new AbortController();")
-	w.Line("            let timeoutId: ReturnType<typeof setTimeout> | null = null;")
-	w.Line("            if (this.timeout > 0) timeoutId = setTimeout(() => controller.abort(), this.timeout);")
-	w.Line("            try {")
-	w.Line("                const res = await fetch(`${this.config.host}/${path}`, {")
-	w.Line("                    method: \"POST\",")
-	w.Line("                    headers: { \"Content-Type\": \"application/octet-stream\", ...this.headers },")
-	w.Line("                    body: body as any,")
-	w.Line("                    signal: controller.signal,")
-	w.Line("                });")
-	w.Line("                if (res.ok) {")
-	w.Line("                    const contentLength = res.headers.get(\"content-length\");")
-	w.Line("                    if (contentLength !== null) {")
-	w.Line("                        const size = Number(contentLength);")
-	w.Line("                        if (Number.isFinite(size) && size > this.maxRespBytes) return [null, RpcErrCode.RespErr];")
-	w.Line("                    }")
-	w.Line("                    const bytes = new Uint8Array(await res.arrayBuffer());")
-	w.Line("                    if (bytes.byteLength > this.maxRespBytes) return [null, RpcErrCode.RespErr];")
-	w.Line("                    return [bytes, RpcErrCode.Ok];")
+	w.Line("_rpcClientProto.setAuthorization = function(this: _RpcClientState, token: string): void { this.setHeader(\"Authorization\", `Bearer ${token}`); };")
+	w.Line("_rpcClientProto.getAuthorization = function(this: _RpcClientState): string | undefined { return this.getHeader(\"Authorization\"); };")
+	w.Line("_rpcClientProto.removeAuthorization = function(this: _RpcClientState): void { this.removeHeader(\"Authorization\"); };")
+	w.Line("_rpcClientProto.isAuthorized = function(this: _RpcClientState): boolean { return !!this.getAuthorization(); };")
+	w.Blank()
+	w.Line("_rpcClientProto._fetch = async function(this: _RpcClientState, path: string, body: Uint8Array): Promise<[Uint8Array | null, RpcErrCode]> {")
+	w.Line("    let lastStatus = RpcErrCode.NoConn;")
+	w.Line("    for (let i = 0; i <= this.retries; i++) {")
+	w.Line("        if (i > 0) await new Promise((res) => setTimeout(res, i * 1000));")
+	w.Line("        const controller = new AbortController();")
+	w.Line("        let timeoutId: ReturnType<typeof setTimeout> | null = null;")
+	w.Line("        if (this.timeout > 0) timeoutId = setTimeout(() => controller.abort(), this.timeout);")
+	w.Line("        try {")
+	w.Line("            const res = await fetch(`${this.config.host}/${path}`, {")
+	w.Line("                method: \"POST\",")
+	w.Line("                headers: { \"Content-Type\": \"application/octet-stream\", ...this.headers },")
+	w.Line("                body: body as any,")
+	w.Line("                signal: controller.signal,")
+	w.Line("            });")
+	w.Line("            if (res.ok) {")
+	w.Line("                const contentLength = res.headers.get(\"content-length\");")
+	w.Line("                if (contentLength !== null) {")
+	w.Line("                    const size = Number(contentLength);")
+	w.Line("                    if (Number.isFinite(size) && size > this.maxRespBytes) return [null, RpcErrCode.RespErr];")
 	w.Line("                }")
-	w.Line("                lastStatus = res.status as RpcErrCode;")
-	w.Line("                if (res.status === 408 && i < this.retries) continue;")
-	w.Line("                return [null, res.status as RpcErrCode];")
-	w.Line("            } catch (e: any) {")
-	w.Line("                lastStatus = e && e.name === \"AbortError\" ? RpcErrCode.Timeout : RpcErrCode.NoConn;")
-	w.Line("                if (i < this.retries) continue;")
-	w.Line("            } finally {")
-	w.Line("                if (timeoutId !== null) clearTimeout(timeoutId);")
+	w.Line("                const bytes = new Uint8Array(await res.arrayBuffer());")
+	w.Line("                if (bytes.byteLength > this.maxRespBytes) return [null, RpcErrCode.RespErr];")
+	w.Line("                return [bytes, RpcErrCode.Ok];")
 	w.Line("            }")
+	w.Line("            lastStatus = res.status as RpcErrCode;")
+	w.Line("            if (res.status === 408 && i < this.retries) continue;")
+	w.Line("            return [null, res.status as RpcErrCode];")
+	w.Line("        } catch (e: any) {")
+	w.Line("            lastStatus = e && e.name === \"AbortError\" ? RpcErrCode.Timeout : RpcErrCode.NoConn;")
+	w.Line("            if (i < this.retries) continue;")
+	w.Line("        } finally {")
+	w.Line("            if (timeoutId !== null) clearTimeout(timeoutId);")
 	w.Line("        }")
-	w.Line("        return [null, lastStatus];")
 	w.Line("    }")
+	w.Line("    return [null, lastStatus];")
+	w.Line("};")
 	for _, api := range apis {
 		methodName := CamelCase(api.Name)
 		defaultVal := g.rpcDefaultValue(api.Result)
 		w.Blank()
-		w.WriteLineComment("    // ", api.Note)
-		w.Linef("    public %s = async (%s): Promise<%s> => {", methodName, g.rpcArgList(api.Args), g.rpcPromiseType(api.Result))
-		w.Line("        const buf = new _.Buffer();")
+		w.WriteLineComment("// ", api.Note)
+		w.Linef("_rpcClientProto.%s = async function(this: _RpcClientState, %s): Promise<%s> {", methodName, g.rpcArgList(api.Args), g.rpcPromiseType(api.Result))
+		w.Line("    const buf = new _.Buffer();")
 		for _, arg := range api.Args {
 			g.tsDirectWrite(&w, arg.Type, CamelCase(arg.Name), "buf", g.rpcReqErrReturn(api.Result, defaultVal))
 		}
-		w.Linef("        const [bytes, status] = await this._fetch(\"%s\", buf.bytes);", api.Name)
-		w.Linef("        if (status !== RpcErrCode.Ok || bytes === null) return %s;", g.rpcStatusReturn(api.Result, defaultVal))
+		w.Linef("    const [bytes, status] = await this._fetch(\"%s\", buf.bytes);", api.Name)
+		w.Linef("    if (status !== RpcErrCode.Ok || bytes === null) return %s;", g.rpcStatusReturn(api.Result, defaultVal))
 		if api.Result.Name == "nil" {
-			w.Line("        if (bytes.byteLength !== 0) return RpcErrCode.RespErr;")
-			w.Line("        return RpcErrCode.Ok;")
-			w.Line("    };")
+			w.Line("    if (bytes.byteLength !== 0) return RpcErrCode.RespErr;")
+			w.Line("    return RpcErrCode.Ok;")
+			w.Line("};")
 			continue
 		}
-		w.Line("        const respBuf = new _.Buffer(bytes);")
-		w.Linef("        let result = %s as any;", defaultVal)
+		w.Line("    const respBuf = new _.Buffer(bytes);")
+		w.Linef("    let result = %s as any;", defaultVal)
 		g.tsDirectRead(&w, api.Result, "result", "respBuf", fmt.Sprintf("[%s, RpcErrCode.RespErr]", defaultVal))
-		w.Linef("        if (respBuf.len !== 0) return [%s, RpcErrCode.RespErr];", defaultVal)
-		w.Line("        return [result as any, RpcErrCode.Ok];")
-		w.Line("    };")
+		w.Linef("    if (respBuf.len !== 0) return [%s, RpcErrCode.RespErr];", defaultVal)
+		w.Line("    return [result as any, RpcErrCode.Ok];")
+		w.Line("};")
 	}
 	w.Blank()
-	w.Line("}")
+	w.Line("export const RpcClient = _RpcClientCtor as unknown as RpcClientCtor;")
 	return w.String()
 }
 
@@ -773,32 +792,32 @@ func (g *TsGenerator) primitiveEq(name string) string {
 func (g *TsGenerator) listGetExpr(t TplType, stateVar string) string {
 	switch t.Name {
 	case "bool":
-		return fmt.Sprintf("rt.getBoolListCompact(buf, %s)", stateVar)
+		return fmt.Sprintf("rt.getBoolList(buf, %s)", stateVar)
 	case "text":
-		return fmt.Sprintf("rt.getTextListCompact(buf, %s)", stateVar)
+		return fmt.Sprintf("rt.getTextList(buf, %s)", stateVar)
 	case "bin":
-		return fmt.Sprintf("rt.getBinListCompact(buf, %s)", stateVar)
+		return fmt.Sprintf("rt.getBinList(buf, %s)", stateVar)
 	default:
 		if t.Kind == TplKindBase {
-			return fmt.Sprintf("rt.getZeroValueListCompact<%s>(buf, %s, %s, rt.%s)", g.getTsType(TplType{Name: t.Name, Kind: t.Kind}), stateVar, g.primitiveDefault(t.Name), g.primitiveGetter(t.Name))
+			return fmt.Sprintf("rt.getZeroList<%s>(buf, %s, %s, rt.%s)", g.getTsType(TplType{Name: t.Name, Kind: t.Kind}), stateVar, g.primitiveDefault(t.Name), g.primitiveGetter(t.Name))
 		}
-		return fmt.Sprintf("rt.getBitmapListCompact<%s>(buf, %s, %s, %s)", g.getTsType(TplType{Name: t.Name, Kind: t.Kind}), stateVar, g.bitmapDefaultFactory(t), g.bitmapGetter(t))
+		return fmt.Sprintf("rt.getDefaultList<%s>(buf, %s, %s, %s)", g.getTsType(TplType{Name: t.Name, Kind: t.Kind}), stateVar, g.bitmapDefaultFactory(t), g.bitmapGetter(t))
 	}
 }
 
 func (g *TsGenerator) listSetExpr(t TplType, ref, stateVar string) string {
 	switch t.Name {
 	case "bool":
-		return fmt.Sprintf("rt.setBoolListCompact(buf, %s, %s)", stateVar, ref)
+		return fmt.Sprintf("rt.setBoolList(buf, %s, %s)", stateVar, ref)
 	case "text":
-		return fmt.Sprintf("rt.setTextListCompact(buf, %s, %s)", stateVar, ref)
+		return fmt.Sprintf("rt.setTextList(buf, %s, %s)", stateVar, ref)
 	case "bin":
-		return fmt.Sprintf("rt.setBinListCompact(buf, %s, %s)", stateVar, ref)
+		return fmt.Sprintf("rt.setBinList(buf, %s, %s)", stateVar, ref)
 	default:
 		if t.Kind == TplKindBase {
-			return fmt.Sprintf("rt.setZeroValueListCompact<%s>(buf, %s, %s, %s, rt.%s)", g.getTsType(TplType{Name: t.Name, Kind: t.Kind}), stateVar, ref, g.primitiveDefault(t.Name), g.primitiveSetter(t.Name))
+			return fmt.Sprintf("rt.setZeroList<%s>(buf, %s, %s, %s, rt.%s)", g.getTsType(TplType{Name: t.Name, Kind: t.Kind}), stateVar, ref, g.primitiveDefault(t.Name), g.primitiveSetter(t.Name))
 		}
-		return fmt.Sprintf("rt.setBitmapListCompact<%s>(buf, %s, %s, %s, %s)", g.getTsType(TplType{Name: t.Name, Kind: t.Kind}), stateVar, ref, g.bitmapIsDefault(t), g.bitmapSetter(t))
+		return fmt.Sprintf("rt.setDefaultList<%s>(buf, %s, %s, %s, %s)", g.getTsType(TplType{Name: t.Name, Kind: t.Kind}), stateVar, ref, g.bitmapIsDefault(t), g.bitmapSetter(t))
 	}
 }
 
@@ -969,13 +988,13 @@ func (g *TsGenerator) tsDirectRead(w *sourceWriter, t TplType, target, bufVar, e
 	case t.Kind == TplKindBase && !t.IsList && t.Name == "text":
 		w.Linef("            const [state, errState] = _.getU8(%s);", bufVar)
 		w.Linef("            if (errState !== null) return %s;", errReturn)
-		w.Linef("            const [value, err] = _.getTextCompact(%s, state);", bufVar)
+		w.Linef("            const [value, err] = _.getText(%s, state);", bufVar)
 		w.Linef("            if (err !== null) return %s;", errReturn)
 		w.Linef("            %s = value as any;", target)
 	case t.Kind == TplKindBase && !t.IsList && t.Name == "bin":
 		w.Linef("            const [state, errState] = _.getU8(%s);", bufVar)
 		w.Linef("            if (errState !== null) return %s;", errReturn)
-		w.Linef("            const [value, err] = _.getBinCompact(%s, state);", bufVar)
+		w.Linef("            const [value, err] = _.getBin(%s, state);", bufVar)
 		w.Linef("            if (err !== null) return %s;", errReturn)
 		w.Linef("            %s = value as any;", target)
 	case t.IsList:
@@ -1018,14 +1037,14 @@ func (g *TsGenerator) tsDirectWrite(w *sourceWriter, t TplType, ref, bufVar, err
 		w.Linef("            if (errState !== null) return %s;", errReturn)
 		w.Linef("            const err0 = _.setU8(%s, state);", bufVar)
 		w.Linef("            if (err0 !== null) return %s;", errReturn)
-		w.Linef("            const err1 = _.setTextCompact(%s, state, %s);", bufVar, ref)
+		w.Linef("            const err1 = _.setText(%s, state, %s);", bufVar, ref)
 		w.Linef("            if (err1 !== null) return %s;", errReturn)
 	case t.Kind == TplKindBase && !t.IsList && t.Name == "bin":
 		w.Linef("            const [state, errState] = _.binState(%s.byteLength);", ref)
 		w.Linef("            if (errState !== null) return %s;", errReturn)
 		w.Linef("            const err0 = _.setU8(%s, state);", bufVar)
 		w.Linef("            if (err0 !== null) return %s;", errReturn)
-		w.Linef("            const err1 = _.setBinCompact(%s, state, %s);", bufVar, ref)
+		w.Linef("            const err1 = _.setBin(%s, state, %s);", bufVar, ref)
 		w.Linef("            if (err1 !== null) return %s;", errReturn)
 	case t.IsList:
 		w.Linef("            const [state, errState] = _.listCountState(%s.length);", ref)
@@ -1056,13 +1075,13 @@ func (g *TsGenerator) tsDirectWrite(w *sourceWriter, t TplType, ref, bufVar, err
 func (g *TsGenerator) tsDirectListGetExpr(t TplType, stateVar, bufVar string) string {
 	switch {
 	case t.Name == "bool":
-		return fmt.Sprintf("_.getBoolListCompact(%s, %s)", bufVar, stateVar)
+		return fmt.Sprintf("_.getBoolList(%s, %s)", bufVar, stateVar)
 	case t.Name == "text":
-		return fmt.Sprintf("_.getTextListCompact(%s, %s)", bufVar, stateVar)
+		return fmt.Sprintf("_.getTextList(%s, %s)", bufVar, stateVar)
 	case t.Name == "bin":
-		return fmt.Sprintf("_.getBinListCompact(%s, %s)", bufVar, stateVar)
+		return fmt.Sprintf("_.getBinList(%s, %s)", bufVar, stateVar)
 	case t.Kind == TplKindBase:
-		return fmt.Sprintf("_.getBitmapListCompact<%s>(%s, %s, %s, %s)", g.getTsType(TplType{Name: t.Name, Kind: t.Kind}), bufVar, stateVar, g.bitmapDefaultFactory(t), g.bitmapGetter(t))
+		return fmt.Sprintf("_.getDefaultList<%s>(%s, %s, %s, %s)", g.getTsType(TplType{Name: t.Name, Kind: t.Kind}), bufVar, stateVar, g.bitmapDefaultFactory(t), g.bitmapGetter(t))
 	case t.Kind == TplKindEnum:
 		return fmt.Sprintf("_.get%sListBody(%s, %s)", PascalCase(t.Name), bufVar, stateVar)
 	default:
@@ -1073,13 +1092,13 @@ func (g *TsGenerator) tsDirectListGetExpr(t TplType, stateVar, bufVar string) st
 func (g *TsGenerator) tsDirectListSetExpr(t TplType, ref, stateVar, bufVar string) string {
 	switch {
 	case t.Name == "bool":
-		return fmt.Sprintf("_.setBoolListCompact(%s, %s, %s)", bufVar, stateVar, ref)
+		return fmt.Sprintf("_.setBoolList(%s, %s, %s)", bufVar, stateVar, ref)
 	case t.Name == "text":
-		return fmt.Sprintf("_.setTextListCompact(%s, %s, %s)", bufVar, stateVar, ref)
+		return fmt.Sprintf("_.setTextList(%s, %s, %s)", bufVar, stateVar, ref)
 	case t.Name == "bin":
-		return fmt.Sprintf("_.setBinListCompact(%s, %s, %s)", bufVar, stateVar, ref)
+		return fmt.Sprintf("_.setBinList(%s, %s, %s)", bufVar, stateVar, ref)
 	case t.Kind == TplKindBase:
-		return fmt.Sprintf("_.setBitmapListCompact<%s>(%s, %s, %s, %s, %s)", g.getTsType(TplType{Name: t.Name, Kind: t.Kind}), bufVar, stateVar, ref, g.bitmapIsDefault(t), g.bitmapSetter(t))
+		return fmt.Sprintf("_.setDefaultList<%s>(%s, %s, %s, %s, %s)", g.getTsType(TplType{Name: t.Name, Kind: t.Kind}), bufVar, stateVar, ref, g.bitmapIsDefault(t), g.bitmapSetter(t))
 	case t.Kind == TplKindEnum:
 		return fmt.Sprintf("_.set%sListBody(%s, %s, %s)", PascalCase(t.Name), bufVar, stateVar, ref)
 	default:

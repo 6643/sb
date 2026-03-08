@@ -107,16 +107,16 @@ export const getSimOrder = (buf: rt.Buffer): [SimOrder, rt.Err] => {
         if (err !== null) return [s, new Error(`get SimOrder ItemId: ${err.message}`)];
         s.itemId = value as any;
     }
-    { const [value, err] = rt.getTextCompact(buf, nameState); if (err !== null) return [s, new Error(`get SimOrder Name: ${err.message}`)]; s.name = value; }
-    { const [value, err] = rt.getTextCompact(buf, phoneState); if (err !== null) return [s, new Error(`get SimOrder Phone: ${err.message}`)]; s.phone = value; }
-    { const [value, err] = rt.getTextCompact(buf, idNoState); if (err !== null) return [s, new Error(`get SimOrder IdNo: ${err.message}`)]; s.idNo = value; }
+    { const [value, err] = rt.getText(buf, nameState); if (err !== null) return [s, new Error(`get SimOrder Name: ${err.message}`)]; s.name = value; }
+    { const [value, err] = rt.getText(buf, phoneState); if (err !== null) return [s, new Error(`get SimOrder Phone: ${err.message}`)]; s.phone = value; }
+    { const [value, err] = rt.getText(buf, idNoState); if (err !== null) return [s, new Error(`get SimOrder IdNo: ${err.message}`)]; s.idNo = value; }
     if (cityCodePresent) {
         const [value, err] = rt.getU32(buf);
         if (err !== null) return [s, new Error(`get SimOrder CityCode: ${err.message}`)];
         s.cityCode = value as any;
     }
-    { const [value, err] = rt.getTextCompact(buf, addressState); if (err !== null) return [s, new Error(`get SimOrder Address: ${err.message}`)]; s.address = value; }
-    { const [value, err] = rt.getTextCompact(buf, newPhoneState); if (err !== null) return [s, new Error(`get SimOrder NewPhone: ${err.message}`)]; s.newPhone = value; }
+    { const [value, err] = rt.getText(buf, addressState); if (err !== null) return [s, new Error(`get SimOrder Address: ${err.message}`)]; s.address = value; }
+    { const [value, err] = rt.getText(buf, newPhoneState); if (err !== null) return [s, new Error(`get SimOrder NewPhone: ${err.message}`)]; s.newPhone = value; }
     if (commissionPresent) {
         const [value, err] = rt.getU16(buf);
         if (err !== null) return [s, new Error(`get SimOrder Commission: ${err.message}`)];
@@ -179,15 +179,15 @@ export const setSimOrder = (buf: rt.Buffer, s: SimOrder): rt.Err => {
         const err = rt.setU32(buf, s.itemId as any);
         if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder ItemId: ${err.message}`); }
     }
-    { const err = rt.setTextCompact(buf, nameState, s.name); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder Name: ${err.message}`); } }
-    { const err = rt.setTextCompact(buf, phoneState, s.phone); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder Phone: ${err.message}`); } }
-    { const err = rt.setTextCompact(buf, idNoState, s.idNo); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder IdNo: ${err.message}`); } }
+    { const err = rt.setText(buf, nameState, s.name); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder Name: ${err.message}`); } }
+    { const err = rt.setText(buf, phoneState, s.phone); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder Phone: ${err.message}`); } }
+    { const err = rt.setText(buf, idNoState, s.idNo); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder IdNo: ${err.message}`); } }
     if (s.cityCode !== 0) {
         const err = rt.setU32(buf, s.cityCode as any);
         if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder CityCode: ${err.message}`); }
     }
-    { const err = rt.setTextCompact(buf, addressState, s.address); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder Address: ${err.message}`); } }
-    { const err = rt.setTextCompact(buf, newPhoneState, s.newPhone); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder NewPhone: ${err.message}`); } }
+    { const err = rt.setText(buf, addressState, s.address); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder Address: ${err.message}`); } }
+    { const err = rt.setText(buf, newPhoneState, s.newPhone); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder NewPhone: ${err.message}`); } }
     if (s.commission !== 0) {
         const err = rt.setU16(buf, s.commission as any);
         if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimOrder Commission: ${err.message}`); }
@@ -219,7 +219,7 @@ export const eqSimOrder = (a: SimOrder | null | undefined, b: SimOrder | null | 
 };
 
 export const getSimOrderListBody = (buf: rt.Buffer, state: number): [SimOrder[], rt.Err] => {
-    const [list, err] = rt.getBitmapListCompact<SimOrder>(
+    const [list, err] = rt.getDefaultList<SimOrder>(
         buf,
         state,
         () => newSimOrder(),
@@ -229,7 +229,7 @@ export const getSimOrderListBody = (buf: rt.Buffer, state: number): [SimOrder[],
 };
 
 export const setSimOrderListBody = (buf: rt.Buffer, state: number, v: SimOrder[]): rt.Err => {
-    return rt.setBitmapListCompact<SimOrder>(
+    return rt.setDefaultList<SimOrder>(
         buf,
         state,
         v,

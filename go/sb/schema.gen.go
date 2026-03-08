@@ -73,7 +73,7 @@ func getAccountStatusListBody(buf *bytes.Buffer, state uint8) ([]AccountStatus, 
 }
 
 func getAccountStatusListBodyReuse(buf *bytes.Buffer, state uint8, dst []AccountStatus) ([]AccountStatus, error) {
-	return rt.GetBitmapListCompactInto(
+	return rt.GetDefaultListInto(
 		buf,
 		state,
 		dst,
@@ -83,7 +83,7 @@ func getAccountStatusListBodyReuse(buf *bytes.Buffer, state uint8, dst []Account
 }
 
 func setAccountStatusListBody(buf *bytes.Buffer, state uint8, v []AccountStatus) error {
-	return rt.SetBitmapListCompactSized(
+	return rt.SetDefaultList(
 		buf,
 		state,
 		v,
@@ -94,7 +94,7 @@ func setAccountStatusListBody(buf *bytes.Buffer, state uint8, v []AccountStatus)
 }
 
 func sizeAccountStatusListBody(v []AccountStatus) (int, error) {
-	return rt.SizeBitmapListCompact(
+	return rt.SizeDefaultList(
 		v,
 		isDefaultAccountStatus,
 		sizeAccountStatusListItem,
@@ -155,7 +155,7 @@ func getTypeListBody(buf *bytes.Buffer, state uint8) ([]Type, error) {
 }
 
 func getTypeListBodyReuse(buf *bytes.Buffer, state uint8, dst []Type) ([]Type, error) {
-	return rt.GetBitmapListCompactInto(
+	return rt.GetDefaultListInto(
 		buf,
 		state,
 		dst,
@@ -165,7 +165,7 @@ func getTypeListBodyReuse(buf *bytes.Buffer, state uint8, dst []Type) ([]Type, e
 }
 
 func setTypeListBody(buf *bytes.Buffer, state uint8, v []Type) error {
-	return rt.SetBitmapListCompactSized(
+	return rt.SetDefaultList(
 		buf,
 		state,
 		v,
@@ -176,7 +176,7 @@ func setTypeListBody(buf *bytes.Buffer, state uint8, v []Type) error {
 }
 
 func sizeTypeListBody(v []Type) (int, error) {
-	return rt.SizeBitmapListCompact(
+	return rt.SizeDefaultList(
 		v,
 		isDefaultType,
 		sizeTypeListItem,
@@ -244,7 +244,7 @@ func getStatusListBody(buf *bytes.Buffer, state uint8) ([]Status, error) {
 }
 
 func getStatusListBodyReuse(buf *bytes.Buffer, state uint8, dst []Status) ([]Status, error) {
-	return rt.GetBitmapListCompactInto(
+	return rt.GetDefaultListInto(
 		buf,
 		state,
 		dst,
@@ -254,7 +254,7 @@ func getStatusListBodyReuse(buf *bytes.Buffer, state uint8, dst []Status) ([]Sta
 }
 
 func setStatusListBody(buf *bytes.Buffer, state uint8, v []Status) error {
-	return rt.SetBitmapListCompactSized(
+	return rt.SetDefaultList(
 		buf,
 		state,
 		v,
@@ -265,7 +265,7 @@ func setStatusListBody(buf *bytes.Buffer, state uint8, v []Status) error {
 }
 
 func sizeStatusListBody(v []Status) (int, error) {
-	return rt.SizeBitmapListCompact(
+	return rt.SizeDefaultList(
 		v,
 		isDefaultStatus,
 		sizeStatusListItem,
@@ -332,7 +332,7 @@ func getStatusAListBody(buf *bytes.Buffer, state uint8) ([]StatusA, error) {
 }
 
 func getStatusAListBodyReuse(buf *bytes.Buffer, state uint8, dst []StatusA) ([]StatusA, error) {
-	return rt.GetBitmapListCompactInto(
+	return rt.GetDefaultListInto(
 		buf,
 		state,
 		dst,
@@ -342,7 +342,7 @@ func getStatusAListBodyReuse(buf *bytes.Buffer, state uint8, dst []StatusA) ([]S
 }
 
 func setStatusAListBody(buf *bytes.Buffer, state uint8, v []StatusA) error {
-	return rt.SetBitmapListCompactSized(
+	return rt.SetDefaultList(
 		buf,
 		state,
 		v,
@@ -353,7 +353,7 @@ func setStatusAListBody(buf *bytes.Buffer, state uint8, v []StatusA) error {
 }
 
 func sizeStatusAListBody(v []StatusA) (int, error) {
-	return rt.SizeBitmapListCompact(
+	return rt.SizeDefaultList(
 		v,
 		isDefaultStatusA,
 		sizeStatusAListItem,
@@ -414,7 +414,7 @@ func getItemStatusListBody(buf *bytes.Buffer, state uint8) ([]ItemStatus, error)
 }
 
 func getItemStatusListBodyReuse(buf *bytes.Buffer, state uint8, dst []ItemStatus) ([]ItemStatus, error) {
-	return rt.GetBitmapListCompactInto(
+	return rt.GetDefaultListInto(
 		buf,
 		state,
 		dst,
@@ -424,7 +424,7 @@ func getItemStatusListBodyReuse(buf *bytes.Buffer, state uint8, dst []ItemStatus
 }
 
 func setItemStatusListBody(buf *bytes.Buffer, state uint8, v []ItemStatus) error {
-	return rt.SetBitmapListCompactSized(
+	return rt.SetDefaultList(
 		buf,
 		state,
 		v,
@@ -435,7 +435,7 @@ func setItemStatusListBody(buf *bytes.Buffer, state uint8, v []ItemStatus) error
 }
 
 func sizeItemStatusListBody(v []ItemStatus) (int, error) {
-	return rt.SizeBitmapListCompact(
+	return rt.SizeDefaultList(
 		v,
 		isDefaultItemStatus,
 		sizeItemStatusListItem,
@@ -498,7 +498,7 @@ func getSimPickPhoneListBody(buf *bytes.Buffer, state uint8) ([]SimPickPhone, er
 }
 
 func getSimPickPhoneListBodyReuse(buf *bytes.Buffer, state uint8, dst []SimPickPhone) ([]SimPickPhone, error) {
-	return rt.GetBitmapListCompactInto(
+	return rt.GetDefaultListInto(
 		buf,
 		state,
 		dst,
@@ -508,7 +508,7 @@ func getSimPickPhoneListBodyReuse(buf *bytes.Buffer, state uint8, dst []SimPickP
 }
 
 func setSimPickPhoneListBody(buf *bytes.Buffer, state uint8, v []SimPickPhone) error {
-	return rt.SetBitmapListCompactSized(
+	return rt.SetDefaultList(
 		buf,
 		state,
 		v,
@@ -519,7 +519,7 @@ func setSimPickPhoneListBody(buf *bytes.Buffer, state uint8, v []SimPickPhone) e
 }
 
 func sizeSimPickPhoneListBody(v []SimPickPhone) (int, error) {
-	return rt.SizeBitmapListCompact(
+	return rt.SizeDefaultList(
 		v,
 		isDefaultSimPickPhone,
 		sizeSimPickPhoneListItem,
@@ -586,7 +586,7 @@ func getSimOperatorListBody(buf *bytes.Buffer, state uint8) ([]SimOperator, erro
 }
 
 func getSimOperatorListBodyReuse(buf *bytes.Buffer, state uint8, dst []SimOperator) ([]SimOperator, error) {
-	return rt.GetBitmapListCompactInto(
+	return rt.GetDefaultListInto(
 		buf,
 		state,
 		dst,
@@ -596,7 +596,7 @@ func getSimOperatorListBodyReuse(buf *bytes.Buffer, state uint8, dst []SimOperat
 }
 
 func setSimOperatorListBody(buf *bytes.Buffer, state uint8, v []SimOperator) error {
-	return rt.SetBitmapListCompactSized(
+	return rt.SetDefaultList(
 		buf,
 		state,
 		v,
@@ -607,7 +607,7 @@ func setSimOperatorListBody(buf *bytes.Buffer, state uint8, v []SimOperator) err
 }
 
 func sizeSimOperatorListBody(v []SimOperator) (int, error) {
-	return rt.SizeBitmapListCompact(
+	return rt.SizeDefaultList(
 		v,
 		isDefaultSimOperator,
 		sizeSimOperatorListItem,
@@ -680,7 +680,7 @@ func getOrderStatusListBody(buf *bytes.Buffer, state uint8) ([]OrderStatus, erro
 }
 
 func getOrderStatusListBodyReuse(buf *bytes.Buffer, state uint8, dst []OrderStatus) ([]OrderStatus, error) {
-	return rt.GetBitmapListCompactInto(
+	return rt.GetDefaultListInto(
 		buf,
 		state,
 		dst,
@@ -690,7 +690,7 @@ func getOrderStatusListBodyReuse(buf *bytes.Buffer, state uint8, dst []OrderStat
 }
 
 func setOrderStatusListBody(buf *bytes.Buffer, state uint8, v []OrderStatus) error {
-	return rt.SetBitmapListCompactSized(
+	return rt.SetDefaultList(
 		buf,
 		state,
 		v,
@@ -701,7 +701,7 @@ func setOrderStatusListBody(buf *bytes.Buffer, state uint8, v []OrderStatus) err
 }
 
 func sizeOrderStatusListBody(v []OrderStatus) (int, error) {
-	return rt.SizeBitmapListCompact(
+	return rt.SizeDefaultList(
 		v,
 		isDefaultOrderStatus,
 		sizeOrderStatusListItem,
@@ -757,7 +757,7 @@ func sizeRechargeValidated(s *Recharge) (int, error) {
 	fieldSizeType, err := sizeOrderStatusListBody(s.Type)
 	if err != nil { return 0, fmt.Errorf("SizeRecharge Type: %w", err) }
 	size += fieldSizeType
-	fieldSizePhone, err := rt.SizeTextListCompact(s.Phone)
+	fieldSizePhone, err := rt.SizeTextList(s.Phone)
 	if err != nil { return 0, fmt.Errorf("SizeRecharge Phone: %w", err) }
 	size += fieldSizePhone
 	if !isZeroSimInfo(s.Si) {
@@ -797,7 +797,7 @@ func GetRecharge(buf *bytes.Buffer, s *Recharge) error {
 	valueType, err := getOrderStatusListBodyReuse(buf, typeState, reuseType)
 	if err != nil { return fmt.Errorf("GetRecharge Type: %w", err) }
 	s.Type = valueType
-	valuePhone, err := rt.GetTextListCompactInto(buf, phoneState, reusePhone)
+	valuePhone, err := rt.GetTextListInto(buf, phoneState, reusePhone)
 	if err != nil { return fmt.Errorf("GetRecharge Phone: %w", err) }
 	s.Phone = valuePhone
 	if siPresent {
@@ -828,7 +828,7 @@ func setRechargeValidated(buf *bytes.Buffer, s *Recharge) error {
 		if err := rt.SetU32(buf, s.Id); err != nil { return fmt.Errorf("SetRecharge Id: %w", err) }
 	}
 	if err := setOrderStatusListBody(buf, typeState, s.Type); err != nil { return fmt.Errorf("SetRecharge Type: %w", err) }
-	if err := rt.SetTextListCompact(buf, phoneState, s.Phone); err != nil { return fmt.Errorf("SetRecharge Phone: %w", err) }
+	if err := rt.SetTextList(buf, phoneState, s.Phone); err != nil { return fmt.Errorf("SetRecharge Phone: %w", err) }
 	if !isZeroSimInfo(s.Si) {
 		if err := SetSimInfo(buf, s.Si); err != nil { return fmt.Errorf("SetRecharge Si: %w", err) }
 	}
@@ -861,11 +861,11 @@ func getRechargeListBody(buf *bytes.Buffer, state uint8) ([]*Recharge, error) {
 }
 
 func getRechargeListBodyReuse(buf *bytes.Buffer, state uint8, dst []*Recharge) ([]*Recharge, error) {
-	return rt.GetBitmapPtrListCompactInto(buf, state, dst, defaultRecharge, GetRecharge)
+	return rt.GetDefaultPtrListInto(buf, state, dst, defaultRecharge, GetRecharge)
 }
 
 func setRechargeListBody(buf *bytes.Buffer, state uint8, v []*Recharge) error {
-	return rt.SetBitmapPtrListCompactValidated(
+	return rt.SetDefaultPtrList(
 		buf,
 		state,
 		v,
@@ -878,7 +878,7 @@ func setRechargeListBody(buf *bytes.Buffer, state uint8, v []*Recharge) error {
 }
 
 func sizeRechargeListBody(v []*Recharge) (int, error) {
-	return rt.SizeBitmapPtrListCompactValidated(
+	return rt.SizeDefaultPtrList(
 		v,
 		"Recharge",
 		validateRecharge,
@@ -938,7 +938,7 @@ func sizeRechargeAValidated(s *RechargeA) (int, error) {
 	fieldSizeType, err := sizeOrderStatusListBody(s.Type)
 	if err != nil { return 0, fmt.Errorf("SizeRechargeA Type: %w", err) }
 	size += fieldSizeType
-	fieldSizePhone, err := rt.SizeTextListCompact(s.Phone)
+	fieldSizePhone, err := rt.SizeTextList(s.Phone)
 	if err != nil { return 0, fmt.Errorf("SizeRechargeA Phone: %w", err) }
 	size += fieldSizePhone
 	if !isZeroSimInfo(s.Si) {
@@ -980,7 +980,7 @@ func GetRechargeA(buf *bytes.Buffer, s *RechargeA) error {
 	valueType, err := getOrderStatusListBodyReuse(buf, typeState, reuseType)
 	if err != nil { return fmt.Errorf("GetRechargeA Type: %w", err) }
 	s.Type = valueType
-	valuePhone, err := rt.GetTextListCompactInto(buf, phoneState, reusePhone)
+	valuePhone, err := rt.GetTextListInto(buf, phoneState, reusePhone)
 	if err != nil { return fmt.Errorf("GetRechargeA Phone: %w", err) }
 	s.Phone = valuePhone
 	if siPresent {
@@ -1017,7 +1017,7 @@ func setRechargeAValidated(buf *bytes.Buffer, s *RechargeA) error {
 		if err := rt.SetU32(buf, s.Id); err != nil { return fmt.Errorf("SetRechargeA Id: %w", err) }
 	}
 	if err := setOrderStatusListBody(buf, typeState, s.Type); err != nil { return fmt.Errorf("SetRechargeA Type: %w", err) }
-	if err := rt.SetTextListCompact(buf, phoneState, s.Phone); err != nil { return fmt.Errorf("SetRechargeA Phone: %w", err) }
+	if err := rt.SetTextList(buf, phoneState, s.Phone); err != nil { return fmt.Errorf("SetRechargeA Phone: %w", err) }
 	if !isZeroSimInfo(s.Si) {
 		if err := SetSimInfo(buf, s.Si); err != nil { return fmt.Errorf("SetRechargeA Si: %w", err) }
 	}
@@ -1054,11 +1054,11 @@ func getRechargeAListBody(buf *bytes.Buffer, state uint8) ([]*RechargeA, error) 
 }
 
 func getRechargeAListBodyReuse(buf *bytes.Buffer, state uint8, dst []*RechargeA) ([]*RechargeA, error) {
-	return rt.GetBitmapPtrListCompactInto(buf, state, dst, defaultRechargeA, GetRechargeA)
+	return rt.GetDefaultPtrListInto(buf, state, dst, defaultRechargeA, GetRechargeA)
 }
 
 func setRechargeAListBody(buf *bytes.Buffer, state uint8, v []*RechargeA) error {
-	return rt.SetBitmapPtrListCompactValidated(
+	return rt.SetDefaultPtrList(
 		buf,
 		state,
 		v,
@@ -1071,7 +1071,7 @@ func setRechargeAListBody(buf *bytes.Buffer, state uint8, v []*RechargeA) error 
 }
 
 func sizeRechargeAListBody(v []*RechargeA) (int, error) {
-	return rt.SizeBitmapPtrListCompactValidated(
+	return rt.SizeDefaultPtrList(
 		v,
 		"RechargeA",
 		validateRechargeA,
@@ -1131,7 +1131,7 @@ func sizeRechargeBValidated(s *RechargeB) (int, error) {
 	fieldSizeType, err := sizeOrderStatusListBody(s.Type)
 	if err != nil { return 0, fmt.Errorf("SizeRechargeB Type: %w", err) }
 	size += fieldSizeType
-	fieldSizePhone, err := rt.SizeTextListCompact(s.Phone)
+	fieldSizePhone, err := rt.SizeTextList(s.Phone)
 	if err != nil { return 0, fmt.Errorf("SizeRechargeB Phone: %w", err) }
 	size += fieldSizePhone
 	if !isZeroSimInfo(s.Si) {
@@ -1173,7 +1173,7 @@ func GetRechargeB(buf *bytes.Buffer, s *RechargeB) error {
 	valueType, err := getOrderStatusListBodyReuse(buf, typeState, reuseType)
 	if err != nil { return fmt.Errorf("GetRechargeB Type: %w", err) }
 	s.Type = valueType
-	valuePhone, err := rt.GetTextListCompactInto(buf, phoneState, reusePhone)
+	valuePhone, err := rt.GetTextListInto(buf, phoneState, reusePhone)
 	if err != nil { return fmt.Errorf("GetRechargeB Phone: %w", err) }
 	s.Phone = valuePhone
 	if siPresent {
@@ -1210,7 +1210,7 @@ func setRechargeBValidated(buf *bytes.Buffer, s *RechargeB) error {
 		if err := rt.SetU32(buf, s.Id); err != nil { return fmt.Errorf("SetRechargeB Id: %w", err) }
 	}
 	if err := setOrderStatusListBody(buf, typeState, s.Type); err != nil { return fmt.Errorf("SetRechargeB Type: %w", err) }
-	if err := rt.SetTextListCompact(buf, phoneState, s.Phone); err != nil { return fmt.Errorf("SetRechargeB Phone: %w", err) }
+	if err := rt.SetTextList(buf, phoneState, s.Phone); err != nil { return fmt.Errorf("SetRechargeB Phone: %w", err) }
 	if !isZeroSimInfo(s.Si) {
 		if err := SetSimInfo(buf, s.Si); err != nil { return fmt.Errorf("SetRechargeB Si: %w", err) }
 	}
@@ -1247,11 +1247,11 @@ func getRechargeBListBody(buf *bytes.Buffer, state uint8) ([]*RechargeB, error) 
 }
 
 func getRechargeBListBodyReuse(buf *bytes.Buffer, state uint8, dst []*RechargeB) ([]*RechargeB, error) {
-	return rt.GetBitmapPtrListCompactInto(buf, state, dst, defaultRechargeB, GetRechargeB)
+	return rt.GetDefaultPtrListInto(buf, state, dst, defaultRechargeB, GetRechargeB)
 }
 
 func setRechargeBListBody(buf *bytes.Buffer, state uint8, v []*RechargeB) error {
-	return rt.SetBitmapPtrListCompactValidated(
+	return rt.SetDefaultPtrList(
 		buf,
 		state,
 		v,
@@ -1264,7 +1264,7 @@ func setRechargeBListBody(buf *bytes.Buffer, state uint8, v []*RechargeB) error 
 }
 
 func sizeRechargeBListBody(v []*RechargeB) (int, error) {
-	return rt.SizeBitmapPtrListCompactValidated(
+	return rt.SizeDefaultPtrList(
 		v,
 		"RechargeB",
 		validateRechargeB,
@@ -1402,7 +1402,7 @@ func sizeSimValidated(s *Sim) (int, error) {
 	if s.Supplier != 0 { size += 4 }
 	if s.Aff != 0 { size += 4 }
 	if s.ContractDuration != 0 { size += 1 }
-	fieldSizeName, err := rt.SizeTextCompact(s.Name)
+	fieldSizeName, err := rt.SizeText(s.Name)
 	if err != nil { return 0, fmt.Errorf("SizeSim Name: %w", err) }
 	size += fieldSizeName
 	if !isDefaultSimOperator(s.Operator) { size += 1 }
@@ -1419,22 +1419,22 @@ func sizeSimValidated(s *Sim) (int, error) {
 	fieldSizePickPhone, err := sizeSimPickPhoneListBody(s.PickPhone)
 	if err != nil { return 0, fmt.Errorf("SizeSim PickPhone: %w", err) }
 	size += fieldSizePickPhone
-	fieldSizeFirstChargeLink, err := rt.SizeTextCompact(s.FirstChargeLink)
+	fieldSizeFirstChargeLink, err := rt.SizeText(s.FirstChargeLink)
 	if err != nil { return 0, fmt.Errorf("SizeSim FirstChargeLink: %w", err) }
 	size += fieldSizeFirstChargeLink
-	fieldSizeFirstChargeMoney, err := rt.SizeTextCompact(s.FirstChargeMoney)
+	fieldSizeFirstChargeMoney, err := rt.SizeText(s.FirstChargeMoney)
 	if err != nil { return 0, fmt.Errorf("SizeSim FirstChargeMoney: %w", err) }
 	size += fieldSizeFirstChargeMoney
-	fieldSizeFirstChargeReturn, err := rt.SizeTextCompact(s.FirstChargeReturn)
+	fieldSizeFirstChargeReturn, err := rt.SizeText(s.FirstChargeReturn)
 	if err != nil { return 0, fmt.Errorf("SizeSim FirstChargeReturn: %w", err) }
 	size += fieldSizeFirstChargeReturn
-	fieldSizeBanCity, err := rt.SizeZeroFixedListCompact(s.BanCity, 4)
+	fieldSizeBanCity, err := rt.SizeZeroList(s.BanCity, 4)
 	if err != nil { return 0, fmt.Errorf("SizeSim BanCity: %w", err) }
 	size += fieldSizeBanCity
 	fieldSizeInfo, err := sizeSimInfoListBody(s.Info)
 	if err != nil { return 0, fmt.Errorf("SizeSim Info: %w", err) }
 	size += fieldSizeInfo
-	fieldSizeSnapshot, err := rt.SizeTextListCompact(s.Snapshot)
+	fieldSizeSnapshot, err := rt.SizeTextList(s.Snapshot)
 	if err != nil { return 0, fmt.Errorf("SizeSim Snapshot: %w", err) }
 	size += fieldSizeSnapshot
 	return size, nil
@@ -1524,7 +1524,7 @@ func GetSim(buf *bytes.Buffer, s *Sim) error {
 		if err != nil { return fmt.Errorf("GetSim ContractDuration: %w", err) }
 		s.ContractDuration = value
 	}
-	valueName, err := rt.GetTextCompact(buf, nameState)
+	valueName, err := rt.GetText(buf, nameState)
 	if err != nil { return fmt.Errorf("GetSim Name: %w", err) }
 	s.Name = valueName
 	if operatorPresent {
@@ -1588,22 +1588,22 @@ func GetSim(buf *bytes.Buffer, s *Sim) error {
 	valuePickPhone, err := getSimPickPhoneListBodyReuse(buf, pickPhoneState, reusePickPhone)
 	if err != nil { return fmt.Errorf("GetSim PickPhone: %w", err) }
 	s.PickPhone = valuePickPhone
-	valueFirstChargeLink, err := rt.GetTextCompact(buf, firstChargeLinkState)
+	valueFirstChargeLink, err := rt.GetText(buf, firstChargeLinkState)
 	if err != nil { return fmt.Errorf("GetSim FirstChargeLink: %w", err) }
 	s.FirstChargeLink = valueFirstChargeLink
-	valueFirstChargeMoney, err := rt.GetTextCompact(buf, firstChargeMoneyState)
+	valueFirstChargeMoney, err := rt.GetText(buf, firstChargeMoneyState)
 	if err != nil { return fmt.Errorf("GetSim FirstChargeMoney: %w", err) }
 	s.FirstChargeMoney = valueFirstChargeMoney
-	valueFirstChargeReturn, err := rt.GetTextCompact(buf, firstChargeReturnState)
+	valueFirstChargeReturn, err := rt.GetText(buf, firstChargeReturnState)
 	if err != nil { return fmt.Errorf("GetSim FirstChargeReturn: %w", err) }
 	s.FirstChargeReturn = valueFirstChargeReturn
-	valueBanCity, err := rt.GetZeroFixedListCompactInto(buf, banCityState, reuseBanCity, rt.GetU32)
+	valueBanCity, err := rt.GetZeroListInto(buf, banCityState, reuseBanCity, rt.GetU32)
 	if err != nil { return fmt.Errorf("GetSim BanCity: %w", err) }
 	s.BanCity = valueBanCity
 	valueInfo, err := getSimInfoListBodyReuse(buf, infoState, reuseInfo)
 	if err != nil { return fmt.Errorf("GetSim Info: %w", err) }
 	s.Info = valueInfo
-	valueSnapshot, err := rt.GetTextListCompactInto(buf, snapshotState, reuseSnapshot)
+	valueSnapshot, err := rt.GetTextListInto(buf, snapshotState, reuseSnapshot)
 	if err != nil { return fmt.Errorf("GetSim Snapshot: %w", err) }
 	s.Snapshot = valueSnapshot
 	return nil
@@ -1674,7 +1674,7 @@ func setSimValidated(buf *bytes.Buffer, s *Sim) error {
 	if s.ContractDuration != 0 {
 		if err := rt.SetU8(buf, s.ContractDuration); err != nil { return fmt.Errorf("SetSim ContractDuration: %w", err) }
 	}
-	if err := rt.SetTextCompact(buf, nameState, s.Name); err != nil { return fmt.Errorf("SetSim Name: %w", err) }
+	if err := rt.SetText(buf, nameState, s.Name); err != nil { return fmt.Errorf("SetSim Name: %w", err) }
 	if !isDefaultSimOperator(s.Operator) {
 		if err := rt.SetU8(buf, uint8(normalizeSimOperator(s.Operator))); err != nil { return fmt.Errorf("SetSim Operator: %w", err) }
 	}
@@ -1709,12 +1709,12 @@ func setSimValidated(buf *bytes.Buffer, s *Sim) error {
 		if err := rt.SetU32(buf, s.Attribution); err != nil { return fmt.Errorf("SetSim Attribution: %w", err) }
 	}
 	if err := setSimPickPhoneListBody(buf, pickPhoneState, s.PickPhone); err != nil { return fmt.Errorf("SetSim PickPhone: %w", err) }
-	if err := rt.SetTextCompact(buf, firstChargeLinkState, s.FirstChargeLink); err != nil { return fmt.Errorf("SetSim FirstChargeLink: %w", err) }
-	if err := rt.SetTextCompact(buf, firstChargeMoneyState, s.FirstChargeMoney); err != nil { return fmt.Errorf("SetSim FirstChargeMoney: %w", err) }
-	if err := rt.SetTextCompact(buf, firstChargeReturnState, s.FirstChargeReturn); err != nil { return fmt.Errorf("SetSim FirstChargeReturn: %w", err) }
-	if err := rt.SetZeroFixedListCompactSized(buf, banCityState, s.BanCity, 4, rt.SetU32); err != nil { return fmt.Errorf("SetSim BanCity: %w", err) }
+	if err := rt.SetText(buf, firstChargeLinkState, s.FirstChargeLink); err != nil { return fmt.Errorf("SetSim FirstChargeLink: %w", err) }
+	if err := rt.SetText(buf, firstChargeMoneyState, s.FirstChargeMoney); err != nil { return fmt.Errorf("SetSim FirstChargeMoney: %w", err) }
+	if err := rt.SetText(buf, firstChargeReturnState, s.FirstChargeReturn); err != nil { return fmt.Errorf("SetSim FirstChargeReturn: %w", err) }
+	if err := rt.SetZeroList(buf, banCityState, s.BanCity, 4, rt.SetU32); err != nil { return fmt.Errorf("SetSim BanCity: %w", err) }
 	if err := setSimInfoListBody(buf, infoState, s.Info); err != nil { return fmt.Errorf("SetSim Info: %w", err) }
-	if err := rt.SetTextListCompact(buf, snapshotState, s.Snapshot); err != nil { return fmt.Errorf("SetSim Snapshot: %w", err) }
+	if err := rt.SetTextList(buf, snapshotState, s.Snapshot); err != nil { return fmt.Errorf("SetSim Snapshot: %w", err) }
 	return nil
 }
 
@@ -1767,11 +1767,11 @@ func getSimListBody(buf *bytes.Buffer, state uint8) ([]*Sim, error) {
 }
 
 func getSimListBodyReuse(buf *bytes.Buffer, state uint8, dst []*Sim) ([]*Sim, error) {
-	return rt.GetBitmapPtrListCompactInto(buf, state, dst, defaultSim, GetSim)
+	return rt.GetDefaultPtrListInto(buf, state, dst, defaultSim, GetSim)
 }
 
 func setSimListBody(buf *bytes.Buffer, state uint8, v []*Sim) error {
-	return rt.SetBitmapPtrListCompactValidated(
+	return rt.SetDefaultPtrList(
 		buf,
 		state,
 		v,
@@ -1784,7 +1784,7 @@ func setSimListBody(buf *bytes.Buffer, state uint8, v []*Sim) error {
 }
 
 func sizeSimListBody(v []*Sim) (int, error) {
-	return rt.SizeBitmapPtrListCompactValidated(
+	return rt.SizeDefaultPtrList(
 		v,
 		"Sim",
 		validateSim,
@@ -1842,13 +1842,13 @@ func sizeSimInfoValidated(s *SimInfo) (int, error) {
 	if s == nil { return 0, fmt.Errorf("SizeSimInfo: nil value") }
 	size := rt.HeaderSize(11)
 	if s.Id != 0 { size += 4 }
-	fieldSizeTitle, err := rt.SizeTextCompact(s.Title)
+	fieldSizeTitle, err := rt.SizeText(s.Title)
 	if err != nil { return 0, fmt.Errorf("SizeSimInfo Title: %w", err) }
 	size += fieldSizeTitle
-	fieldSizeContent, err := rt.SizeTextCompact(s.Content)
+	fieldSizeContent, err := rt.SizeText(s.Content)
 	if err != nil { return 0, fmt.Errorf("SizeSimInfo Content: %w", err) }
 	size += fieldSizeContent
-	fieldSizeZip, err := rt.SizeBinCompact(s.Zip)
+	fieldSizeZip, err := rt.SizeBin(s.Zip)
 	if err != nil { return 0, fmt.Errorf("SizeSimInfo Zip: %w", err) }
 	size += fieldSizeZip
 	return size, nil
@@ -1882,17 +1882,17 @@ func GetSimInfo(buf *bytes.Buffer, s *SimInfo) error {
 		if err != nil { return fmt.Errorf("GetSimInfo Id: %w", err) }
 		s.Id = value
 	}
-	valueTitle, err := rt.GetTextCompact(buf, titleState)
+	valueTitle, err := rt.GetText(buf, titleState)
 	if err != nil { return fmt.Errorf("GetSimInfo Title: %w", err) }
 	s.Title = valueTitle
-	valueContent, err := rt.GetTextCompact(buf, contentState)
+	valueContent, err := rt.GetText(buf, contentState)
 	if err != nil { return fmt.Errorf("GetSimInfo Content: %w", err) }
 	s.Content = valueContent
 	s.A = aState
 	s.B = bState
 	s.C = cState
 	s.D = dState
-	valueZip, err := rt.GetBinCompactInto(buf, zipState, reuseZip)
+	valueZip, err := rt.GetBinInto(buf, zipState, reuseZip)
 	if err != nil { return fmt.Errorf("GetSimInfo Zip: %w", err) }
 	s.Zip = valueZip
 	return nil
@@ -1921,9 +1921,9 @@ func setSimInfoValidated(buf *bytes.Buffer, s *SimInfo) error {
 	if s.Id != 0 {
 		if err := rt.SetU32(buf, s.Id); err != nil { return fmt.Errorf("SetSimInfo Id: %w", err) }
 	}
-	if err := rt.SetTextCompact(buf, titleState, s.Title); err != nil { return fmt.Errorf("SetSimInfo Title: %w", err) }
-	if err := rt.SetTextCompact(buf, contentState, s.Content); err != nil { return fmt.Errorf("SetSimInfo Content: %w", err) }
-	if err := rt.SetBinCompact(buf, zipState, s.Zip); err != nil { return fmt.Errorf("SetSimInfo Zip: %w", err) }
+	if err := rt.SetText(buf, titleState, s.Title); err != nil { return fmt.Errorf("SetSimInfo Title: %w", err) }
+	if err := rt.SetText(buf, contentState, s.Content); err != nil { return fmt.Errorf("SetSimInfo Content: %w", err) }
+	if err := rt.SetBin(buf, zipState, s.Zip); err != nil { return fmt.Errorf("SetSimInfo Zip: %w", err) }
 	return nil
 }
 
@@ -1957,11 +1957,11 @@ func getSimInfoListBody(buf *bytes.Buffer, state uint8) ([]*SimInfo, error) {
 }
 
 func getSimInfoListBodyReuse(buf *bytes.Buffer, state uint8, dst []*SimInfo) ([]*SimInfo, error) {
-	return rt.GetBitmapPtrListCompactInto(buf, state, dst, defaultSimInfo, GetSimInfo)
+	return rt.GetDefaultPtrListInto(buf, state, dst, defaultSimInfo, GetSimInfo)
 }
 
 func setSimInfoListBody(buf *bytes.Buffer, state uint8, v []*SimInfo) error {
-	return rt.SetBitmapPtrListCompactValidated(
+	return rt.SetDefaultPtrList(
 		buf,
 		state,
 		v,
@@ -1974,7 +1974,7 @@ func setSimInfoListBody(buf *bytes.Buffer, state uint8, v []*SimInfo) error {
 }
 
 func sizeSimInfoListBody(v []*SimInfo) (int, error) {
-	return rt.SizeBitmapPtrListCompactValidated(
+	return rt.SizeDefaultPtrList(
 		v,
 		"SimInfo",
 		validateSimInfo,
@@ -2039,20 +2039,20 @@ func sizeSimOrder2Validated(s *SimOrder2) (int, error) {
 	if s == nil { return 0, fmt.Errorf("SizeSimOrder2: nil value") }
 	size := rt.HeaderSize(12)
 	if s.Id != 0 { size += 4 }
-	fieldSizeName, err := rt.SizeTextCompact(s.Name)
+	fieldSizeName, err := rt.SizeText(s.Name)
 	if err != nil { return 0, fmt.Errorf("SizeSimOrder2 Name: %w", err) }
 	size += fieldSizeName
-	fieldSizePhone, err := rt.SizeTextCompact(s.Phone)
+	fieldSizePhone, err := rt.SizeText(s.Phone)
 	if err != nil { return 0, fmt.Errorf("SizeSimOrder2 Phone: %w", err) }
 	size += fieldSizePhone
-	fieldSizeIdNo, err := rt.SizeTextCompact(s.IdNo)
+	fieldSizeIdNo, err := rt.SizeText(s.IdNo)
 	if err != nil { return 0, fmt.Errorf("SizeSimOrder2 IdNo: %w", err) }
 	size += fieldSizeIdNo
 	if s.CityCode != 0 { size += 4 }
-	fieldSizeAddress, err := rt.SizeTextCompact(s.Address)
+	fieldSizeAddress, err := rt.SizeText(s.Address)
 	if err != nil { return 0, fmt.Errorf("SizeSimOrder2 Address: %w", err) }
 	size += fieldSizeAddress
-	fieldSizeNewPhone, err := rt.SizeTextCompact(s.NewPhone)
+	fieldSizeNewPhone, err := rt.SizeText(s.NewPhone)
 	if err != nil { return 0, fmt.Errorf("SizeSimOrder2 NewPhone: %w", err) }
 	size += fieldSizeNewPhone
 	return size, nil
@@ -2084,13 +2084,13 @@ func GetSimOrder2(buf *bytes.Buffer, s *SimOrder2) error {
 		if err != nil { return fmt.Errorf("GetSimOrder2 Id: %w", err) }
 		s.Id = value
 	}
-	valueName, err := rt.GetTextCompact(buf, nameState)
+	valueName, err := rt.GetText(buf, nameState)
 	if err != nil { return fmt.Errorf("GetSimOrder2 Name: %w", err) }
 	s.Name = valueName
-	valuePhone, err := rt.GetTextCompact(buf, phoneState)
+	valuePhone, err := rt.GetText(buf, phoneState)
 	if err != nil { return fmt.Errorf("GetSimOrder2 Phone: %w", err) }
 	s.Phone = valuePhone
-	valueIdNo, err := rt.GetTextCompact(buf, idNoState)
+	valueIdNo, err := rt.GetText(buf, idNoState)
 	if err != nil { return fmt.Errorf("GetSimOrder2 IdNo: %w", err) }
 	s.IdNo = valueIdNo
 	if cityCodePresent {
@@ -2098,10 +2098,10 @@ func GetSimOrder2(buf *bytes.Buffer, s *SimOrder2) error {
 		if err != nil { return fmt.Errorf("GetSimOrder2 CityCode: %w", err) }
 		s.CityCode = value
 	}
-	valueAddress, err := rt.GetTextCompact(buf, addressState)
+	valueAddress, err := rt.GetText(buf, addressState)
 	if err != nil { return fmt.Errorf("GetSimOrder2 Address: %w", err) }
 	s.Address = valueAddress
-	valueNewPhone, err := rt.GetTextCompact(buf, newPhoneState)
+	valueNewPhone, err := rt.GetText(buf, newPhoneState)
 	if err != nil { return fmt.Errorf("GetSimOrder2 NewPhone: %w", err) }
 	s.NewPhone = valueNewPhone
 	return nil
@@ -2131,14 +2131,14 @@ func setSimOrder2Validated(buf *bytes.Buffer, s *SimOrder2) error {
 	if s.Id != 0 {
 		if err := rt.SetU32(buf, s.Id); err != nil { return fmt.Errorf("SetSimOrder2 Id: %w", err) }
 	}
-	if err := rt.SetTextCompact(buf, nameState, s.Name); err != nil { return fmt.Errorf("SetSimOrder2 Name: %w", err) }
-	if err := rt.SetTextCompact(buf, phoneState, s.Phone); err != nil { return fmt.Errorf("SetSimOrder2 Phone: %w", err) }
-	if err := rt.SetTextCompact(buf, idNoState, s.IdNo); err != nil { return fmt.Errorf("SetSimOrder2 IdNo: %w", err) }
+	if err := rt.SetText(buf, nameState, s.Name); err != nil { return fmt.Errorf("SetSimOrder2 Name: %w", err) }
+	if err := rt.SetText(buf, phoneState, s.Phone); err != nil { return fmt.Errorf("SetSimOrder2 Phone: %w", err) }
+	if err := rt.SetText(buf, idNoState, s.IdNo); err != nil { return fmt.Errorf("SetSimOrder2 IdNo: %w", err) }
 	if s.CityCode != 0 {
 		if err := rt.SetU32(buf, s.CityCode); err != nil { return fmt.Errorf("SetSimOrder2 CityCode: %w", err) }
 	}
-	if err := rt.SetTextCompact(buf, addressState, s.Address); err != nil { return fmt.Errorf("SetSimOrder2 Address: %w", err) }
-	if err := rt.SetTextCompact(buf, newPhoneState, s.NewPhone); err != nil { return fmt.Errorf("SetSimOrder2 NewPhone: %w", err) }
+	if err := rt.SetText(buf, addressState, s.Address); err != nil { return fmt.Errorf("SetSimOrder2 Address: %w", err) }
+	if err := rt.SetText(buf, newPhoneState, s.NewPhone); err != nil { return fmt.Errorf("SetSimOrder2 NewPhone: %w", err) }
 	return nil
 }
 
@@ -2171,11 +2171,11 @@ func getSimOrder2ListBody(buf *bytes.Buffer, state uint8) ([]*SimOrder2, error) 
 }
 
 func getSimOrder2ListBodyReuse(buf *bytes.Buffer, state uint8, dst []*SimOrder2) ([]*SimOrder2, error) {
-	return rt.GetBitmapPtrListCompactInto(buf, state, dst, defaultSimOrder2, GetSimOrder2)
+	return rt.GetDefaultPtrListInto(buf, state, dst, defaultSimOrder2, GetSimOrder2)
 }
 
 func setSimOrder2ListBody(buf *bytes.Buffer, state uint8, v []*SimOrder2) error {
-	return rt.SetBitmapPtrListCompactValidated(
+	return rt.SetDefaultPtrList(
 		buf,
 		state,
 		v,
@@ -2188,7 +2188,7 @@ func setSimOrder2ListBody(buf *bytes.Buffer, state uint8, v []*SimOrder2) error 
 }
 
 func sizeSimOrder2ListBody(v []*SimOrder2) (int, error) {
-	return rt.SizeBitmapPtrListCompactValidated(
+	return rt.SizeDefaultPtrList(
 		v,
 		"SimOrder2",
 		validateSimOrder2,
@@ -2265,20 +2265,20 @@ func sizeSimOrderValidated(s *SimOrder) (int, error) {
 	if s.Id != 0 { size += 4 }
 	if s.AccountId != 0 { size += 4 }
 	if s.ItemId != 0 { size += 4 }
-	fieldSizeName, err := rt.SizeTextCompact(s.Name)
+	fieldSizeName, err := rt.SizeText(s.Name)
 	if err != nil { return 0, fmt.Errorf("SizeSimOrder Name: %w", err) }
 	size += fieldSizeName
-	fieldSizePhone, err := rt.SizeTextCompact(s.Phone)
+	fieldSizePhone, err := rt.SizeText(s.Phone)
 	if err != nil { return 0, fmt.Errorf("SizeSimOrder Phone: %w", err) }
 	size += fieldSizePhone
-	fieldSizeIdNo, err := rt.SizeTextCompact(s.IdNo)
+	fieldSizeIdNo, err := rt.SizeText(s.IdNo)
 	if err != nil { return 0, fmt.Errorf("SizeSimOrder IdNo: %w", err) }
 	size += fieldSizeIdNo
 	if s.CityCode != 0 { size += 4 }
-	fieldSizeAddress, err := rt.SizeTextCompact(s.Address)
+	fieldSizeAddress, err := rt.SizeText(s.Address)
 	if err != nil { return 0, fmt.Errorf("SizeSimOrder Address: %w", err) }
 	size += fieldSizeAddress
-	fieldSizeNewPhone, err := rt.SizeTextCompact(s.NewPhone)
+	fieldSizeNewPhone, err := rt.SizeText(s.NewPhone)
 	if err != nil { return 0, fmt.Errorf("SizeSimOrder NewPhone: %w", err) }
 	size += fieldSizeNewPhone
 	if s.Commission != 0 { size += 2 }
@@ -2326,13 +2326,13 @@ func GetSimOrder(buf *bytes.Buffer, s *SimOrder) error {
 		if err != nil { return fmt.Errorf("GetSimOrder ItemId: %w", err) }
 		s.ItemId = value
 	}
-	valueName, err := rt.GetTextCompact(buf, nameState)
+	valueName, err := rt.GetText(buf, nameState)
 	if err != nil { return fmt.Errorf("GetSimOrder Name: %w", err) }
 	s.Name = valueName
-	valuePhone, err := rt.GetTextCompact(buf, phoneState)
+	valuePhone, err := rt.GetText(buf, phoneState)
 	if err != nil { return fmt.Errorf("GetSimOrder Phone: %w", err) }
 	s.Phone = valuePhone
-	valueIdNo, err := rt.GetTextCompact(buf, idNoState)
+	valueIdNo, err := rt.GetText(buf, idNoState)
 	if err != nil { return fmt.Errorf("GetSimOrder IdNo: %w", err) }
 	s.IdNo = valueIdNo
 	if cityCodePresent {
@@ -2340,10 +2340,10 @@ func GetSimOrder(buf *bytes.Buffer, s *SimOrder) error {
 		if err != nil { return fmt.Errorf("GetSimOrder CityCode: %w", err) }
 		s.CityCode = value
 	}
-	valueAddress, err := rt.GetTextCompact(buf, addressState)
+	valueAddress, err := rt.GetText(buf, addressState)
 	if err != nil { return fmt.Errorf("GetSimOrder Address: %w", err) }
 	s.Address = valueAddress
-	valueNewPhone, err := rt.GetTextCompact(buf, newPhoneState)
+	valueNewPhone, err := rt.GetText(buf, newPhoneState)
 	if err != nil { return fmt.Errorf("GetSimOrder NewPhone: %w", err) }
 	s.NewPhone = valueNewPhone
 	if commissionPresent {
@@ -2395,14 +2395,14 @@ func setSimOrderValidated(buf *bytes.Buffer, s *SimOrder) error {
 	if s.ItemId != 0 {
 		if err := rt.SetU32(buf, s.ItemId); err != nil { return fmt.Errorf("SetSimOrder ItemId: %w", err) }
 	}
-	if err := rt.SetTextCompact(buf, nameState, s.Name); err != nil { return fmt.Errorf("SetSimOrder Name: %w", err) }
-	if err := rt.SetTextCompact(buf, phoneState, s.Phone); err != nil { return fmt.Errorf("SetSimOrder Phone: %w", err) }
-	if err := rt.SetTextCompact(buf, idNoState, s.IdNo); err != nil { return fmt.Errorf("SetSimOrder IdNo: %w", err) }
+	if err := rt.SetText(buf, nameState, s.Name); err != nil { return fmt.Errorf("SetSimOrder Name: %w", err) }
+	if err := rt.SetText(buf, phoneState, s.Phone); err != nil { return fmt.Errorf("SetSimOrder Phone: %w", err) }
+	if err := rt.SetText(buf, idNoState, s.IdNo); err != nil { return fmt.Errorf("SetSimOrder IdNo: %w", err) }
 	if s.CityCode != 0 {
 		if err := rt.SetU32(buf, s.CityCode); err != nil { return fmt.Errorf("SetSimOrder CityCode: %w", err) }
 	}
-	if err := rt.SetTextCompact(buf, addressState, s.Address); err != nil { return fmt.Errorf("SetSimOrder Address: %w", err) }
-	if err := rt.SetTextCompact(buf, newPhoneState, s.NewPhone); err != nil { return fmt.Errorf("SetSimOrder NewPhone: %w", err) }
+	if err := rt.SetText(buf, addressState, s.Address); err != nil { return fmt.Errorf("SetSimOrder Address: %w", err) }
+	if err := rt.SetText(buf, newPhoneState, s.NewPhone); err != nil { return fmt.Errorf("SetSimOrder NewPhone: %w", err) }
 	if s.Commission != 0 {
 		if err := rt.SetU16(buf, s.Commission); err != nil { return fmt.Errorf("SetSimOrder Commission: %w", err) }
 	}
@@ -2445,11 +2445,11 @@ func getSimOrderListBody(buf *bytes.Buffer, state uint8) ([]*SimOrder, error) {
 }
 
 func getSimOrderListBodyReuse(buf *bytes.Buffer, state uint8, dst []*SimOrder) ([]*SimOrder, error) {
-	return rt.GetBitmapPtrListCompactInto(buf, state, dst, defaultSimOrder, GetSimOrder)
+	return rt.GetDefaultPtrListInto(buf, state, dst, defaultSimOrder, GetSimOrder)
 }
 
 func setSimOrderListBody(buf *bytes.Buffer, state uint8, v []*SimOrder) error {
-	return rt.SetBitmapPtrListCompactValidated(
+	return rt.SetDefaultPtrList(
 		buf,
 		state,
 		v,
@@ -2462,7 +2462,7 @@ func setSimOrderListBody(buf *bytes.Buffer, state uint8, v []*SimOrder) error {
 }
 
 func sizeSimOrderListBody(v []*SimOrder) (int, error) {
-	return rt.SizeBitmapPtrListCompactValidated(
+	return rt.SizeDefaultPtrList(
 		v,
 		"SimOrder",
 		validateSimOrder,

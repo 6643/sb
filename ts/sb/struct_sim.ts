@@ -225,7 +225,7 @@ export const getSim = (buf: rt.Buffer): [Sim, rt.Err] => {
         if (err !== null) return [s, new Error(`get Sim ContractDuration: ${err.message}`)];
         s.contractDuration = value as any;
     }
-    { const [value, err] = rt.getTextCompact(buf, nameState); if (err !== null) return [s, new Error(`get Sim Name: ${err.message}`)]; s.name = value; }
+    { const [value, err] = rt.getText(buf, nameState); if (err !== null) return [s, new Error(`get Sim Name: ${err.message}`)]; s.name = value; }
     s.operator = _.DefaultSimOperator();
     if (operatorPresent) {
         const [value, err] = rt.getU8(buf);
@@ -286,12 +286,12 @@ export const getSim = (buf: rt.Buffer): [Sim, rt.Err] => {
         s.attribution = value as any;
     }
     { const [value, err] = _.getSimPickPhoneListBody(buf, pickPhoneState); if (err !== undefined) return [s, new Error(`get Sim PickPhone: ${err.message}`)]; s.pickPhone = value; }
-    { const [value, err] = rt.getTextCompact(buf, firstChargeLinkState); if (err !== null) return [s, new Error(`get Sim FirstChargeLink: ${err.message}`)]; s.firstChargeLink = value; }
-    { const [value, err] = rt.getTextCompact(buf, firstChargeMoneyState); if (err !== null) return [s, new Error(`get Sim FirstChargeMoney: ${err.message}`)]; s.firstChargeMoney = value; }
-    { const [value, err] = rt.getTextCompact(buf, firstChargeReturnState); if (err !== null) return [s, new Error(`get Sim FirstChargeReturn: ${err.message}`)]; s.firstChargeReturn = value; }
-    { const [value, err] = rt.getZeroValueListCompact<number>(buf, banCityState, 0, rt.getU32); if (err !== undefined) return [s, new Error(`get Sim BanCity: ${err.message}`)]; s.banCity = value; }
+    { const [value, err] = rt.getText(buf, firstChargeLinkState); if (err !== null) return [s, new Error(`get Sim FirstChargeLink: ${err.message}`)]; s.firstChargeLink = value; }
+    { const [value, err] = rt.getText(buf, firstChargeMoneyState); if (err !== null) return [s, new Error(`get Sim FirstChargeMoney: ${err.message}`)]; s.firstChargeMoney = value; }
+    { const [value, err] = rt.getText(buf, firstChargeReturnState); if (err !== null) return [s, new Error(`get Sim FirstChargeReturn: ${err.message}`)]; s.firstChargeReturn = value; }
+    { const [value, err] = rt.getZeroList<number>(buf, banCityState, 0, rt.getU32); if (err !== undefined) return [s, new Error(`get Sim BanCity: ${err.message}`)]; s.banCity = value; }
     { const [value, err] = _.getSimInfoListBody(buf, infoState); if (err !== undefined) return [s, new Error(`get Sim Info: ${err.message}`)]; s.info = value; }
-    { const [value, err] = rt.getTextListCompact(buf, snapshotState); if (err !== null) return [s, new Error(`get Sim Snapshot: ${err.message}`)]; s.snapshot = value; }
+    { const [value, err] = rt.getTextList(buf, snapshotState); if (err !== null) return [s, new Error(`get Sim Snapshot: ${err.message}`)]; s.snapshot = value; }
     const errValidate = validateSim(s);
     if (errValidate !== undefined) return [s, new Error(`validate failed: ${errValidate.message}`)];
     return [s, undefined];
@@ -379,7 +379,7 @@ export const setSim = (buf: rt.Buffer, s: Sim): rt.Err => {
         const err = rt.setU8(buf, s.contractDuration as any);
         if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set Sim ContractDuration: ${err.message}`); }
     }
-    { const err = rt.setTextCompact(buf, nameState, s.name); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set Sim Name: ${err.message}`); } }
+    { const err = rt.setText(buf, nameState, s.name); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set Sim Name: ${err.message}`); } }
     if (!_.IsDefaultSimOperator(s.operator as any)) {
         const err = rt.setU8(buf, _.NormalizeSimOperator(s.operator as any) as any);
         if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set Sim Operator: ${err.message}`); }
@@ -425,12 +425,12 @@ export const setSim = (buf: rt.Buffer, s: Sim): rt.Err => {
         if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set Sim Attribution: ${err.message}`); }
     }
     { const err = _.setSimPickPhoneListBody(buf, pickPhoneState, s.pickPhone); if (err !== undefined) { buf.rewindWrite(startOffset); return new Error(`set Sim PickPhone: ${err.message}`); } }
-    { const err = rt.setTextCompact(buf, firstChargeLinkState, s.firstChargeLink); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set Sim FirstChargeLink: ${err.message}`); } }
-    { const err = rt.setTextCompact(buf, firstChargeMoneyState, s.firstChargeMoney); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set Sim FirstChargeMoney: ${err.message}`); } }
-    { const err = rt.setTextCompact(buf, firstChargeReturnState, s.firstChargeReturn); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set Sim FirstChargeReturn: ${err.message}`); } }
-    { const err = rt.setZeroValueListCompact<number>(buf, banCityState, s.banCity, 0, rt.setU32); if (err !== undefined) { buf.rewindWrite(startOffset); return new Error(`set Sim BanCity: ${err.message}`); } }
+    { const err = rt.setText(buf, firstChargeLinkState, s.firstChargeLink); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set Sim FirstChargeLink: ${err.message}`); } }
+    { const err = rt.setText(buf, firstChargeMoneyState, s.firstChargeMoney); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set Sim FirstChargeMoney: ${err.message}`); } }
+    { const err = rt.setText(buf, firstChargeReturnState, s.firstChargeReturn); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set Sim FirstChargeReturn: ${err.message}`); } }
+    { const err = rt.setZeroList<number>(buf, banCityState, s.banCity, 0, rt.setU32); if (err !== undefined) { buf.rewindWrite(startOffset); return new Error(`set Sim BanCity: ${err.message}`); } }
     { const err = _.setSimInfoListBody(buf, infoState, s.info); if (err !== undefined) { buf.rewindWrite(startOffset); return new Error(`set Sim Info: ${err.message}`); } }
-    { const err = rt.setTextListCompact(buf, snapshotState, s.snapshot); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set Sim Snapshot: ${err.message}`); } }
+    { const err = rt.setTextList(buf, snapshotState, s.snapshot); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set Sim Snapshot: ${err.message}`); } }
     return undefined;
 };
 
@@ -470,7 +470,7 @@ export const eqSim = (a: Sim | null | undefined, b: Sim | null | undefined): boo
 };
 
 export const getSimListBody = (buf: rt.Buffer, state: number): [Sim[], rt.Err] => {
-    const [list, err] = rt.getBitmapListCompact<Sim>(
+    const [list, err] = rt.getDefaultList<Sim>(
         buf,
         state,
         () => newSim(),
@@ -480,7 +480,7 @@ export const getSimListBody = (buf: rt.Buffer, state: number): [Sim[], rt.Err] =
 };
 
 export const setSimListBody = (buf: rt.Buffer, state: number, v: Sim[]): rt.Err => {
-    return rt.setBitmapListCompact<Sim>(
+    return rt.setDefaultList<Sim>(
         buf,
         state,
         v,

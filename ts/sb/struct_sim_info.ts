@@ -75,13 +75,13 @@ export const getSimInfo = (buf: rt.Buffer): [SimInfo, rt.Err] => {
         if (err !== null) return [s, new Error(`get SimInfo Id: ${err.message}`)];
         s.id = value as any;
     }
-    { const [value, err] = rt.getTextCompact(buf, titleState); if (err !== null) return [s, new Error(`get SimInfo Title: ${err.message}`)]; s.title = value; }
-    { const [value, err] = rt.getTextCompact(buf, contentState); if (err !== null) return [s, new Error(`get SimInfo Content: ${err.message}`)]; s.content = value; }
+    { const [value, err] = rt.getText(buf, titleState); if (err !== null) return [s, new Error(`get SimInfo Title: ${err.message}`)]; s.title = value; }
+    { const [value, err] = rt.getText(buf, contentState); if (err !== null) return [s, new Error(`get SimInfo Content: ${err.message}`)]; s.content = value; }
     s.a = aState;
     s.b = bState;
     s.c = cState;
     s.d = dState;
-    { const [value, err] = rt.getBinCompact(buf, zipState); if (err !== null) return [s, new Error(`get SimInfo Zip: ${err.message}`)]; s.zip = value; }
+    { const [value, err] = rt.getBin(buf, zipState); if (err !== null) return [s, new Error(`get SimInfo Zip: ${err.message}`)]; s.zip = value; }
     const errValidate = validateSimInfo(s);
     if (errValidate !== undefined) return [s, new Error(`validate failed: ${errValidate.message}`)];
     return [s, undefined];
@@ -116,9 +116,9 @@ export const setSimInfo = (buf: rt.Buffer, s: SimInfo): rt.Err => {
         const err = rt.setU32(buf, s.id as any);
         if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimInfo Id: ${err.message}`); }
     }
-    { const err = rt.setTextCompact(buf, titleState, s.title); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimInfo Title: ${err.message}`); } }
-    { const err = rt.setTextCompact(buf, contentState, s.content); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimInfo Content: ${err.message}`); } }
-    { const err = rt.setBinCompact(buf, zipState, s.zip); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimInfo Zip: ${err.message}`); } }
+    { const err = rt.setText(buf, titleState, s.title); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimInfo Title: ${err.message}`); } }
+    { const err = rt.setText(buf, contentState, s.content); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimInfo Content: ${err.message}`); } }
+    { const err = rt.setBin(buf, zipState, s.zip); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set SimInfo Zip: ${err.message}`); } }
     return undefined;
 };
 
@@ -139,7 +139,7 @@ export const eqSimInfo = (a: SimInfo | null | undefined, b: SimInfo | null | und
 };
 
 export const getSimInfoListBody = (buf: rt.Buffer, state: number): [SimInfo[], rt.Err] => {
-    const [list, err] = rt.getBitmapListCompact<SimInfo>(
+    const [list, err] = rt.getDefaultList<SimInfo>(
         buf,
         state,
         () => newSimInfo(),
@@ -149,7 +149,7 @@ export const getSimInfoListBody = (buf: rt.Buffer, state: number): [SimInfo[], r
 };
 
 export const setSimInfoListBody = (buf: rt.Buffer, state: number, v: SimInfo[]): rt.Err => {
-    return rt.setBitmapListCompact<SimInfo>(
+    return rt.setDefaultList<SimInfo>(
         buf,
         state,
         v,

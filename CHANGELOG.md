@@ -1,5 +1,25 @@
 # Changelog
 
+## [2026-03-08 07:45:00] [type: refactor] [scope: ts,runtime,rpc,typing]
+- [将 TS 侧剩余的 `class` 全部收口为接口：`Buffer`、`BitWriter`、`BitReader`、`RpcClient` 现在都以 `interface` 暴露类型面，并改为无 `class` 关键字的构造函数值实现]
+- [同步更新 TS 运行时模板、RPC 模板、模板断言与生成产物，并重新执行生成、Go 全量测试、Bun 全量测试和 `bunx tsc` 类型检查]
+
+## [2026-03-08 07:31:00] [type: refactor] [scope: ts,runtime,typing]
+- [将 TS 运行时的 `Buffer` 从 `export class Buffer` 调整为 `export interface Buffer`，并保留同名构造值 `export const Buffer = class ...`，使类型面改为接口而不扩大调用面改动]
+- [重新生成 TS 产物，并通过 Go 全量测试、Bun 全量测试与 `bunx tsc` 类型检查验证这次类型面调整]
+
+## [2026-03-08 07:18:00] [type: refactor] [scope: naming,runtime,tplgen]
+- [继续收口 helper 命名以保持一致：Go runtime 去掉 `Sized` / `Validated` 这类仅反映内部实现方式的后缀，统一为 `SetDefaultList`、`SetZeroList`、`SetDefaultPtrList`、`SizeDefaultPtrList`]
+- [同步更新 Go/TS 模板、生成产物与断言，并重新执行生成、Go 全量测试、Bun 全量测试与 `bunx tsc` 类型检查]
+
+## [2026-03-08 07:02:00] [type: refactor] [scope: naming,runtime,tplgen]
+- [收口当前协议 runtime/helper 的命名：去掉 `Compact`、`Bitmap*List*`、`ZeroValue/ZeroFixed` 这类历史性和实现细节过重的后缀，统一为 `GetText/SetText`、`GetDefaultListInto/SetDefaultListSized`、`GetZeroListInto/SetZeroListSized`、`GetDefaultPtrListInto/SetDefaultPtrListValidated` 等更直接的名称]
+- [同步更新 Go/TS 生成模板、生成产物、跨语言一致性脚本与模板断言，并重新执行生成、Go 全量测试、Bun 全量测试与 `bunx tsc` 类型检查]
+
+## [2026-03-08 06:24:00] [type: test] [scope: go,ts,cross]
+- [为双端字节级一致性回归新增随机样本覆盖：`go/sb/cross_consistency_test.go` 现在基于固定 seed 生成全量随机 struct / API 载荷，并新增 `TestCrossLanguageWireConsistencyRandom`]
+- [`ts/sb/cross_consistency.test.ts` 同步增加随机对拍入口，并为跨语言对拍测试单独放宽超时，继续通过 Bun 驱动 Go↔TS 字节级 roundtrip 校验]
+
 ## [2026-03-08 06:08:00] [type: refactor] [scope: naming,docs,tplgen]
 - [将当前主链路中的版本化命名收口为正式命名：协议文档更名为 `PROTOCOL.md`，内部模板文件更名为 `tpl_go_render.go`、`tpl_ts_render.go`、`tpl_ts_runtime_render.go` 等通用名称]
 - [同步清理 README 与协议文档中的迁移期措辞，删除当前实现里对并行协议链路的引用，并把生成器/运行时/一致性回归的实际落点更新到文档]

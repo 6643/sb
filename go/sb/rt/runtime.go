@@ -360,7 +360,7 @@ func ListCountState(count int) (uint8, error) {
 	return 0, fmt.Errorf("list count exceeds u8 max: %d", count)
 }
 
-func getCompactLength(buf *bytes.Buffer, state uint8, max int, kind string) (int, error) {
+func readStateLength(buf *bytes.Buffer, state uint8, max int, kind string) (int, error) {
 	switch state {
 	case StateZero:
 		return 0, nil
@@ -405,8 +405,8 @@ func getCompactLength(buf *bytes.Buffer, state uint8, max int, kind string) (int
 	}
 }
 
-func GetTextCompact(buf *bytes.Buffer, state uint8) (string, error) {
-	length, err := getCompactLength(buf, state, 0xFFFF, "text")
+func GetText(buf *bytes.Buffer, state uint8) (string, error) {
+	length, err := readStateLength(buf, state, 0xFFFF, "text")
 	if err != nil {
 		return "", err
 	}
@@ -419,7 +419,7 @@ func GetTextCompact(buf *bytes.Buffer, state uint8) (string, error) {
 	return string(buf.Next(length)), nil
 }
 
-func SetTextCompact(buf *bytes.Buffer, state uint8, value string) error {
+func SetText(buf *bytes.Buffer, state uint8, value string) error {
 	canonical, err := TextState(len(value))
 	if err != nil {
 		return err
@@ -445,7 +445,7 @@ func SetTextCompact(buf *bytes.Buffer, state uint8, value string) error {
 	return err
 }
 
-func SizeTextCompact(value string) (int, error) {
+func SizeText(value string) (int, error) {
 	state, err := TextState(len(value))
 	if err != nil {
 		return 0, err
@@ -462,8 +462,8 @@ func SizeTextCompact(value string) (int, error) {
 	}
 }
 
-func GetBoolListCompactInto(buf *bytes.Buffer, state uint8, dst []bool) ([]bool, error) {
-	count, err := getListCountCompact(buf, state)
+func GetBoolListInto(buf *bytes.Buffer, state uint8, dst []bool) ([]bool, error) {
+	count, err := getListCount(buf, state)
 	if err != nil {
 		return nil, err
 	}
@@ -488,7 +488,7 @@ func GetBoolListCompactInto(buf *bytes.Buffer, state uint8, dst []bool) ([]bool,
 	return dst, nil
 }
 
-func SetBoolListCompact(buf *bytes.Buffer, state uint8, values []bool) error {
+func SetBoolList(buf *bytes.Buffer, state uint8, values []bool) error {
 	canonical, err := ListCountState(len(values))
 	if err != nil {
 		return err
@@ -496,7 +496,7 @@ func SetBoolListCompact(buf *bytes.Buffer, state uint8, values []bool) error {
 	if state != canonical {
 		return fmt.Errorf("bool list state %d is not canonical for count %d", state, len(values))
 	}
-	if err := setListCountCompact(buf, state, len(values)); err != nil {
+	if err := setListCount(buf, state, len(values)); err != nil {
 		return err
 	}
 	if len(values) == 0 {
@@ -515,7 +515,7 @@ func SetBoolListCompact(buf *bytes.Buffer, state uint8, values []bool) error {
 	return err
 }
 
-func SizeBoolListCompact(values []bool) (int, error) {
+func SizeBoolList(values []bool) (int, error) {
 	state, err := ListCountState(len(values))
 	if err != nil {
 		return 0, err
@@ -526,8 +526,8 @@ func SizeBoolListCompact(values []bool) (int, error) {
 	return 1 + bitmapSize(len(values)), nil
 }
 
-func GetBinCompactInto(buf *bytes.Buffer, state uint8, dst []byte) ([]byte, error) {
-	length, err := getCompactLength(buf, state, 0xFFFFFF, "bin")
+func GetBinInto(buf *bytes.Buffer, state uint8, dst []byte) ([]byte, error) {
+	length, err := readStateLength(buf, state, 0xFFFFFF, "bin")
 	if err != nil {
 		return nil, err
 	}
@@ -549,7 +549,7 @@ func GetBinCompactInto(buf *bytes.Buffer, state uint8, dst []byte) ([]byte, erro
 	return dst, nil
 }
 
-func SetBinCompact(buf *bytes.Buffer, state uint8, value []byte) error {
+func SetBin(buf *bytes.Buffer, state uint8, value []byte) error {
 	canonical, err := BinState(len(value))
 	if err != nil {
 		return err
@@ -579,7 +579,7 @@ func SetBinCompact(buf *bytes.Buffer, state uint8, value []byte) error {
 	return err
 }
 
-func SizeBinCompact(value []byte) (int, error) {
+func SizeBin(value []byte) (int, error) {
 	state, err := BinState(len(value))
 	if err != nil {
 		return 0, err
@@ -598,8 +598,8 @@ func SizeBinCompact(value []byte) (int, error) {
 	}
 }
 
-func GetBinListCompactInto(buf *bytes.Buffer, state uint8, dst [][]byte) ([][]byte, error) {
-	count, err := getListCountCompact(buf, state)
+func GetBinListInto(buf *bytes.Buffer, state uint8, dst [][]byte) ([][]byte, error) {
+	count, err := getListCount(buf, state)
 	if err != nil {
 		return nil, err
 	}
@@ -619,7 +619,7 @@ func GetBinListCompactInto(buf *bytes.Buffer, state uint8, dst [][]byte) ([][]by
 		dst = make([][]byte, count)
 	}
 	for i, itemState := range states {
-		item, itemErr := GetBinCompactInto(buf, itemState, dst[i])
+		item, itemErr := GetBinInto(buf, itemState, dst[i])
 		if itemErr != nil {
 			return nil, fmt.Errorf("bin list[%d]: %w", i, itemErr)
 		}
@@ -628,7 +628,7 @@ func GetBinListCompactInto(buf *bytes.Buffer, state uint8, dst [][]byte) ([][]by
 	return dst, nil
 }
 
-func SetBinListCompact(buf *bytes.Buffer, state uint8, values [][]byte) error {
+func SetBinList(buf *bytes.Buffer, state uint8, values [][]byte) error {
 	canonical, err := ListCountState(len(values))
 	if err != nil {
 		return err
@@ -636,7 +636,7 @@ func SetBinListCompact(buf *bytes.Buffer, state uint8, values [][]byte) error {
 	if state != canonical {
 		return fmt.Errorf("bin list state %d is not canonical for count %d", state, len(values))
 	}
-	if err := setListCountCompact(buf, state, len(values)); err != nil {
+	if err := setListCount(buf, state, len(values)); err != nil {
 		return err
 	}
 	if len(values) == 0 {
@@ -658,14 +658,14 @@ func SetBinListCompact(buf *bytes.Buffer, state uint8, values [][]byte) error {
 		return err
 	}
 	for i, item := range values {
-		if err := SetBinCompact(buf, states[i], item); err != nil {
+		if err := SetBin(buf, states[i], item); err != nil {
 			return fmt.Errorf("bin list[%d]: %w", i, err)
 		}
 	}
 	return nil
 }
 
-func SizeBinListCompact(values [][]byte) (int, error) {
+func SizeBinList(values [][]byte) (int, error) {
 	state, err := ListCountState(len(values))
 	if err != nil {
 		return 0, err
@@ -675,7 +675,7 @@ func SizeBinListCompact(values [][]byte) (int, error) {
 	}
 	size := 1 + itemHeaderSize(len(values))
 	for i, item := range values {
-		itemSize, itemErr := SizeBinCompact(item)
+		itemSize, itemErr := SizeBin(item)
 		if itemErr != nil {
 			return 0, fmt.Errorf("bin list[%d]: %w", i, itemErr)
 		}
@@ -684,7 +684,7 @@ func SizeBinListCompact(values [][]byte) (int, error) {
 	return size, nil
 }
 
-func getListCountCompact(buf *bytes.Buffer, state uint8) (int, error) {
+func getListCount(buf *bytes.Buffer, state uint8) (int, error) {
 	switch state {
 	case StateZero:
 		return 0, nil
@@ -704,7 +704,7 @@ func getListCountCompact(buf *bytes.Buffer, state uint8) (int, error) {
 	}
 }
 
-func setListCountCompact(buf *bytes.Buffer, state uint8, count int) error {
+func setListCount(buf *bytes.Buffer, state uint8, count int) error {
 	canonical, err := ListCountState(count)
 	if err != nil {
 		return err
@@ -755,8 +755,8 @@ func writeBitmapFromDefaults[T any](values []T, isDefault func(T) bool) ([]byte,
 	return bitmap, nonDefaultCount
 }
 
-func GetBitmapListCompactInto[T any](buf *bytes.Buffer, state uint8, dst []T, defaultItem func() T, getItem func(*bytes.Buffer) (T, error)) ([]T, error) {
-	count, err := getListCountCompact(buf, state)
+func GetDefaultListInto[T any](buf *bytes.Buffer, state uint8, dst []T, defaultItem func() T, getItem func(*bytes.Buffer) (T, error)) ([]T, error) {
+	count, err := getListCount(buf, state)
 	if err != nil {
 		return nil, err
 	}
@@ -789,7 +789,7 @@ func GetBitmapListCompactInto[T any](buf *bytes.Buffer, state uint8, dst []T, de
 	return dst, nil
 }
 
-func SetBitmapListCompactSized[T any](buf *bytes.Buffer, state uint8, values []T, isDefault func(T) bool, sizeItem func(T) (int, error), setItem func(*bytes.Buffer, T) error) error {
+func SetDefaultList[T any](buf *bytes.Buffer, state uint8, values []T, isDefault func(T) bool, sizeItem func(T) (int, error), setItem func(*bytes.Buffer, T) error) error {
 	canonical, err := ListCountState(len(values))
 	if err != nil {
 		return err
@@ -797,7 +797,7 @@ func SetBitmapListCompactSized[T any](buf *bytes.Buffer, state uint8, values []T
 	if state != canonical {
 		return fmt.Errorf("bitmap list state %d is not canonical for count %d", state, len(values))
 	}
-	if err := setListCountCompact(buf, state, len(values)); err != nil {
+	if err := setListCount(buf, state, len(values)); err != nil {
 		return err
 	}
 	if len(values) == 0 {
@@ -821,7 +821,7 @@ func SetBitmapListCompactSized[T any](buf *bytes.Buffer, state uint8, values []T
 	return nil
 }
 
-func SizeBitmapListCompact[T any](values []T, isDefault func(T) bool, sizeItem func(T) (int, error)) (int, error) {
+func SizeDefaultList[T any](values []T, isDefault func(T) bool, sizeItem func(T) (int, error)) (int, error) {
 	state, err := ListCountState(len(values))
 	if err != nil {
 		return 0, err
@@ -843,14 +843,14 @@ func SizeBitmapListCompact[T any](values []T, isDefault func(T) bool, sizeItem f
 	return size, nil
 }
 
-func GetZeroFixedListCompactInto[T comparable](buf *bytes.Buffer, state uint8, dst []T, getItem func(*bytes.Buffer) (T, error)) ([]T, error) {
+func GetZeroListInto[T comparable](buf *bytes.Buffer, state uint8, dst []T, getItem func(*bytes.Buffer) (T, error)) ([]T, error) {
 	var zero T
-	return GetBitmapListCompactInto(buf, state, dst, func() T { return zero }, getItem)
+	return GetDefaultListInto(buf, state, dst, func() T { return zero }, getItem)
 }
 
-func SetZeroFixedListCompactSized[T comparable](buf *bytes.Buffer, state uint8, values []T, itemSize int, setItem func(*bytes.Buffer, T) error) error {
+func SetZeroList[T comparable](buf *bytes.Buffer, state uint8, values []T, itemSize int, setItem func(*bytes.Buffer, T) error) error {
 	var zero T
-	return SetBitmapListCompactSized(
+	return SetDefaultList(
 		buf,
 		state,
 		values,
@@ -860,17 +860,17 @@ func SetZeroFixedListCompactSized[T comparable](buf *bytes.Buffer, state uint8, 
 	)
 }
 
-func SizeZeroFixedListCompact[T comparable](values []T, itemSize int) (int, error) {
+func SizeZeroList[T comparable](values []T, itemSize int) (int, error) {
 	var zero T
-	return SizeBitmapListCompact(
+	return SizeDefaultList(
 		values,
 		func(item T) bool { return item == zero },
 		func(T) (int, error) { return itemSize, nil },
 	)
 }
 
-func GetBitmapPtrListCompactInto[T any](buf *bytes.Buffer, state uint8, dst []*T, defaultItem func() *T, getItem func(*bytes.Buffer, *T) error) ([]*T, error) {
-	count, err := getListCountCompact(buf, state)
+func GetDefaultPtrListInto[T any](buf *bytes.Buffer, state uint8, dst []*T, defaultItem func() *T, getItem func(*bytes.Buffer, *T) error) ([]*T, error) {
+	count, err := getListCount(buf, state)
 	if err != nil {
 		return nil, err
 	}
@@ -906,7 +906,7 @@ func GetBitmapPtrListCompactInto[T any](buf *bytes.Buffer, state uint8, dst []*T
 	return dst, nil
 }
 
-func SetBitmapPtrListCompactValidated[T any](buf *bytes.Buffer, state uint8, values []*T, typeName string, validate func(*T) error, isZero func(*T) bool, sizeItem func(*T) (int, error), setItem func(*bytes.Buffer, *T) error) error {
+func SetDefaultPtrList[T any](buf *bytes.Buffer, state uint8, values []*T, typeName string, validate func(*T) error, isZero func(*T) bool, sizeItem func(*T) (int, error), setItem func(*bytes.Buffer, *T) error) error {
 	canonical, err := ListCountState(len(values))
 	if err != nil {
 		return err
@@ -914,7 +914,7 @@ func SetBitmapPtrListCompactValidated[T any](buf *bytes.Buffer, state uint8, val
 	if state != canonical {
 		return fmt.Errorf("%s list state %d is not canonical for count %d", typeName, state, len(values))
 	}
-	if err := setListCountCompact(buf, state, len(values)); err != nil {
+	if err := setListCount(buf, state, len(values)); err != nil {
 		return err
 	}
 	if len(values) == 0 {
@@ -941,7 +941,7 @@ func SetBitmapPtrListCompactValidated[T any](buf *bytes.Buffer, state uint8, val
 	return nil
 }
 
-func SizeBitmapPtrListCompactValidated[T any](values []*T, typeName string, validate func(*T) error, isZero func(*T) bool, sizeItem func(*T) (int, error)) (int, error) {
+func SizeDefaultPtrList[T any](values []*T, typeName string, validate func(*T) error, isZero func(*T) bool, sizeItem func(*T) (int, error)) (int, error) {
 	state, err := ListCountState(len(values))
 	if err != nil {
 		return 0, err
@@ -1005,8 +1005,8 @@ func writeStateBlock(states []uint8) ([]byte, error) {
 	return data, nil
 }
 
-func GetTextListCompactInto(buf *bytes.Buffer, state uint8, dst []string) ([]string, error) {
-	count, err := getListCountCompact(buf, state)
+func GetTextListInto(buf *bytes.Buffer, state uint8, dst []string) ([]string, error) {
+	count, err := getListCount(buf, state)
 	if err != nil {
 		return nil, err
 	}
@@ -1026,7 +1026,7 @@ func GetTextListCompactInto(buf *bytes.Buffer, state uint8, dst []string) ([]str
 		dst = make([]string, count)
 	}
 	for i, itemState := range states {
-		item, itemErr := GetTextCompact(buf, itemState)
+		item, itemErr := GetText(buf, itemState)
 		if itemErr != nil {
 			return nil, fmt.Errorf("text list[%d]: %w", i, itemErr)
 		}
@@ -1035,7 +1035,7 @@ func GetTextListCompactInto(buf *bytes.Buffer, state uint8, dst []string) ([]str
 	return dst, nil
 }
 
-func SetTextListCompact(buf *bytes.Buffer, state uint8, values []string) error {
+func SetTextList(buf *bytes.Buffer, state uint8, values []string) error {
 	canonical, err := ListCountState(len(values))
 	if err != nil {
 		return err
@@ -1043,7 +1043,7 @@ func SetTextListCompact(buf *bytes.Buffer, state uint8, values []string) error {
 	if state != canonical {
 		return fmt.Errorf("text list state %d is not canonical for count %d", state, len(values))
 	}
-	if err := setListCountCompact(buf, state, len(values)); err != nil {
+	if err := setListCount(buf, state, len(values)); err != nil {
 		return err
 	}
 	if len(values) == 0 {
@@ -1065,14 +1065,14 @@ func SetTextListCompact(buf *bytes.Buffer, state uint8, values []string) error {
 		return err
 	}
 	for i, item := range values {
-		if err := SetTextCompact(buf, states[i], item); err != nil {
+		if err := SetText(buf, states[i], item); err != nil {
 			return fmt.Errorf("text list[%d]: %w", i, err)
 		}
 	}
 	return nil
 }
 
-func SizeTextListCompact(values []string) (int, error) {
+func SizeTextList(values []string) (int, error) {
 	state, err := ListCountState(len(values))
 	if err != nil {
 		return 0, err
@@ -1082,7 +1082,7 @@ func SizeTextListCompact(values []string) (int, error) {
 	}
 	size := 1 + itemHeaderSize(len(values))
 	for i, item := range values {
-		itemSize, itemErr := SizeTextCompact(item)
+		itemSize, itemErr := SizeText(item)
 		if itemErr != nil {
 			return 0, fmt.Errorf("text list[%d]: %w", i, itemErr)
 		}

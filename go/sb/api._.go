@@ -119,7 +119,7 @@ func GetBinHandler(w http.ResponseWriter, r *http.Request) {
 		state, err := rt.BinState(len(result))
 		if err != nil { w.WriteHeader(http.StatusInternalServerError); return }
 		if err := rt.SetU8(&body, state); err != nil { w.WriteHeader(http.StatusInternalServerError); return }
-		if err := rt.SetBinCompact(&body, state, result); err != nil { w.WriteHeader(http.StatusInternalServerError); return }
+		if err := rt.SetBin(&body, state, result); err != nil { w.WriteHeader(http.StatusInternalServerError); return }
 	}
 	sendResponse(w, body.Bytes())
 }

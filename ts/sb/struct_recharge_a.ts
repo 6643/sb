@@ -72,7 +72,7 @@ export const getRechargeA = (buf: rt.Buffer): [RechargeA, rt.Err] => {
         s.id = value as any;
     }
     { const [value, err] = _.getOrderStatusListBody(buf, typeState); if (err !== undefined) return [s, new Error(`get RechargeA Type: ${err.message}`)]; s.type = value; }
-    { const [value, err] = rt.getTextListCompact(buf, phoneState); if (err !== null) return [s, new Error(`get RechargeA Phone: ${err.message}`)]; s.phone = value; }
+    { const [value, err] = rt.getTextList(buf, phoneState); if (err !== null) return [s, new Error(`get RechargeA Phone: ${err.message}`)]; s.phone = value; }
     if (siPresent) {
         const [value, err] = _.readSimInfo(buf);
         if (err !== undefined) return [s, new Error(`get RechargeA Si: ${err.message}`)];
@@ -113,7 +113,7 @@ export const setRechargeA = (buf: rt.Buffer, s: RechargeA): rt.Err => {
         if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set RechargeA Id: ${err.message}`); }
     }
     { const err = _.setOrderStatusListBody(buf, typeState, s.type); if (err !== undefined) { buf.rewindWrite(startOffset); return new Error(`set RechargeA Type: ${err.message}`); } }
-    { const err = rt.setTextListCompact(buf, phoneState, s.phone); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set RechargeA Phone: ${err.message}`); } }
+    { const err = rt.setTextList(buf, phoneState, s.phone); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set RechargeA Phone: ${err.message}`); } }
     if (!_.isZeroSimInfo(s.si)) {
         const err = _.setSimInfo(buf, s.si!);
         if (err !== undefined) { buf.rewindWrite(startOffset); return new Error(`set RechargeA Si: ${err.message}`); }
@@ -139,7 +139,7 @@ export const eqRechargeA = (a: RechargeA | null | undefined, b: RechargeA | null
 };
 
 export const getRechargeAListBody = (buf: rt.Buffer, state: number): [RechargeA[], rt.Err] => {
-    const [list, err] = rt.getBitmapListCompact<RechargeA>(
+    const [list, err] = rt.getDefaultList<RechargeA>(
         buf,
         state,
         () => newRechargeA(),
@@ -149,7 +149,7 @@ export const getRechargeAListBody = (buf: rt.Buffer, state: number): [RechargeA[
 };
 
 export const setRechargeAListBody = (buf: rt.Buffer, state: number, v: RechargeA[]): rt.Err => {
-    return rt.setBitmapListCompact<RechargeA>(
+    return rt.setDefaultList<RechargeA>(
         buf,
         state,
         v,
