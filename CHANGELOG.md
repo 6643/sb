@@ -1,5 +1,10 @@
 # Changelog
 
+## [2026-03-19 00:00:00] [type: fix] [scope: rpc,go,ts,docs,test]
+- [修复 Go RPC 客户端在 `Do(req)` 返回后立即 `cancel()` 导致的响应体读取误判问题, 将 `Client.Timeout` 明确为覆盖单次 attempt 全生命周期, 并补齐 body timeout / retry / cancel 传输测试]
+- [修复 Go handler 直接把内部 `RpcErrCode` 写成 HTTP 状态码的问题, 为 `RpcNoConn` / `RpcRespErr` / 未知内部状态统一映射 `500`, 保持 `400/401/404/408` 等已知状态稳定]
+- [修复 TS RPC 客户端对 `maxRespBytes` 仅在 `arrayBuffer()` 后校验的问题, 改为优先流式累计读取并在超限时立即失败; 同时将未知 HTTP 状态保留为原始数字并更新模板断言与文档说明]
+
 ## [2026-03-08 07:45:00] [type: refactor] [scope: ts,runtime,rpc,typing]
 - [将 TS 侧剩余的 `class` 全部收口为接口：`Buffer`、`BitWriter`、`BitReader`、`RpcClient` 现在都以 `interface` 暴露类型面，并改为无 `class` 关键字的构造函数值实现]
 - [同步更新 TS 运行时模板、RPC 模板、模板断言与生成产物，并重新执行生成、Go 全量测试、Bun 全量测试和 `bunx tsc` 类型检查]

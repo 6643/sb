@@ -10,17 +10,17 @@
 | get_count | page u8<br> | u8 | 获取数量 |
 | get_bin | page u8<br> | bin | 获取bin |
 
-## RPC Error Codes (HTTP Status)
+## RPC Status Codes
 
 | Code | Name | Description |
 | :--- | :--- | :--- |
-| 0 | NoConn | 无法连接 (本地或远程网络故障) |
+| 0 | NoConn | 客户端本地错误或网络不可达; 服务端不会写出这个 HTTP 状态码 |
 | 200 | Ok | 请求成功 |
 | 400 | ReqErr | 请求错误 (参数序列化失败) |
 | 401 | NotAuth | 未授权 (登录失效) |
 | 404 | NotExist | 资源不存在 |
-| 408 | Timeout | 请求超时 (含重试耗尽) |
-| 500 | RespErr | 响应处理错误 (反序列化失败) |
+| 408 | Timeout | 单次请求在发送或读取响应体阶段超时, 或服务端超时 |
+| 500 | RespErr | 响应处理错误 (反序列化失败、响应体损坏或内部错误) |
 
 ## Usage Demos
 
@@ -34,6 +34,7 @@ import (
 
 func main() {
     client := sb.NewClient("http://localhost:8080")
+    client.Timeout = 5 * time.Second // 单次请求覆盖建连到响应体读取
     client.Retries = 3 // 默认已是 3 次
     
     // Example call
@@ -91,14 +92,15 @@ async function demo() {
     const client = new sb.RpcClient({
         host: "http://localhost:8080",
         timeout: 5000,
-        retries: 3 // 默认已是 3 次
+        retries: 3, // 默认已是 3 次
+        maxRespBytes: 4 * 1024 * 1024, // 传输中超限会立即失败
     });
     // Example: 获取用户的id
 
     const [res, status] = await client.userGetAbc();
     
     if (status !== sb.RpcErrCode.Ok) {
-        console.error("Request failed with status:", status);
+        console.error("Request failed with status:", status); // 未知 HTTP 状态可能直接返回数字
         return;
     }
     console.log("Data:", res);

@@ -99,6 +99,8 @@ func TestGoGeneratorWritesSchemaFile(t *testing.T) {
 	assertContains(t, apiText, "value, err := rt.GetU8(buf)")
 	assertContains(t, apiText, "page = value")
 	assertContains(t, apiText, "if err := rt.SetU8(&body, result); err != nil { w.WriteHeader(http.StatusInternalServerError); return }")
+	assertContains(t, apiText, "func httpStatusFromRPC(status RpcErrCode) int {")
+	assertContains(t, apiText, "w.WriteHeader(httpStatusFromRPC(status)); return false")
 	assertNotContains(t, apiText, "type ApiUserGetCountReq struct {")
 	assertNotContains(t, apiText, "type ApiUserGetCountResp struct {")
 	assertNotContains(t, apiText, "readApiUserGetCountReq")
@@ -113,6 +115,9 @@ func TestGoGeneratorWritesSchemaFile(t *testing.T) {
 	assertContains(t, rpcText, "func CallUserGetCount(c *Client, ctx context.Context, page uint8) (result uint8, errCode RpcErrCode) {")
 	assertContains(t, rpcText, "if err := rt.SetU8(&buf, page); err != nil {")
 	assertContains(t, rpcText, "value, err := rt.GetU8(respBuf)")
+	assertContains(t, rpcText, "closeErr := resp.Body.Close()")
+	assertContains(t, rpcText, "if isTimeout(readErr) || isTimeout(closeErr) || reqCtx.Err() == context.DeadlineExceeded || ctx.Err() == context.DeadlineExceeded {")
+	assertNotContains(t, rpcText, "resp, err = httpClient.Do(req)\n\t\tcancel()")
 	assertNotContains(t, rpcText, "ApiUserGetCountReq")
 	assertNotContains(t, rpcText, "readApiUserGetCountResp")
 

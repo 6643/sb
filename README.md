@@ -251,14 +251,19 @@ set_flag(enabled bool) => nil
 - 生成 RPC handler, 请求解析和响应编码逻辑
 - 路由注册支持可选 middleware, 内置 `TimeoutMiddleware` 可为服务端请求注入超时 deadline
 - 推荐服务端采用两层超时: `http.Server` 的连接级超时配合 `TimeoutMiddleware` 的请求级超时
+- Go 客户端 `Client.Timeout` 覆盖单次请求的完整 attempt, 包括发请求和读取响应体
+- Go 客户端只对 timeout 类失败和服务端 `408` 做重试; 非 timeout 的损坏响应仍记为 `RpcRespErr`
+- handler 返回 `RpcNoConn`、`RpcRespErr` 或未知内部状态时, 会统一映射为合法 HTTP `500`
 - 运行时提供 `GetBin(buf)` 和 `GetBinView(buf)`
 - `GetBinView(buf)` 是可选借用接口, 返回切片只在底层 `buf` 未继续消费或复用前有效
 
 ### 5.2 TypeScript
 
 - 不使用 `throw` 作为主错误流
-- API 和序列化函数统一返回 `[data, err]`
+- 解码函数返回 `[data, err]`, 编码函数返回 `err`, RPC 调用返回 `[data, status]` 或 `status`
 - 当 `err` 非空时, `data` 仍返回该类型的安全零值
+- TS 客户端 `maxRespBytes` 是传输中限制, chunked 响应超限会在读取过程中立即失败
+- TS RPC 已知状态保留 `RpcErrCode`, 未知 HTTP 状态可能直接透传为 `number`
 - 生成代码兼容严格模式下的显式类型检查
 
 ## 6. 验证与测试

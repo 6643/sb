@@ -106,8 +106,13 @@ func TestTsGeneratorWritesSchemaFile(t *testing.T) {
 		t.Fatalf("read rpc.ts failed: %v", err)
 	}
 	rpcText := string(rpcContent)
+	assertContains(t, rpcText, "export type RpcStatus = RpcErrCode | number;")
+	assertContains(t, rpcText, "async function readResponseBytes(res: Response, maxRespBytes: number): Promise<[Uint8Array | null, RpcErrCode | null]> {")
+	assertContains(t, rpcText, "const reader = res.body.getReader();")
+	assertContains(t, rpcText, "await reader.cancel();")
 	assertContains(t, rpcText, "_.setU8(buf, page")
 	assertContains(t, rpcText, "const [value, err] = _.getU8(respBuf);")
+	assertContains(t, rpcText, "return [null, res.status];")
 	assertNotContains(t, rpcText, "newApiUserGetCountReq")
 	assertNotContains(t, rpcText, "readApiUserGetCountResp")
 

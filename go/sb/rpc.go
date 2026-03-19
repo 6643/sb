@@ -88,8 +88,6 @@ func doClient(c *Client, ctx context.Context, path string, body []byte) ([]byte,
 	if maxRetries < 0 { maxRetries = 0 }
 	maxRespBytes := c.MaxRespBytes
 	if maxRespBytes <= 0 { maxRespBytes = defaultMaxRespBytes }
-	var resp *http.Response
-	var err error
 
 	for i := 0; i <= maxRetries; i++ {
 		if i > 0 {
@@ -119,28 +117,41 @@ func doClient(c *Client, ctx context.Context, path string, body []byte) ([]byte,
 		if req.Header.Get("Content-Type") == "" {
 			req.Header.Set("Content-Type", "application/octet-stream")
 		}
-		resp, err = httpClient.Do(req)
-		cancel()
+		resp, err := httpClient.Do(req)
 		if err != nil {
+			cancel()
 			if isTimeout(err) && i < maxRetries { continue }
 			if isTimeout(err) { return nil, RpcTimeout }
 			return nil, RpcNoConn
 		}
 		if resp.StatusCode == http.StatusRequestTimeout && i < maxRetries {
 			resp.Body.Close()
+			cancel()
 			continue
 		}
-		break
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			cancel()
+			return nil, RpcErrCode(resp.StatusCode)
+		}
+		readLimit := maxRespBytes
+		if readLimit < (1<<63 - 1) { readLimit++ }
+		b, readErr := io.ReadAll(io.LimitReader(resp.Body, readLimit))
+		closeErr := resp.Body.Close()
+		if readErr != nil || closeErr != nil {
+			cancel()
+			if isTimeout(readErr) || isTimeout(closeErr) || reqCtx.Err() == context.DeadlineExceeded || ctx.Err() == context.DeadlineExceeded {
+				if i < maxRetries { continue }
+				return nil, RpcTimeout
+			}
+			return nil, RpcRespErr
+		}
+		cancel()
+		if readLimit > maxRespBytes && int64(len(b)) > maxRespBytes { return nil, RpcRespErr }
+		return b, RpcOk
 	}
-	if resp == nil { return nil, RpcNoConn }
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK { return nil, RpcErrCode(resp.StatusCode) }
-	readLimit := maxRespBytes
-	if readLimit < (1<<63 - 1) { readLimit++ }
-	b, readErr := io.ReadAll(io.LimitReader(resp.Body, readLimit))
-	if readErr != nil { return nil, RpcRespErr }
-	if readLimit > maxRespBytes && int64(len(b)) > maxRespBytes { return nil, RpcRespErr }
-	return b, RpcOk
+	if ctx.Err() == context.DeadlineExceeded { return nil, RpcTimeout }
+	return nil, RpcNoConn
 }
 
 // CallUserGetAbc 获取用户的id

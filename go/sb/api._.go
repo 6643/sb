@@ -169,9 +169,26 @@ func normalizeHandlerStatus(ctx context.Context, status RpcErrCode) RpcErrCode {
 	return status
 }
 
+func httpStatusFromRPC(status RpcErrCode) int {
+	switch status {
+	case RpcOk:
+		return http.StatusOK
+	case RpcReqErr:
+		return http.StatusBadRequest
+	case RpcNotAuth:
+		return http.StatusUnauthorized
+	case RpcNotExist:
+		return http.StatusNotFound
+	case RpcTimeout:
+		return http.StatusRequestTimeout
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
 func checkStatus(w http.ResponseWriter, status RpcErrCode) bool {
 	if status == RpcOk { return true }
-	w.WriteHeader(int(status)); return false
+	w.WriteHeader(httpStatusFromRPC(status)); return false
 }
 
 func parseEmptyRequest(w http.ResponseWriter, r *http.Request) bool {
