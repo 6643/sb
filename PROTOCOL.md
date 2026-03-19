@@ -50,6 +50,8 @@
 
 - `f32/f64` 接受 `-0.0` 在编码时被视为零值并被规范化为 `0.0`
 - Go 中 `nil slice` 与空 slice 在 wire 上等价
+- `enum` 默认值按 schema 第一项判断; 如果第一项的数值不是 `0`, 则用户态传入的 `0` 在默认值判断、相等性判断和 list bitmap 判定时都要先归一化到该默认枚举值, 但 wire 上仍然只表现为“默认值 => tag/bitmap 为 0, 不写 body”
+- `struct` 的 wire 只区分“零值 struct”与“非零 struct”; 对 struct 字段和 `[struct]` 元素, Go 的 `nil` 指针与全默认字段 struct, 以及 TypeScript 的 `null` / `undefined` 与全默认对象, 在 wire 上都等价于零值 struct, 差异只存在于各语言的用户态表示
 
 ## 5. 总体布局
 
@@ -105,6 +107,12 @@ body 形式:
 - `01`: `u8(len) + bytes`
 - `10`: `u16(len) + bytes`
 
+约束:
+
+- `text` 的 body bytes 必须是合法 UTF-8
+- 编码器必须拒绝无法表示为合法 UTF-8 的文本值
+- 解码器遇到非法 UTF-8 bytes 必须直接报错
+
 ### 6.4 `bin`
 
 tag 宽度 `2 bit`:
@@ -146,6 +154,11 @@ body 形式:
 
 - `0 = 零值 struct, 不传 body`
 - `1 = 递归编码整个子 struct`
+
+说明:
+
+- 这里的“零值 struct”按语义判断, 不是按用户态表示判断
+- 因此 `nil` / `null` / `undefined` 与“所有字段都为默认值”的 struct 在 wire 上必须编码成同一个 `0` 状态
 
 ## 7. Header 打包规则
 
@@ -379,6 +392,7 @@ count + item header block + item tail
 - `len=0` 只能写 `00`
 - `1..255` 必须写 `01`
 - `256..65535` 必须写 `10`
+- body bytes 必须是合法 UTF-8
 
 ### 9.3 `bin`
 
@@ -407,8 +421,10 @@ count + item header block + item tail
 - 默认值元素不得写入 body
 - 非默认值元素不得省略 body
 - `enum` 的默认值按 schema 第一个枚举项判断, 不是按数值 `0` 判断
+- 如果 schema 第一项的数值不是 `0`, 则用户态 `0` 必须先归一化为该默认枚举值后再参与默认值判定与 bitmap 判定
 - `struct` 的默认值按“所有字段都为默认值”判断
 - `struct` 的非默认值元素 body 必须递归使用 struct 编码规则
+- `[struct]` 中的 `nil` / `null` / `undefined` 元素与“所有字段都为默认值”的元素在 wire 上等价, 都必须落到 bitmap=`0`
 
 ### 9.7 `[text]` / `[bin]` 列表元素
 
@@ -732,15 +748,15 @@ Go 与 TypeScript 运行时都需要持续保持以下基础能力一致:
 
 ### 13.3 辅助函数
 
-为了让生成代码保持简单, 运行时最好提供统一 helper:
+为了让生成代码保持简单, 运行时最好提供统一 helper. 具体函数名可以按语言命名习惯区分, 但语义应等价:
 
-- `writeHeaderBits` / `readHeaderBits`
-- `writeState1` / `readState1`
-- `writeState2` / `readState2`
-- `sizeTextCompact` / `sizeBinCompact`
-- `sizeScalarListBitmap`
-- `sizeTextListCompact`
-- `sizeBinListCompact`
+- header: `WriteHeader` / `ReadHeader`, `writeHeader` / `readHeader`
+- text: Go 侧 `SetText` / `GetText` / `SizeText`; TS 侧 `setText` / `getText` 与等价的长度状态 helper
+- bin: `SetBin` / `GetBinInto`, `setBin` / `getBin`
+- bool list: `SetBoolList` / `GetBoolListInto`, `setBoolList` / `getBoolList`
+- zero list: `SetZeroList` / `GetZeroListInto`, `setZeroList` / `getZeroList`
+- default list: `SetDefaultList` / `GetDefaultListInto`, `setDefaultList` / `getDefaultList`
+- default ptr list 或等价的 struct-list helper
 - `isZeroStruct`
 
 其中 `isZeroStruct` 更适合由生成器按具体 struct 内联生成, 不建议做成反射式通用函数.

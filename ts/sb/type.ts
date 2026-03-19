@@ -1,5 +1,5 @@
 const _textEncoder = new TextEncoder();
-const _textDecoder = new TextDecoder();
+const _textDecoderFatal = new TextDecoder("utf-8", { fatal: true });
 
 export const StateZero = 0;
 export const StateU8 = 1;
@@ -230,6 +230,16 @@ const _setNum = (buf: Buffer, byteLength: number, setter: (view: DataView, offse
     setter(buf.view, buf.writeOffset);
     (buf as any)._writeOffset += byteLength;
 };
+const _validateFiniteInteger = (kind: string, v: number, min: number, max: number): Error | null => {
+    if (!Number.isFinite(v) || !Number.isInteger(v)) return new Error(`${kind} requires finite integer: ${v}`);
+    if (v < min || v > max) return new Error(`${kind} out of range: ${v}`);
+    return null;
+};
+const _validateBigIntRange = (kind: string, v: unknown, min: bigint, max: bigint): Error | null => {
+	if (typeof v !== "bigint") return new Error(`${kind} requires bigint: ${String(v)}`);
+    if (v < min || v > max) return new Error(`${kind} out of range: ${v}`);
+    return null;
+};
 
 export const getU8 = (buf: Buffer): [number, Error | null] => {
     const err = _checkRead(buf, 1);
@@ -238,7 +248,12 @@ export const getU8 = (buf: Buffer): [number, Error | null] => {
     (buf as any)._readOffset += 1;
     return [v, null];
 };
-export const setU8 = (buf: Buffer, v: number): Error | null => { _setNum(buf, 1, (view, offset) => view.setUint8(offset, v)); return null; };
+export const setU8 = (buf: Buffer, v: number): Error | null => {
+    const err = _validateFiniteInteger("u8", v, 0, 0xFF);
+    if (err !== null) return err;
+    _setNum(buf, 1, (view, offset) => view.setUint8(offset, v));
+    return null;
+};
 export const getI8 = (buf: Buffer): [number, Error | null] => {
     const err = _checkRead(buf, 1);
     if (err !== null) return [0, err];
@@ -246,7 +261,12 @@ export const getI8 = (buf: Buffer): [number, Error | null] => {
     (buf as any)._readOffset += 1;
     return [v, null];
 };
-export const setI8 = (buf: Buffer, v: number): Error | null => { _setNum(buf, 1, (view, offset) => view.setInt8(offset, v)); return null; };
+export const setI8 = (buf: Buffer, v: number): Error | null => {
+    const err = _validateFiniteInteger("i8", v, -0x80, 0x7F);
+    if (err !== null) return err;
+    _setNum(buf, 1, (view, offset) => view.setInt8(offset, v));
+    return null;
+};
 export const getU16 = (buf: Buffer): [number, Error | null] => {
     const err = _checkRead(buf, 2);
     if (err !== null) return [0, err];
@@ -254,7 +274,12 @@ export const getU16 = (buf: Buffer): [number, Error | null] => {
     (buf as any)._readOffset += 2;
     return [v, null];
 };
-export const setU16 = (buf: Buffer, v: number): Error | null => { _setNum(buf, 2, (view, offset) => view.setUint16(offset, v, true)); return null; };
+export const setU16 = (buf: Buffer, v: number): Error | null => {
+    const err = _validateFiniteInteger("u16", v, 0, 0xFFFF);
+    if (err !== null) return err;
+    _setNum(buf, 2, (view, offset) => view.setUint16(offset, v, true));
+    return null;
+};
 export const getI16 = (buf: Buffer): [number, Error | null] => {
     const err = _checkRead(buf, 2);
     if (err !== null) return [0, err];
@@ -262,14 +287,20 @@ export const getI16 = (buf: Buffer): [number, Error | null] => {
     (buf as any)._readOffset += 2;
     return [v, null];
 };
-export const setI16 = (buf: Buffer, v: number): Error | null => { _setNum(buf, 2, (view, offset) => view.setInt16(offset, v, true)); return null; };
+export const setI16 = (buf: Buffer, v: number): Error | null => {
+    const err = _validateFiniteInteger("i16", v, -0x8000, 0x7FFF);
+    if (err !== null) return err;
+    _setNum(buf, 2, (view, offset) => view.setInt16(offset, v, true));
+    return null;
+};
 export const getU24 = (buf: Buffer): [number, Error | null] => {
     const [bytes, err] = buf.read(3);
     if (err !== null) return [0, err];
     return [bytes[0] | (bytes[1] << 8) | (bytes[2] << 16), null];
 };
 export const setU24 = (buf: Buffer, v: number): Error | null => {
-    if (v < 0 || v > 0xFFFFFF) return new Error(`u24 out of range: ${v}`);
+    const err = _validateFiniteInteger("u24", v, 0, 0xFFFFFF);
+    if (err !== null) return err;
     buf.ensureCapacity(3);
     const bytes = buf.bytes;
     (buf as any)._bytes[buf.writeOffset] = v & 0xff;
@@ -286,7 +317,12 @@ export const getU32 = (buf: Buffer): [number, Error | null] => {
     (buf as any)._readOffset += 4;
     return [v, null];
 };
-export const setU32 = (buf: Buffer, v: number): Error | null => { _setNum(buf, 4, (view, offset) => view.setUint32(offset, v, true)); return null; };
+export const setU32 = (buf: Buffer, v: number): Error | null => {
+    const err = _validateFiniteInteger("u32", v, 0, 0xFFFFFFFF);
+    if (err !== null) return err;
+    _setNum(buf, 4, (view, offset) => view.setUint32(offset, v, true));
+    return null;
+};
 export const getI32 = (buf: Buffer): [number, Error | null] => {
     const err = _checkRead(buf, 4);
     if (err !== null) return [0, err];
@@ -294,7 +330,12 @@ export const getI32 = (buf: Buffer): [number, Error | null] => {
     (buf as any)._readOffset += 4;
     return [v, null];
 };
-export const setI32 = (buf: Buffer, v: number): Error | null => { _setNum(buf, 4, (view, offset) => view.setInt32(offset, v, true)); return null; };
+export const setI32 = (buf: Buffer, v: number): Error | null => {
+    const err = _validateFiniteInteger("i32", v, -0x80000000, 0x7FFFFFFF);
+    if (err !== null) return err;
+    _setNum(buf, 4, (view, offset) => view.setInt32(offset, v, true));
+    return null;
+};
 export const getU64 = (buf: Buffer): [bigint, Error | null] => {
     const err = _checkRead(buf, 8);
     if (err !== null) return [0n, err];
@@ -302,7 +343,12 @@ export const getU64 = (buf: Buffer): [bigint, Error | null] => {
     (buf as any)._readOffset += 8;
     return [v, null];
 };
-export const setU64 = (buf: Buffer, v: bigint): Error | null => { _setNum(buf, 8, (view, offset) => view.setBigUint64(offset, v, true)); return null; };
+export const setU64 = (buf: Buffer, v: bigint): Error | null => {
+    const err = _validateBigIntRange("u64", v, 0n, 0xFFFF_FFFF_FFFF_FFFFn);
+    if (err !== null) return err;
+    _setNum(buf, 8, (view, offset) => view.setBigUint64(offset, v, true));
+    return null;
+};
 export const getI64 = (buf: Buffer): [bigint, Error | null] => {
     const err = _checkRead(buf, 8);
     if (err !== null) return [0n, err];
@@ -310,7 +356,12 @@ export const getI64 = (buf: Buffer): [bigint, Error | null] => {
     (buf as any)._readOffset += 8;
     return [v, null];
 };
-export const setI64 = (buf: Buffer, v: bigint): Error | null => { _setNum(buf, 8, (view, offset) => view.setBigInt64(offset, v, true)); return null; };
+export const setI64 = (buf: Buffer, v: bigint): Error | null => {
+    const err = _validateBigIntRange("i64", v, -0x8000_0000_0000_0000n, 0x7FFF_FFFF_FFFF_FFFFn);
+    if (err !== null) return err;
+    _setNum(buf, 8, (view, offset) => view.setBigInt64(offset, v, true));
+    return null;
+};
 export const getF32 = (buf: Buffer): [number, Error | null] => {
     const err = _checkRead(buf, 4);
     if (err !== null) return [0, err];
@@ -334,6 +385,7 @@ export const encodeBitmap = (bits: boolean[]): Uint8Array => {
     return writer.bytes;
 };
 export const decodeBitmap = (data: Uint8Array, count: number): [boolean[], Error | null] => {
+    if (count < 0) return [[], new Error(`bitmap invalid count: ${count}`)];
     const reader = new BitReader(data, count);
     const bits: boolean[] = new Array(count);
     for (let i = 0; i < count; i++) {
@@ -354,6 +406,7 @@ export const encodeStateBlock = (states: number[]): [Uint8Array, Error | null] =
     return [writer.bytes, null];
 };
 export const decodeStateBlock = (data: Uint8Array, count: number): [number[], Error | null] => {
+    if (count < 0) return [[], new Error(`state block invalid count: ${count}`)];
     const reader = new BitReader(data, count * 2);
     const states = new Array<number>(count);
     for (let i = 0; i < count; i++) {
@@ -367,6 +420,8 @@ export const decodeStateBlock = (data: Uint8Array, count: number): [number[], Er
 };
 
 export const validatePaddingZero = (data: Uint8Array, usedBits: number, kind: string): Error | null => {
+    const maxBits = data.byteLength * 8;
+    if (usedBits < 0 || usedBits > maxBits) return new Error(`${kind} invalid used bits: ${usedBits} not in [0,${maxBits}]`);
     for (let bitOffset = usedBits; bitOffset < data.byteLength * 8; bitOffset++) {
         const byteIndex = Math.floor(bitOffset / 8);
         const bitIndex = 7 - (bitOffset % 8);
@@ -379,7 +434,7 @@ const _headerBitCount = (widths: readonly number[]): [number, Error | null] => {
     let total = 0;
     for (let i = 0; i < widths.length; i++) {
         const width = widths[i];
-        if (width !== 1 && width !== 2) return [0, new Error(`header width[${i}] is invalid: ${width}`)];
+        if (width !== 1 && width !== 2) return [0, new Error(`header field[${i}] invalid width: ${width}`)];
         total += width;
     }
     return [total, null];
@@ -388,7 +443,7 @@ export const readHeader = (data: Uint8Array, widths: readonly number[], kind: st
     const [usedBits, err] = _headerBitCount(widths);
     if (err !== null) return [[], new Error(`${kind}: ${err.message}`)];
     const expectBytes = headerSize(usedBits);
-    if (data.byteLength !== expectBytes) return [[], new Error(`${kind}: size mismatch ${data.byteLength} !== ${expectBytes}`)];
+    if (data.byteLength !== expectBytes) return [[], new Error(`${kind} invalid header size: ${data.byteLength} != ${expectBytes}`)];
     const errPadding = validatePaddingZero(data, usedBits, kind);
     if (errPadding !== null) return [[], errPadding];
     const reader = new BitReader(data, usedBits);
@@ -413,6 +468,20 @@ export const writeHeader = (widths: readonly number[], values: readonly number[]
 };
 
 const _textBytes = (v: string): Uint8Array => _textEncoder.encode(v);
+const _decodeTextStrict = (data: Uint8Array, kind: string): [string, Error | null] => {
+    try {
+        return [_textDecoderFatal.decode(data), null];
+    } catch {
+        return ["", new Error(`${kind} invalid utf-8`)];
+    }
+};
+const _validateTextValue = (v: string): [Uint8Array, Error | null] => {
+    const bytes = _textBytes(v);
+    const [decoded, err] = _decodeTextStrict(bytes, "text value");
+    if (err !== null) return [new Uint8Array(0), err];
+    if (decoded !== v) return [new Uint8Array(0), new Error("text value invalid utf-8")];
+    return [bytes, null];
+};
 const _textLengthState = (length: number): [number, Error | null] => {
     if (length < 0) return [0, new Error(`negative text length: ${length}`)];
     if (length === 0) return [StateZero, null];
@@ -472,10 +541,11 @@ export const getText = (buf: Buffer, state: number): [string, Error | null] => {
     if (length === 0) return ["", null];
     const [data, err2] = buf.read(length);
     if (err2 !== null) return ["", new Error(`text body not enough data: ${buf.len} - ${length}`)];
-    return [_textDecoder.decode(data), null];
+    return _decodeTextStrict(data, "text body");
 };
 export const setText = (buf: Buffer, state: number, v: string): Error | null => {
-    const bytes = _textBytes(v);
+    const [bytes, err0] = _validateTextValue(v);
+    if (err0 !== null) return err0;
     const [canonical, err] = _textLengthState(bytes.byteLength);
     if (err !== null) return err;
     if (state !== canonical) return new Error(`text state ${state} is not canonical for length ${bytes.byteLength}`);
@@ -539,7 +609,7 @@ export const getListCount = (buf: Buffer, state: number): [number, Error | null]
     case StateU8: {
         const [v, err] = getU8(buf);
         if (err !== null) return [0, err];
-        if (v === 0) return [0, new Error(`list count state ${state} encoded zero length`)];
+        if (v === 0) return [0, new Error(`list count state ${state} encoded zero count`)];
         return [v, null];
     }
     case StateU16:

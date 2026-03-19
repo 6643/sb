@@ -33,6 +33,14 @@ type crossWireOutput struct {
 	Hex  string `json:"hex"`
 }
 
+type crossWireRejectCase struct {
+	name         string
+	kind         string
+	hex          string
+	verifyLocal  func([]byte) error
+	wantContains string
+}
+
 func TestCrossLanguageWireConsistency(t *testing.T) {
 	runCrossLanguageWireConsistency(t, buildCrossWireCases())
 }
@@ -43,8 +51,15 @@ func TestCrossLanguageWireConsistencyRandom(t *testing.T) {
 	runCrossLanguageWireConsistency(t, buildRandomCrossWireCases(seed, rounds))
 }
 
+func TestCrossLanguageWireRejectsMalformedInputs(t *testing.T) {
+	runCrossLanguageWireRejects(t, buildCrossWireRejectCases())
+}
+
 func runCrossLanguageWireConsistency(t *testing.T, cases []crossWireCase) {
 	t.Helper()
+	if _, err := exec.LookPath("bun"); err != nil {
+		t.Skip("bun not found in PATH")
+	}
 	inputs := make([]crossWireInput, 0, len(cases))
 	expected := make(map[string]string, len(cases))
 
@@ -105,6 +120,48 @@ func runCrossLanguageWireConsistency(t *testing.T, cases []crossWireCase) {
 		if !seen[name] {
 			t.Fatalf("bun result missing case: %s", name)
 		}
+	}
+}
+
+func runCrossLanguageWireRejects(t *testing.T, cases []crossWireRejectCase) {
+	t.Helper()
+	if _, err := exec.LookPath("bun"); err != nil {
+		t.Skip("bun not found in PATH")
+	}
+	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatalf("resolve repo root failed: %v", err)
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			wire, err := hex.DecodeString(tc.hex)
+			if err != nil {
+				t.Fatalf("decode hex failed: %v", err)
+			}
+			if err := tc.verifyLocal(bytes.Clone(wire)); err == nil {
+				t.Fatalf("local decoder should reject malformed wire")
+			}
+
+			inputPath := filepath.Join(t.TempDir(), "cross_wire_reject_case.json")
+			data, err := json.Marshal([]crossWireInput{{Name: tc.name, Kind: tc.kind, Hex: tc.hex}})
+			if err != nil {
+				t.Fatalf("marshal reject case failed: %v", err)
+			}
+			if err := os.WriteFile(inputPath, data, 0o644); err != nil {
+				t.Fatalf("write reject case failed: %v", err)
+			}
+
+			cmd := exec.Command("bun", "ts/sb/cross_consistency.ts", inputPath)
+			cmd.Dir = repoRoot
+			output, err := cmd.CombinedOutput()
+			if err == nil {
+				t.Fatalf("bun cross consistency should reject malformed wire, output=%s", string(output))
+			}
+			if !strings.Contains(string(output), tc.wantContains) {
+				t.Fatalf("bun error mismatch:\nwant substring: %q\noutput:\n%s", tc.wantContains, string(output))
+			}
+		})
 	}
 }
 
@@ -244,6 +301,46 @@ func buildCrossWireCases() []crossWireCase {
 		binRespWireCase("api.get_bin.resp.empty", "api.get_bin.resp", nil),
 		binRespWireCase("api.get_bin.resp.u8", "api.get_bin.resp", getBinShort),
 		binRespWireCase("api.get_bin.resp.u16", "api.get_bin.resp", getBinBoundary),
+	}
+}
+
+func buildCrossWireRejectCases() []crossWireRejectCase {
+	return []crossWireRejectCase{
+		{
+			name: "struct.simInfo.non_zero_padding",
+			kind: "struct.simInfo",
+			hex:  "0010",
+			verifyLocal: func(data []byte) error {
+				_, err := ReadSimInfo(bytes.NewBuffer(data))
+				return err
+			},
+			wantContains: "SimInfo header padding bit 0 is not zero",
+		},
+		{
+			name: "struct.recharge.illegal_list_state",
+			kind: "struct.recharge",
+			hex:  "40",
+			verifyLocal: func(data []byte) error {
+				_, err := ReadRecharge(bytes.NewBuffer(data))
+				return err
+			},
+			wantContains: "struct.recharge.illegal_list_state decode: get Recharge Type: list count state 2 is illegal",
+		},
+		{
+			name: "api.get_bin.resp.non_canonical_u16",
+			kind: "api.get_bin.resp",
+			hex:  "020300090807",
+			verifyLocal: func(data []byte) error {
+				buf := bytes.NewBuffer(data)
+				state, err := rt.GetU8(buf)
+				if err != nil {
+					return err
+				}
+				_, err = rt.GetBinInto(buf, state, nil)
+				return err
+			},
+			wantContains: "api.get_bin.resp.non_canonical_u16 decode body: bin state 2 is not canonical for length 3",
+		},
 	}
 }
 

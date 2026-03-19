@@ -11,7 +11,7 @@ SB 是一个面向 Go 和 TypeScript 的二进制协议与 RPC 代码生成工�
 
 ### 协议规范
 
-- 当前协议规则以本 README 和 [PROTOCOL.md](/._/tool/sb/PROTOCOL.md) 为准.
+- README 只保留项目概览, 协议细节与 wire 语义以 [PROTOCOL.md](PROTOCOL.md) 为准.
 - 旧版生成链路已删除, 当前仓库只保留这套紧凑编码协议实现.
 
 ### 1.1 与常见序列化的优缺点对比
@@ -109,7 +109,7 @@ go run . -go ./go -ts ./ts -tag bson,json aaa.sb
 - `go/sb`: Go 协议类型, 编解码, RPC 客户端, API handler, `api.*.go`
 - `ts/sb`: TypeScript 类型, 运行时, 编解码, RPC 客户端
 - `go/sb/rt`: Go runtime
-- `go/sb/DOC.md`: 自动生成的 Markdown API 文档
+- `go/sb/DOC.md`, `ts/sb/DOC.md`: 自动生成的 Markdown API 文档
 - `api.*.go`: 可手改逻辑文件, 生成器使用指纹保护已改文件不被覆盖
 
 ## 3. `.sb` 语法
@@ -122,13 +122,13 @@ go run . -go ./go -ts ./ts -tag bson,json aaa.sb
 | `i8-i64` | 有符号整数 | 8 到 64 位 |
 | `f32`, `f64` | 浮点数 | - |
 | `bool` | 布尔值 | - |
-| `text` | UTF-8 字符串 | 最大 `65535` 字节, 使用 `u16` 前缀 |
-| `bin` | 二进制数据 | 最大 `4294967295` 字节, 使用 `u32` 前缀 |
-| `[T]` | 数组或切片 | 最大 `65535` 个元素, 使用 `u16` 前缀 |
+| `text` | UTF-8 字符串 | 变长类型, 具体 wire 编码见 `PROTOCOL.md` |
+| `bin` | 二进制数据 | 变长类型, 具体 wire 编码见 `PROTOCOL.md` |
+| `[T]` | 数组或切片 | 变长类型, 具体 wire 编码见 `PROTOCOL.md` |
 
 说明:
 
-- `text` 的上限按 UTF-8 字节数计算, 不是字符数.
+- `text` 的长度按 UTF-8 字节数计算, 不是字符数.
 - 默认 RPC 请求和响应上限仍由运行时控制, 当前默认值是 `4MB`.
 
 ### 3.2 通用规则
@@ -211,7 +211,7 @@ set_flag(enabled bool) => nil
 
 - API 名称只支持 `a` 或 `a.b`
 - 返回 `nil` 表示无 body 返回
-- Go 端会生成逻辑接口和 HTTP handler
+- Go 端会生成逻辑 stub 和 HTTP handler
 - TypeScript 端会生成对应的 RPC 调用方法
 
 ## 4. 规则边界
@@ -254,8 +254,7 @@ set_flag(enabled bool) => nil
 - Go 客户端 `Client.Timeout` 覆盖单次请求的完整 attempt, 包括发请求和读取响应体
 - Go 客户端只对 timeout 类失败和服务端 `408` 做重试; 非 timeout 的损坏响应仍记为 `RpcRespErr`
 - handler 返回 `RpcNoConn`、`RpcRespErr` 或未知内部状态时, 会统一映射为合法 HTTP `500`
-- 运行时提供 `GetBin(buf)` 和 `GetBinView(buf)`
-- `GetBinView(buf)` 是可选借用接口, 返回切片只在底层 `buf` 未继续消费或复用前有效
+- Go runtime 提供基础 header、定宽类型和紧凑变长字段读写 helper
 
 ### 5.2 TypeScript
 
@@ -277,12 +276,14 @@ go run . -go ./go -ts ./ts -tag bson,json aaa.sb
 
 关键回归测试入口:
 
-- [lexer_scanner_test.go](/._/tool/sb/internal/lexer_scanner_test.go): 词法规则与非法字符边界
-- [parser_schema_test.go](/._/tool/sb/internal/parser_schema_test.go): `.sb` 语法规则, 注释规则, 嵌入规则, 枚举规则
-- [semantic_resolver_test.go](/._/tool/sb/internal/semantic_resolver_test.go): 语义展开与枚举值冲突
-- [tpl_template_regression_test.go](/._/tool/sb/internal/tpl_template_regression_test.go): Go/TS/DOC 生成回归
-- [legacy_go_generator_test.go](/._/tool/sb/internal/legacy_go_generator_test.go): 旧 Go 生成器兼容回归
-- [legacy_ts_generator_test.go](/._/tool/sb/internal/legacy_ts_generator_test.go): 旧 TS 生成器兼容回归
+- [lexer_scanner_test.go](internal/lexer_scanner_test.go): 词法规则与非法字符边界
+- [parser_schema_test.go](internal/parser_schema_test.go): `.sb` 语法规则, 注释规则, 嵌入规则, 枚举规则
+- [semantic_resolver_test.go](internal/semantic_resolver_test.go): 语义展开与枚举值冲突
+- [tpl_go_render_test.go](internal/tpl_go_render_test.go): Go 生成代码回归
+- [tpl_ts_render_test.go](internal/tpl_ts_render_test.go): TS 生成代码回归
+- [go/sb/rt/runtime_test.go](go/sb/rt/runtime_test.go): Go runtime 协议细节与 canonical 规则
+- [go/sb/cross_consistency_test.go](go/sb/cross_consistency_test.go): Go 端协议一致性回归
+- [ts/sb/runtime.test.ts](ts/sb/runtime.test.ts): TS runtime 协议细节与 canonical 规则
 
 ## 7. 已知限制
 
@@ -290,10 +291,10 @@ go run . -go ./go -ts ./ts -tag bson,json aaa.sb
 - 当前不支持 `map` 类型
 - `enum` 不支持成员注释
 - `text` 仍按字节长度限制, 不是按字符数限制
-- `bin` 虽然使用 `u32` 长度前缀, 但默认 RPC 包体上限仍受运行时配置约束
+- `bin` 等变长字段的具体长度状态与上限以 `PROTOCOL.md` 和 runtime 实现为准, 默认 RPC 包体上限仍受运行时配置约束
 
 ## 8. 维护约定
 
-- 结构变更, 协议变更, 生成器修复都必须更新 [CHANGELOG.md](/._/tool/sb/CHANGELOG.md)
+- 结构变更, 协议变更, 生成器修复都必须更新 [CHANGELOG.md](CHANGELOG.md)
 - 新记录插入 `CHANGELOG.md` 标题后, 禁止追加到底部
-- 主文档以本文件为准, 不再维护独立的 PEG 说明文档
+- 协议细节以 `PROTOCOL.md` 为准, README 只保留使用与维护概览

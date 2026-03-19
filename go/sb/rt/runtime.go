@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"unicode/utf8"
 )
 
 const (
@@ -23,7 +24,7 @@ func HeaderSize(bitCount int) int {
 func headerBitCount(widths []uint8) (int, error) {
 	bitCount := 0
 	for i, width := range widths {
-		if width == 0 || width > 8 {
+		if width != 1 && width != 2 {
 			return 0, fmt.Errorf("header field[%d] invalid width: %d", i, width)
 		}
 		bitCount += int(width)
@@ -40,10 +41,9 @@ func ReadHeader(data []byte, widths []uint8, out []uint8, kind string) error {
 		return fmt.Errorf("%s: %w", kind, err)
 	}
 	headerSize := HeaderSize(bitCount)
-	if len(data) < headerSize {
-		return fmt.Errorf("%s not enough data: %d - %d", kind, len(data), headerSize)
+	if len(data) != headerSize {
+		return fmt.Errorf("%s invalid header size: %d != %d", kind, len(data), headerSize)
 	}
-	data = data[:headerSize]
 	if err := ValidatePaddingZero(data, bitCount, kind); err != nil {
 		return err
 	}
@@ -67,10 +67,9 @@ func WriteHeader(dst []byte, widths []uint8, values []uint8) error {
 		return err
 	}
 	headerSize := HeaderSize(bitCount)
-	if len(dst) < headerSize {
-		return fmt.Errorf("header dst too small: %d - %d", len(dst), headerSize)
+	if len(dst) != headerSize {
+		return fmt.Errorf("header dst invalid size: %d != %d", len(dst), headerSize)
 	}
-	dst = dst[:headerSize]
 	for i := range dst {
 		dst[i] = 0
 	}
@@ -153,6 +152,10 @@ func (r *BitReader) ReadBits(width int) (uint8, error) {
 }
 
 func ValidatePaddingZero(data []byte, usedBits int, kind string) error {
+	maxBits := len(data) * 8
+	if usedBits < 0 || usedBits > maxBits {
+		return fmt.Errorf("%s invalid used bits: %d not in [0,%d]", kind, usedBits, maxBits)
+	}
 	for bitOffset := usedBits; bitOffset < len(data)*8; bitOffset++ {
 		byteIndex := bitOffset / 8
 		bitIndex := 7 - (bitOffset % 8)
@@ -416,10 +419,17 @@ func GetText(buf *bytes.Buffer, state uint8) (string, error) {
 	if buf.Len() < length {
 		return "", fmt.Errorf("text body not enough data: %d - %d", buf.Len(), length)
 	}
-	return string(buf.Next(length)), nil
+	data := buf.Next(length)
+	if !utf8.Valid(data) {
+		return "", fmt.Errorf("text body invalid utf-8")
+	}
+	return string(data), nil
 }
 
 func SetText(buf *bytes.Buffer, state uint8, value string) error {
+	if !utf8.ValidString(value) {
+		return fmt.Errorf("text value invalid utf-8")
+	}
 	canonical, err := TextState(len(value))
 	if err != nil {
 		return err
@@ -446,6 +456,9 @@ func SetText(buf *bytes.Buffer, state uint8, value string) error {
 }
 
 func SizeText(value string) (int, error) {
+	if !utf8.ValidString(value) {
+		return 0, fmt.Errorf("text value invalid utf-8")
+	}
 	state, err := TextState(len(value))
 	if err != nil {
 		return 0, err
@@ -694,7 +707,7 @@ func getListCount(buf *bytes.Buffer, state uint8) (int, error) {
 			return 0, err
 		}
 		if value == 0 {
-			return 0, fmt.Errorf("list count state %d encoded zero length", state)
+			return 0, fmt.Errorf("list count state %d encoded zero count", state)
 		}
 		return int(value), nil
 	case StateU16, StateU24:
