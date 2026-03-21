@@ -1,6 +1,6 @@
 # sb 协议规范
 
-> 状态: 当前默认协议实现, Go / TypeScript 生成代码落地到 `go/sb` 与 `ts/sb`, Go runtime 位于 `go/sb`  
+> 状态: 当前默认协议实现的仓库内示例输出位于 `demo/go/sb` 与 `demo/ts/sb`, Go runtime 位于 `demo/go/sb`  
 > 兼容性: 与仓库早期实现不兼容, 旧版生成链路已删除  
 > 目的: 描述当前默认生成器的 wire format 与约束
 
@@ -697,71 +697,7 @@ header 位流:
 - 读到了什么状态或长度
 - 为什么这在当前规则下非法
 
-## 13. 实现与维护要点
-
-当前仓库已经默认使用这套协议, Go / TypeScript 两端都按这里的规则生成代码.
-
-### 13.1 运行时
-
-Go 与 TypeScript 运行时都需要持续保持以下基础能力一致:
-
-- bitstream header 写入与读取
-  - 支持 `1 bit` 与 `2 bit` 状态
-  - 支持 `MSB -> LSB`
-  - 支持字段级 header 可跨字节
-- `u24` 读写
-  - `GetU24`
-  - `SetU24`
-  - 上限检查与错误信息
-- 紧凑长度读写
-  - `text: empty/u8/u16`
-  - `bin: empty/u8/u16/u24`
-  - `list count: empty/u8`
-- list 基础读写
-  - `[bool] -> count + bitset`
-  - `[scalar/enum/struct] -> count + value bitmap + non-default bodies`
-  - `[text]/[bin] -> count + item header block + item tail`
-
-### 13.2 代码生成器
-
-生成器需要始终按当前规则生成:
-
-- struct field 分类
-  - `bool`
-  - `1-bit default-state`: `scalar/enum/struct`
-  - `2-bit state`: `text/bin/list`
-- struct 编码布局
-  - 先写 header
-  - 再写 `fixed block`
-  - 最后写 `var tail`
-- struct 解码布局
-  - 先读 header
-  - 再按 schema 顺序读 `fixed block`
-  - 最后按 schema 顺序读 `var tail`
-- 默认值判定生成
-  - `enum` 默认值 = schema 第一项
-  - `struct` 默认值 = 所有字段都为默认值
-- list 生成
-  - `[bool]` 生成 bitset 路径
-  - `[scalar/enum/struct]` 生成 value bitmap 路径
-  - `[text]/[bin]` 生成 item header block 路径
-
-### 13.3 辅助函数
-
-为了让生成代码保持简单, 运行时最好提供统一 helper. 具体函数名可以按语言命名习惯区分, 但语义应等价:
-
-- header: `WriteHeader` / `ReadHeader`, `writeHeader` / `readHeader`
-- text: Go 侧 `SetText` / `GetText` / `SizeText`; TS 侧 `setText` / `getText` 与等价的长度状态 helper
-- bin: `SetBin` / `GetBinInto`, `setBin` / `getBin`
-- bool list: `SetBoolList` / `GetBoolListInto`, `setBoolList` / `getBoolList`
-- zero list: `SetZeroList` / `GetZeroListInto`, `setZeroList` / `getZeroList`
-- default list: `SetDefaultList` / `GetDefaultListInto`, `setDefaultList` / `getDefaultList`
-- default ptr list 或等价的 struct-list helper
-- `isZeroStruct`
-
-其中 `isZeroStruct` 更适合由生成器按具体 struct 内联生成, 不建议做成反射式通用函数.
-
-### 13.4 测试
+## 13. 回归样例
 
 建议长期保留以下回归样例:
 
@@ -781,16 +717,4 @@ Go 与 TypeScript 运行时都需要持续保持以下基础能力一致:
 - 非规范编码
 - `-0.0` 被规范化为 `0.0`
 
-### 13.5 当前工程落点
-
-当前仓库中的主要落点如下:
-
-- Go runtime: `go/sb/runtime.go`
-- TypeScript runtime: `ts/sb/type.ts`
-- Go 生成器: `internal/tpl_go_render.go`
-- TypeScript 生成器: `internal/tpl_ts_render.go`
-- 双端一致性回归:
-  - `go/sb/cross_consistency_test.go`
-  - `ts/sb/cross_consistency.test.ts`
-
-后续维护应直接在这套主链路上继续演进, 不再保留并行协议实现.
+当前仓库的实现落点、目录结构和测试入口见 [IMPLEMENTATION.md](IMPLEMENTATION.md). 这些内容不构成协议约束.

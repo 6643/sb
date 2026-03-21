@@ -12,6 +12,7 @@ sb 是一个面向 Go 和 TypeScript 的二进制协议与 RPC 代码生成工�
 ### 协议规范
 
 - README 只保留项目概览, 协议细节与 wire 语义以 [PROTOCOL.md](PROTOCOL.md) 为准.
+- 当前仓库的实现落点、目录结构和测试入口见 [IMPLEMENTATION.md](IMPLEMENTATION.md).
 - 旧版生成链路已删除, 当前仓库只保留这套紧凑编码协议实现.
 
 ### 1.1 与常见序列化的优缺点对比
@@ -42,8 +43,7 @@ go run . <input.sb> [flags]
 
 ```bash
 go build -o sb
-cd demo
-../sb -go ./go -ts ./ts -tag bson,json aaa.sb
+./sb -go ./demo/go -ts ./demo/ts -tag bson,json ./demo/aaa.sb
 ```
 
 ### 2.2 命令行参数
@@ -52,13 +52,10 @@ cd demo
 - `-ts`: TypeScript 代码输出目录, 默认 `./ts`
 - `-tag`: 为 Go 结构体追加 tag, 例如 `bson,json`
 
-### 2.3 生成目录约定
+### 2.3 实现落点
 
-- `go/sb`: Go 协议类型, 编解码, RPC 客户端, API handler, `api.*.go`
-- `ts/sb`: TypeScript 类型, 运行时, 编解码, RPC 客户端
-- `go/sb/runtime.go`: Go runtime
-- `go/sb/DOC.md`, `ts/sb/DOC.md`: 自动生成的 Markdown API 文档
-- `api.*.go`: 可手改逻辑文件, 生成器使用指纹保护已改文件不被覆盖
+- 当前仓库只保留 `demo/` 这一套示例 schema 与生成结果
+- 目录结构、生成落点和测试入口统一见 [IMPLEMENTATION.md](IMPLEMENTATION.md)
 
 ## 3. `.sb` 语法
 
@@ -219,19 +216,10 @@ set_flag(enabled bool) => nil
 
 ```bash
 go test ./...
-go run . -go ./go -ts ./ts -tag bson,json aaa.sb
+go run . -go ./demo/go -ts ./demo/ts -tag bson,json ./demo/aaa.sb
 ```
 
-关键回归测试入口:
-
-- [lexer_scanner_test.go](internal/lexer_scanner_test.go): 词法规则与非法字符边界
-- [parser_schema_test.go](internal/parser_schema_test.go): `.sb` 语法规则, 注释规则, 嵌入规则, 枚举规则
-- [semantic_resolver_test.go](internal/semantic_resolver_test.go): 语义展开与枚举值冲突
-- [tpl_go_render_test.go](internal/tpl_go_render_test.go): Go 生成代码回归
-- [tpl_ts_render_test.go](internal/tpl_ts_render_test.go): TS 生成代码回归
-- [go/sb/runtime_test.go](go/sb/runtime_test.go): Go runtime 协议细节与 canonical 规则
-- [go/sb/cross_consistency_test.go](go/sb/cross_consistency_test.go): Go 端协议一致性回归
-- [ts/sb/runtime.test.ts](ts/sb/runtime.test.ts): TS runtime 协议细节与 canonical 规则
+关键回归测试入口统一见 [IMPLEMENTATION.md](IMPLEMENTATION.md).
 
 ## 7. 已知限制
 

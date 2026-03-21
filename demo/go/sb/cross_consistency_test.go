@@ -83,12 +83,12 @@ func runCrossLanguageWireConsistency(t *testing.T, cases []crossWireCase) {
 		t.Fatalf("write cross cases failed: %v", err)
 	}
 
-	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	repoRoot, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	if err != nil {
 		t.Fatalf("resolve repo root failed: %v", err)
 	}
 
-	cmd := exec.Command("bun", "ts/sb/cross_consistency.ts", inputPath)
+	cmd := exec.Command("bun", "demo/ts/sb/cross_consistency.ts", inputPath)
 	cmd.Dir = repoRoot
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -126,7 +126,7 @@ func runCrossLanguageWireRejects(t *testing.T, cases []crossWireRejectCase) {
 	if _, err := exec.LookPath("bun"); err != nil {
 		t.Skip("bun not found in PATH")
 	}
-	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	repoRoot, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	if err != nil {
 		t.Fatalf("resolve repo root failed: %v", err)
 	}
@@ -150,7 +150,7 @@ func runCrossLanguageWireRejects(t *testing.T, cases []crossWireRejectCase) {
 				t.Fatalf("write reject case failed: %v", err)
 			}
 
-			cmd := exec.Command("bun", "ts/sb/cross_consistency.ts", inputPath)
+			cmd := exec.Command("bun", "demo/ts/sb/cross_consistency.ts", inputPath)
 			cmd.Dir = repoRoot
 			output, err := cmd.CombinedOutput()
 			if err == nil {

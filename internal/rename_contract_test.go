@@ -18,28 +18,37 @@ func TestRenameContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read README.md: %v", err)
 	}
+	implementation, err := os.ReadFile("../IMPLEMENTATION.md")
+	if err != nil {
+		t.Fatalf("read IMPLEMENTATION.md: %v", err)
+	}
 	changelog, err := os.ReadFile("../CHANGELOG.md")
 	if err != nil {
 		t.Fatalf("read CHANGELOG.md: %v", err)
 	}
-	schema, err := os.ReadFile("../aaa.sb")
+	if _, err := os.Stat("../aaa.sb"); !os.IsNotExist(err) {
+		t.Fatalf("aaa.sb should not exist in repo root, err=%v", err)
+	}
+	if _, err := os.Stat("../go"); !os.IsNotExist(err) {
+		t.Fatalf("go should not exist in repo root, err=%v", err)
+	}
+	if _, err := os.Stat("../ts"); !os.IsNotExist(err) {
+		t.Fatalf("ts should not exist in repo root, err=%v", err)
+	}
+	schema, err := os.ReadFile("../demo/aaa.sb")
 	if err != nil {
-		t.Fatalf("read aaa.sb: %v", err)
+		t.Fatalf("read demo/aaa.sb: %v", err)
 	}
 	protocol, err := os.ReadFile("../PROTOCOL.md")
 	if err != nil {
 		t.Fatalf("read PROTOCOL.md: %v", err)
 	}
-	if _, err := os.Stat("../go/sb/rt"); !os.IsNotExist(err) {
-		t.Fatalf("go/sb/rt should not exist, err=%v", err)
+	if _, err := os.Stat("../demo/go/sb/rt"); !os.IsNotExist(err) {
+		t.Fatalf("demo/go/sb/rt should not exist, err=%v", err)
 	}
-	runtimeGo, err := os.ReadFile("../go/sb/runtime.go")
+	runtimeGo, err := os.ReadFile("../demo/go/sb/runtime.go")
 	if err != nil {
-		t.Fatalf("read go/sb/runtime.go: %v", err)
-	}
-	cross, err := os.ReadFile("../go/sb/cross_consistency_test.go")
-	if err != nil {
-		t.Fatalf("read go/sb/cross_consistency_test.go: %v", err)
+		t.Fatalf("read demo/go/sb/runtime.go: %v", err)
 	}
 	demoGoDoc, err := os.ReadFile("../demo/go/sb/DOC.md")
 	if err != nil {
@@ -60,17 +69,29 @@ func TestRenameContract(t *testing.T) {
 	assertNotContains(t, string(mainGo), "\"simple-bin/internal\"")
 	assertContains(t, string(readme), "# sb")
 	assertContains(t, string(readme), "`sb/internal`")
+	assertContains(t, string(readme), "[PROTOCOL.md](PROTOCOL.md)")
+	assertContains(t, string(readme), "[IMPLEMENTATION.md](IMPLEMENTATION.md)")
 	assertNotContains(t, string(readme), "# simple-bin")
 	assertNotContains(t, string(readme), "`simple-bin/internal`")
 	assertContains(t, string(readme), "go build -o sb")
-	assertContains(t, string(readme), "../sb -go")
+	assertContains(t, string(readme), "./sb -go ./demo/go -ts ./demo/ts -tag bson,json ./demo/aaa.sb")
+	assertNotContains(t, string(readme), "../sb -go ./go -ts ./ts -tag bson,json aaa.sb")
 	assertContains(t, string(changelog), "# Changelog")
 	assertContains(t, string(schema), "get_count(page u8) => u8")
 	assertContains(t, string(protocol), "# sb 协议规范")
 	assertNotContains(t, string(protocol), "# simple-bin 协议规范")
+	assertNotContains(t, string(protocol), "demo/go/sb/runtime.go")
+	assertNotContains(t, string(protocol), "demo/ts/sb/type.ts")
+	assertNotContains(t, string(protocol), "internal/tpl_go_render.go")
+	assertNotContains(t, string(protocol), "cross_consistency_test.go")
 	assertContains(t, string(runtimeGo), "package sb")
-	assertNotContains(t, string(cross), "simple-bin/go/sb/rt")
-	assertNotContains(t, string(cross), "sb/go/sb/rt")
+	assertContains(t, string(implementation), "# Implementation")
+	assertContains(t, string(implementation), "PROTOCOL.md")
+	assertContains(t, string(implementation), "demo/go/sb/runtime.go")
+	assertContains(t, string(implementation), "demo/ts/sb/type.ts")
+	assertContains(t, string(implementation), "internal/tpl_go_render.go")
+	assertContains(t, string(implementation), "demo/go/sb/cross_consistency_test.go")
+	assertContains(t, string(implementation), "demo/ts/sb/cross_consistency.test.ts")
 	assertContains(t, string(demoGoDoc), "\"your_project/sb\"")
 	assertNotContains(t, string(demoGoDoc), "\"your_project/go/sb\"")
 	assertNotContains(t, string(demoGoAPI), "simple-bin/go/sb/rt")

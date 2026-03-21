@@ -1,5 +1,9 @@
 # SB Schema 语法 (PEG)
 #
+# 说明: 本文件仅作设计参考, 不参与当前解析实现.
+# 当前权威行为以 `internal/lexer_scanner.go`、`internal/parser_schema.go`
+# 与 `internal/parser_schema_test.go` 为准.
+#
 # 规则来源: `aaa.sb`.
 # 风格约束: `<-` 纵向对齐, alternatives 使用逐行 `/`.
 

@@ -5,9 +5,9 @@ const hasGo = typeof Bun.which("go") === "string";
 
 const runGoCrossTest = (name: string): void => {
     if (!hasGo) return;
-    const repoRoot = decodeURIComponent(new URL("../..", import.meta.url).pathname);
+    const repoRoot = decodeURIComponent(new URL("../../..", import.meta.url).pathname);
     const proc = Bun.spawnSync({
-        cmd: ["go", "test", "./go/sb", "-run", goRunPattern(name), "-count=1"],
+        cmd: ["go", "test", "./demo/go/sb", "-run", goRunPattern(name), "-count=1"],
         cwd: repoRoot,
         env: { ...process.env, GOCACHE: "/tmp/go-build" },
         stdout: "pipe",
@@ -31,7 +31,7 @@ describe("cross consistency", () => {
         runGoCrossTest("TestCrossLanguageWireConsistencyRandom");
     }, 20000);
 
-	(hasGo ? test : test.skip)("go-ts malformed wire cases reject", () => {
-		runGoCrossTest("TestCrossLanguageWireRejectsMalformedInputs");
-	}, 20000);
+    (hasGo ? test : test.skip)("go-ts malformed wire cases reject", () => {
+        runGoCrossTest("TestCrossLanguageWireRejectsMalformedInputs");
+    }, 20000);
 });
