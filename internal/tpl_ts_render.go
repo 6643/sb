@@ -193,6 +193,7 @@ func (g *TsGenerator) renderStructFile(st TplStruct) string {
 		case field.Type.Kind == TplKindEnum && !field.Type.IsList:
 			w.Linef("    if (!_.IsAssignable%s(%s as any)) return new Error(`%s 非法枚举值: ${%s as any}`);", PascalCase(field.Type.Name), ref, fieldName, ref)
 		case field.Type.Kind == TplKindEnum && field.Type.IsList:
+			w.Linef("    if (!rt.isArrayValue(%s)) return new Error(`%s: value is not array`);", ref, fieldName)
 			w.Linef("    for (let i = 0; i < %s.length; i++) {", ref)
 			w.Linef("        if (!_.IsAssignable%s(%s[i] as any)) return new Error(`%s[${i}] 非法枚举值: ${%s[i] as any}`);", PascalCase(field.Type.Name), ref, fieldName, ref)
 			w.Line("    }")
@@ -200,6 +201,7 @@ func (g *TsGenerator) renderStructFile(st TplStruct) string {
 		case field.Type.Kind == TplKindStruct && !field.Type.IsList:
 			w.Linef("    { const err = _.validate%s(%s); if (err !== undefined) return new Error(`%s: ${err.message}`); }", PascalCase(field.Type.Name), ref, fieldName)
 		case field.Type.Kind == TplKindStruct && field.Type.IsList:
+			w.Linef("    if (!rt.isArrayValue(%s)) return new Error(`%s: value is not array`);", ref, fieldName)
 			w.Linef("    { const [, err] = rt.listCountState(%s.length); if (err !== null) return new Error(`%s: ${err.message}`); }", ref, fieldName)
 			w.Linef("    for (let i = 0; i < %s.length; i++) {", ref)
 			w.Linef("        const err = _.validate%s(%s[i]);", PascalCase(field.Type.Name), ref)
@@ -208,20 +210,25 @@ func (g *TsGenerator) renderStructFile(st TplStruct) string {
 		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "text":
 			w.Linef("    { const [, err] = rt.textState(%s); if (err !== null) return new Error(`%s: ${err.message}`); }", ref, fieldName)
 		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "bin":
+			w.Linef("    if (!rt.isBinValue(%s)) return new Error(`%s: value is not Uint8Array`);", ref, fieldName)
 			w.Linef("    { const [, err] = rt.binState(%s.byteLength); if (err !== null) return new Error(`%s: ${err.message}`); }", ref, fieldName)
 		case field.Type.Kind == TplKindBase && field.Type.IsList && field.Type.Name == "text":
+			w.Linef("    if (!rt.isArrayValue(%s)) return new Error(`%s: value is not array`);", ref, fieldName)
 			w.Linef("    { const [, err] = rt.listCountState(%s.length); if (err !== null) return new Error(`%s: ${err.message}`); }", ref, fieldName)
 			w.Linef("    for (let i = 0; i < %s.length; i++) {", ref)
 			w.Linef("        const [, err] = rt.textState(%s[i]);", ref)
 			w.Linef("        if (err !== null) return new Error(`%s[${i}]: ${err.message}`);", fieldName)
 			w.Line("    }")
 		case field.Type.Kind == TplKindBase && field.Type.IsList && field.Type.Name == "bin":
+			w.Linef("    if (!rt.isArrayValue(%s)) return new Error(`%s: value is not array`);", ref, fieldName)
 			w.Linef("    { const [, err] = rt.listCountState(%s.length); if (err !== null) return new Error(`%s: ${err.message}`); }", ref, fieldName)
 			w.Linef("    for (let i = 0; i < %s.length; i++) {", ref)
+			w.Linef("        if (!rt.isBinValue(%s[i])) return new Error(`%s[${i}]: value is not Uint8Array`);", ref, fieldName)
 			w.Linef("        const [, err] = rt.binState(%s[i].byteLength);", ref)
 			w.Linef("        if (err !== null) return new Error(`%s[${i}]: ${err.message}`);", fieldName)
 			w.Line("    }")
 		case field.Type.Kind == TplKindBase && field.Type.IsList:
+			w.Linef("    if (!rt.isArrayValue(%s)) return new Error(`%s: value is not array`);", ref, fieldName)
 			w.Linef("    { const [, err] = rt.listCountState(%s.length); if (err !== null) return new Error(`%s: ${err.message}`); }", ref, fieldName)
 		}
 	}
@@ -460,6 +467,7 @@ func (g *TsGenerator) renderRPCFile(apis []TplApi) string {
 	w.Line("    headers?: Record<string, string>;")
 	w.Line("    timeout?: number;")
 	w.Line("    retries?: number;")
+	w.Line("    enableRetries?: boolean;")
 	w.Line("    maxRespBytes?: number;")
 	w.Line("}")
 	w.Blank()
@@ -483,6 +491,7 @@ func (g *TsGenerator) renderRPCFile(apis []TplApi) string {
 	w.Line("    headers: Record<string, string>;")
 	w.Line("    timeout: number;")
 	w.Line("    retries: number;")
+	w.Line("    enableRetries: boolean;")
 	w.Line("    maxRespBytes: number;")
 	w.Line("    _fetch: (path: string, body: Uint8Array) => Promise<[Uint8Array | null, RpcStatus]>;")
 	w.Line("};")
@@ -495,6 +504,7 @@ func (g *TsGenerator) renderRPCFile(apis []TplApi) string {
 	w.Line("    this.timeout = cfgTimeout !== undefined && Number.isFinite(cfgTimeout) && cfgTimeout >= 0 ? Math.min(Math.floor(cfgTimeout), maxTimeoutMs) : 5000;")
 	w.Line("    const cfgRetries = config.retries;")
 	w.Line("    this.retries = cfgRetries !== undefined && Number.isFinite(cfgRetries) && cfgRetries >= 0 ? Math.floor(cfgRetries) : 3;")
+	w.Line("    this.enableRetries = config.enableRetries === true;")
 	w.Line("    const cfgMaxRespBytes = config.maxRespBytes;")
 	w.Line("    this.maxRespBytes = cfgMaxRespBytes !== undefined && Number.isFinite(cfgMaxRespBytes) && cfgMaxRespBytes > 0 ? Math.min(Math.floor(cfgMaxRespBytes), maxSafeRespBytes) : defaultMaxRespBytes;")
 	w.Line("}")
@@ -550,8 +560,9 @@ func (g *TsGenerator) renderRPCFile(apis []TplApi) string {
 	w.Line("}")
 	w.Blank()
 	w.Line("_rpcClientProto._fetch = async function(this: _RpcClientState, path: string, body: Uint8Array): Promise<[Uint8Array | null, RpcStatus]> {")
+	w.Line("    const maxRetries = this.enableRetries ? this.retries : 0;")
 	w.Line("    let lastStatus = RpcErrCode.NoConn;")
-	w.Line("    for (let i = 0; i <= this.retries; i++) {")
+	w.Line("    for (let i = 0; i <= maxRetries; i++) {")
 	w.Line("        if (i > 0) await new Promise((res) => setTimeout(res, i * 1000));")
 	w.Line("        const controller = new AbortController();")
 	w.Line("        let timeoutId: ReturnType<typeof setTimeout> | null = null;")
@@ -569,11 +580,11 @@ func (g *TsGenerator) renderRPCFile(apis []TplApi) string {
 	w.Line("                return [bytes, RpcErrCode.Ok];")
 	w.Line("            }")
 	w.Line("            lastStatus = res.status;")
-	w.Line("            if (res.status === 408 && i < this.retries) continue;")
+	w.Line("            if (res.status === 408 && i < maxRetries) continue;")
 	w.Line("            return [null, res.status];")
 	w.Line("        } catch (e: any) {")
 	w.Line("            lastStatus = e && e.name === \"AbortError\" ? RpcErrCode.Timeout : RpcErrCode.NoConn;")
-	w.Line("            if (i < this.retries) continue;")
+	w.Line("            if (i < maxRetries) continue;")
 	w.Line("        } finally {")
 	w.Line("            if (timeoutId !== null) clearTimeout(timeoutId);")
 	w.Line("        }")
@@ -714,17 +725,17 @@ func (g *TsGenerator) tagWidth(t TplType) int {
 func (g *TsGenerator) nonDefaultExpr(t TplType, ref string) string {
 	switch {
 	case t.IsList:
-		return fmt.Sprintf("%s.length !== 0", ref)
+		return fmt.Sprintf("!rt.isArrayValue(%s) || %s.length !== 0", ref, ref)
 	case t.Kind == TplKindStruct:
-		return fmt.Sprintf("!_.isZero%s(%s)", PascalCase(t.Name), ref)
+		return fmt.Sprintf("!_.isZero%s(%s as any)", PascalCase(t.Name), ref)
 	case t.Kind == TplKindEnum:
 		return fmt.Sprintf("!_.IsDefault%s(%s as any)", PascalCase(t.Name), ref)
 	case t.Name == "text":
-		return fmt.Sprintf("%s !== \"\"", ref)
+		return fmt.Sprintf("!rt.isStringValue(%s) || %s !== \"\"", ref, ref)
 	case t.Name == "bin":
-		return fmt.Sprintf("%s.byteLength !== 0", ref)
+		return fmt.Sprintf("!rt.isBinValue(%s) || %s.byteLength !== 0", ref, ref)
 	case t.Name == "bool":
-		return ref
+		return fmt.Sprintf("%s !== false", ref)
 	case t.Name == "i64", t.Name == "u64":
 		return fmt.Sprintf("%s !== 0n", ref)
 	default:

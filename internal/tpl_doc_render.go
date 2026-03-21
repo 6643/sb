@@ -57,7 +57,8 @@ func renderDoc(schema *TplSchema) string {
 	w.Line("func main() {")
 	w.Line("    client := sb.NewClient(\"http://localhost:8080\")")
 	w.Line("    client.Timeout = 5 * time.Second // 单次请求覆盖建连到响应体读取")
-	w.Line("    client.Retries = 3 // 默认已是 3 次")
+	w.Line("    client.EnableRetries = false // 默认关闭, 只有请求具备幂等保障时再开启")
+	w.Line("    client.Retries = 3 // 仅在 EnableRetries=true 时生效")
 	w.Line("    ")
 	w.Line("    // Example call")
 	if len(schema.Apis) > 0 {
@@ -94,7 +95,7 @@ func renderDoc(schema *TplSchema) string {
 	w.Line("func main() {")
 	w.Line("    mux := http.NewServeMux()")
 	w.Line("    ")
-	w.Line("    // Request-level timeout propagates to business logic and downstream calls.")
+	w.Line("    // Request-level timeout returns HTTP 408 and propagates cancellation to business logic.")
 	w.Line("    rpcTimeout := 3 * time.Second")
 	w.Line("    ")
 	w.Line("    // Connection-level timeouts protect the HTTP transport.")
@@ -137,7 +138,8 @@ func renderDoc(schema *TplSchema) string {
 	w.Line("    const client = new sb.RpcClient({")
 	w.Line("        host: \"http://localhost:8080\",")
 	w.Line("        timeout: 5000,")
-	w.Line("        retries: 3, // 默认已是 3 次")
+	w.Line("        enableRetries: false, // 默认关闭, 只有请求具备幂等保障时再开启")
+	w.Line("        retries: 3, // 仅在 enableRetries=true 时生效")
 	w.Line("        maxRespBytes: 4 * 1024 * 1024, // 传输中超限会立即失败")
 	w.Line("    });")
 	if len(schema.Apis) > 0 {

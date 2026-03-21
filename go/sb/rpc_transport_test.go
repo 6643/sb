@@ -18,6 +18,12 @@ func newTestClient(baseURL string, timeout time.Duration, retries int) *Client {
 	return client
 }
 
+func newRetryingTestClient(baseURL string, timeout time.Duration, retries int) *Client {
+	client := newTestClient(baseURL, timeout, retries)
+	client.EnableRetries = true
+	return client
+}
+
 func TestDoClientSlowBodyWithinTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -86,6 +92,25 @@ func TestDoClientTruncatedBodyReturnsRespErr(t *testing.T) {
 	}
 }
 
+func TestDoClientDoesNotRetryWithoutEnableRetries(t *testing.T) {
+	t.Parallel()
+
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		w.WriteHeader(http.StatusRequestTimeout)
+	}))
+	defer server.Close()
+
+	_, status := doClient(newTestClient(server.URL, 200*time.Millisecond, 3), context.Background(), "/", nil)
+	if status != RpcTimeout {
+		t.Fatalf("status = %v, want %v", status, RpcTimeout)
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts = %d, want 1", attempts)
+	}
+}
+
 func TestDoClientBodyReadTimeoutThenRetrySuccess(t *testing.T) {
 	t.Parallel()
 
@@ -104,7 +129,7 @@ func TestDoClientBodyReadTimeoutThenRetrySuccess(t *testing.T) {
 	}))
 	defer server.Close()
 
-	body, status := doClient(newTestClient(server.URL, 30*time.Millisecond, 1), context.Background(), "/", nil)
+	body, status := doClient(newRetryingTestClient(server.URL, 30*time.Millisecond, 1), context.Background(), "/", nil)
 	if status != RpcOk {
 		t.Fatalf("status = %v, want %v", status, RpcOk)
 	}
@@ -130,7 +155,7 @@ func TestDoClientRetriesOnHTTP408(t *testing.T) {
 	}))
 	defer server.Close()
 
-	body, status := doClient(newTestClient(server.URL, 200*time.Millisecond, 1), context.Background(), "/", nil)
+	body, status := doClient(newRetryingTestClient(server.URL, 200*time.Millisecond, 1), context.Background(), "/", nil)
 	if status != RpcOk {
 		t.Fatalf("status = %v, want %v", status, RpcOk)
 	}
@@ -156,7 +181,7 @@ func TestDoClientCancelDuringBackoff(t *testing.T) {
 		cancel()
 	}()
 
-	_, status := doClient(newTestClient(server.URL, 200*time.Millisecond, 2), ctx, "/", nil)
+	_, status := doClient(newRetryingTestClient(server.URL, 200*time.Millisecond, 2), ctx, "/", nil)
 	if status != RpcTimeout {
 		t.Fatalf("status = %v, want %v", status, RpcTimeout)
 	}

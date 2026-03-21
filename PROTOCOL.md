@@ -1,6 +1,6 @@
-# SB 协议规范
+# sb 协议规范
 
-> 状态: 当前默认协议实现, Go / TypeScript 生成代码落地到 `go/sb` 与 `ts/sb`, Go runtime 位于 `go/sb/rt`  
+> 状态: 当前默认协议实现, Go / TypeScript 生成代码落地到 `go/sb` 与 `ts/sb`, Go runtime 位于 `go/sb`  
 > 兼容性: 与仓库早期实现不兼容, 旧版生成链路已删除  
 > 目的: 描述当前默认生成器的 wire format 与约束
 
@@ -24,7 +24,7 @@
 
 - 对零值字段做到“尽量不传”
 - 对 `text` / `bin` / `list` 的短长度做更紧凑编码
-- 保留 `SB` 当前“顺序读写、实现简单、生成代码直接”的特点
+- 保留 `sb` 当前“顺序读写、实现简单、生成代码直接”的特点
 
 ## 3. 非目标
 
@@ -204,7 +204,7 @@ body 形式:
 - `i/u/f`
 - `enum`
 
-编码方式继续沿用当前 `SB`:
+编码方式继续沿用当前 `sb`:
 
 - 小端
 - 固定宽度
@@ -785,7 +785,7 @@ Go 与 TypeScript 运行时都需要持续保持以下基础能力一致:
 
 当前仓库中的主要落点如下:
 
-- Go runtime: `go/sb/rt`
+- Go runtime: `go/sb/runtime.go`
 - TypeScript runtime: `ts/sb/type.ts`
 - Go 生成器: `internal/tpl_go_render.go`
 - TypeScript 生成器: `internal/tpl_ts_render.go`

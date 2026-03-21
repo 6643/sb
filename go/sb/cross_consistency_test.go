@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	rt "sb/go/sb/rt"
 )
 
 type crossWireCase struct {
@@ -332,11 +330,11 @@ func buildCrossWireRejectCases() []crossWireRejectCase {
 			hex:  "020300090807",
 			verifyLocal: func(data []byte) error {
 				buf := bytes.NewBuffer(data)
-				state, err := rt.GetU8(buf)
+				state, err := GetU8(buf)
 				if err != nil {
 					return err
 				}
-				_, err = rt.GetBinInto(buf, state, nil)
+				_, err = GetBinInto(buf, state, nil)
 				return err
 			},
 			wantContains: "api.get_bin.resp.non_canonical_u16 decode body: bin state 2 is not canonical for length 3",
@@ -687,14 +685,14 @@ func u8WireCase(name string, kind string, value uint8) crossWireCase {
 		kind: kind,
 		encode: func() ([]byte, error) {
 			var buf bytes.Buffer
-			if err := rt.SetU8(&buf, value); err != nil {
+			if err := SetU8(&buf, value); err != nil {
 				return nil, err
 			}
 			return bytes.Clone(buf.Bytes()), nil
 		},
 		verify: func(data []byte) error {
 			buf := bytes.NewBuffer(data)
-			got, err := rt.GetU8(buf)
+			got, err := GetU8(buf)
 			if err != nil {
 				return err
 			}
@@ -705,7 +703,7 @@ func u8WireCase(name string, kind string, value uint8) crossWireCase {
 				return fmt.Errorf("decoded value mismatch: got %d want %d", got, value)
 			}
 			var re bytes.Buffer
-			if err := rt.SetU8(&re, got); err != nil {
+			if err := SetU8(&re, got); err != nil {
 				return err
 			}
 			if !bytes.Equal(data, re.Bytes()) {
@@ -722,21 +720,21 @@ func u8PairWireCase(name string, kind string, first uint8, second uint8) crossWi
 		kind: kind,
 		encode: func() ([]byte, error) {
 			var buf bytes.Buffer
-			if err := rt.SetU8(&buf, first); err != nil {
+			if err := SetU8(&buf, first); err != nil {
 				return nil, err
 			}
-			if err := rt.SetU8(&buf, second); err != nil {
+			if err := SetU8(&buf, second); err != nil {
 				return nil, err
 			}
 			return bytes.Clone(buf.Bytes()), nil
 		},
 		verify: func(data []byte) error {
 			buf := bytes.NewBuffer(data)
-			gotFirst, err := rt.GetU8(buf)
+			gotFirst, err := GetU8(buf)
 			if err != nil {
 				return err
 			}
-			gotSecond, err := rt.GetU8(buf)
+			gotSecond, err := GetU8(buf)
 			if err != nil {
 				return err
 			}
@@ -747,10 +745,10 @@ func u8PairWireCase(name string, kind string, first uint8, second uint8) crossWi
 				return fmt.Errorf("decoded pair mismatch: got (%d,%d) want (%d,%d)", gotFirst, gotSecond, first, second)
 			}
 			var re bytes.Buffer
-			if err := rt.SetU8(&re, gotFirst); err != nil {
+			if err := SetU8(&re, gotFirst); err != nil {
 				return err
 			}
-			if err := rt.SetU8(&re, gotSecond); err != nil {
+			if err := SetU8(&re, gotSecond); err != nil {
 				return err
 			}
 			if !bytes.Equal(data, re.Bytes()) {
@@ -770,14 +768,14 @@ func orderStatusWireCase(name string, kind string, value OrderStatus) crossWireC
 				return nil, fmt.Errorf("非法枚举值: %d", value)
 			}
 			var buf bytes.Buffer
-			if err := rt.SetU8(&buf, uint8(normalizeOrderStatus(value))); err != nil {
+			if err := SetU8(&buf, uint8(normalizeOrderStatus(value))); err != nil {
 				return nil, err
 			}
 			return bytes.Clone(buf.Bytes()), nil
 		},
 		verify: func(data []byte) error {
 			buf := bytes.NewBuffer(data)
-			raw, err := rt.GetU8(buf)
+			raw, err := GetU8(buf)
 			if err != nil {
 				return err
 			}
@@ -792,7 +790,7 @@ func orderStatusWireCase(name string, kind string, value OrderStatus) crossWireC
 				return fmt.Errorf("decoded value mismatch: got %d want %d", got, value)
 			}
 			var re bytes.Buffer
-			if err := rt.SetU8(&re, uint8(normalizeOrderStatus(got))); err != nil {
+			if err := SetU8(&re, uint8(normalizeOrderStatus(got))); err != nil {
 				return err
 			}
 			if !bytes.Equal(data, re.Bytes()) {
@@ -808,26 +806,26 @@ func binRespWireCase(name string, kind string, value []byte) crossWireCase {
 		name: name,
 		kind: kind,
 		encode: func() ([]byte, error) {
-			state, err := rt.BinState(len(value))
+			state, err := BinState(len(value))
 			if err != nil {
 				return nil, err
 			}
 			var buf bytes.Buffer
-			if err := rt.SetU8(&buf, state); err != nil {
+			if err := SetU8(&buf, state); err != nil {
 				return nil, err
 			}
-			if err := rt.SetBin(&buf, state, value); err != nil {
+			if err := SetBin(&buf, state, value); err != nil {
 				return nil, err
 			}
 			return bytes.Clone(buf.Bytes()), nil
 		},
 		verify: func(data []byte) error {
 			buf := bytes.NewBuffer(data)
-			state, err := rt.GetU8(buf)
+			state, err := GetU8(buf)
 			if err != nil {
 				return err
 			}
-			got, err := rt.GetBinInto(buf, state, nil)
+			got, err := GetBinInto(buf, state, nil)
 			if err != nil {
 				return err
 			}
@@ -837,7 +835,7 @@ func binRespWireCase(name string, kind string, value []byte) crossWireCase {
 			if !bytes.Equal(got, value) {
 				return fmt.Errorf("decoded value mismatch")
 			}
-			canonical, err := rt.BinState(len(got))
+			canonical, err := BinState(len(got))
 			if err != nil {
 				return err
 			}
@@ -845,10 +843,10 @@ func binRespWireCase(name string, kind string, value []byte) crossWireCase {
 				return fmt.Errorf("non-canonical bin state: got %d want %d", state, canonical)
 			}
 			var re bytes.Buffer
-			if err := rt.SetU8(&re, canonical); err != nil {
+			if err := SetU8(&re, canonical); err != nil {
 				return err
 			}
-			if err := rt.SetBin(&re, canonical, got); err != nil {
+			if err := SetBin(&re, canonical, got); err != nil {
 				return err
 			}
 			if !bytes.Equal(data, re.Bytes()) {

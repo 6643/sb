@@ -120,5 +120,7 @@ func TestTsGeneratorWritesSchemaFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read rpc_smoke.test.ts failed: %v", err)
 	}
+	assertContains(t, string(smokeContent), "process.env.SB_BASE_URL")
+	assertNotContains(t, string(smokeContent), "process.env.SIMPLE_BIN_BASE_URL")
 	assertContains(t, string(smokeContent), "method userGetCount exists")
 }

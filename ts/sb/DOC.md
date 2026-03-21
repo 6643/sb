@@ -35,7 +35,8 @@ import (
 func main() {
     client := sb.NewClient("http://localhost:8080")
     client.Timeout = 5 * time.Second // 单次请求覆盖建连到响应体读取
-    client.Retries = 3 // 默认已是 3 次
+    client.EnableRetries = false // 默认关闭, 只有请求具备幂等保障时再开启
+    client.Retries = 3 // 仅在 EnableRetries=true 时生效
     
     // Example call
     res, status := sb.CallUserGetAbc(client, context.Background())
@@ -60,7 +61,7 @@ import (
 func main() {
     mux := http.NewServeMux()
     
-    // Request-level timeout propagates to business logic and downstream calls.
+    // Request-level timeout returns HTTP 408 and propagates cancellation to business logic.
     rpcTimeout := 3 * time.Second
     
     // Connection-level timeouts protect the HTTP transport.
@@ -92,7 +93,8 @@ async function demo() {
     const client = new sb.RpcClient({
         host: "http://localhost:8080",
         timeout: 5000,
-        retries: 3, // 默认已是 3 次
+        enableRetries: false, // 默认关闭, 只有请求具备幂等保障时再开启
+        retries: 3, // 仅在 enableRetries=true 时生效
         maxRespBytes: 4 * 1024 * 1024, // 传输中超限会立即失败
     });
     // Example: 获取用户的id
