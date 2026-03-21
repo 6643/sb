@@ -7,56 +7,23 @@ export enum AccountStatus {
     Deleted = 2,
 }
 
-export const DefaultAccountStatus = (): AccountStatus => AccountStatus.Offline;
-export const IsAccountStatus = (v: AccountStatus): boolean => {
-    switch (v) {
-    case AccountStatus.Offline:
-    case AccountStatus.Online:
-    case AccountStatus.Deleted:
-        return true;
-    default:
-        return false;
-    }
-};
+const accountStatusMeta = rt.defineEnum<AccountStatus>(AccountStatus.Offline, [
+    AccountStatus.Offline,
+    AccountStatus.Online,
+    AccountStatus.Deleted,
+] as const);
 
-export const NormalizeAccountStatus = (v: AccountStatus): AccountStatus => {
-    if (IsAccountStatus(v)) return v;
-    if ((v as any) === 0) return DefaultAccountStatus();
-    return v;
-};
-export const IsDefaultAccountStatus = (v: AccountStatus): boolean => NormalizeAccountStatus(v) === DefaultAccountStatus();
-export const IsAssignableAccountStatus = (v: AccountStatus): boolean => IsAccountStatus(v) || (((v as any) === 0) && !IsAccountStatus(0 as any));
-export const eqAccountStatusValue = (a: AccountStatus, b: AccountStatus): boolean => NormalizeAccountStatus(a) === NormalizeAccountStatus(b);
-export const eqAccountStatusList = (a: AccountStatus[], b: AccountStatus[]): boolean => rt.eqList(a, b, eqAccountStatusValue);
+export const DefaultAccountStatus = (): AccountStatus => accountStatusMeta.defaultValue;
+export const IsAccountStatus = (v: AccountStatus): boolean => rt.isEnum(accountStatusMeta, v);
+export const NormalizeAccountStatus = (v: AccountStatus): AccountStatus => rt.normalizeEnum(accountStatusMeta, v);
+export const IsDefaultAccountStatus = (v: AccountStatus): boolean => rt.isDefaultEnum(accountStatusMeta, v);
+export const IsAssignableAccountStatus = (v: AccountStatus): boolean => rt.isAssignableEnum(accountStatusMeta, v);
+export const eqAccountStatusValue = (a: AccountStatus, b: AccountStatus): boolean => rt.eqEnumValue(accountStatusMeta, a, b);
+export const eqAccountStatusList = (a: AccountStatus[], b: AccountStatus[]): boolean => rt.eqEnumList(accountStatusMeta, a, b);
 
-export const getAccountStatusListBody = (buf: rt.Buffer, state: number): [AccountStatus[], rt.Err] => {
-    const [list, err] = rt.getDefaultList<AccountStatus>(
-        buf,
-        state,
-        () => DefaultAccountStatus(),
-        (buf) => {
-            const [value, err] = rt.getU8(buf);
-            if (err !== null) return [DefaultAccountStatus(), rt.errU(err)];
-            const item = value as AccountStatus;
-            if (!IsAccountStatus(item)) return [DefaultAccountStatus(), new Error(`非法枚举值: ${item}`)];
-            return [item, undefined];
-        },
-    );
-    return [list, err];
-};
+export const getAccountStatusListBody = (buf: rt.Buffer, state: number): [AccountStatus[], rt.Err] => rt.getEnumList(accountStatusMeta, buf, state);
 
-export const setAccountStatusListBody = (buf: rt.Buffer, state: number, v: AccountStatus[]): rt.Err => {
-    return rt.setDefaultList<AccountStatus>(
-        buf,
-        state,
-        v,
-        (item) => IsDefaultAccountStatus(item),
-        (buf, item) => {
-            if (!IsAccountStatus(item)) return new Error(`非法枚举值: ${item}`);
-            return rt.setU8(buf, item as any);
-        },
-    );
-};
+export const setAccountStatusListBody = (buf: rt.Buffer, state: number, v: AccountStatus[]): rt.Err => rt.setEnumList(accountStatusMeta, buf, state, v);
 
 // 类型
 export enum Type {
@@ -64,55 +31,22 @@ export enum Type {
     Recharge = 1,
 }
 
-export const DefaultType = (): Type => Type.Sim;
-export const IsType = (v: Type): boolean => {
-    switch (v) {
-    case Type.Sim:
-    case Type.Recharge:
-        return true;
-    default:
-        return false;
-    }
-};
+const typeMeta = rt.defineEnum<Type>(Type.Sim, [
+    Type.Sim,
+    Type.Recharge,
+] as const);
 
-export const NormalizeType = (v: Type): Type => {
-    if (IsType(v)) return v;
-    if ((v as any) === 0) return DefaultType();
-    return v;
-};
-export const IsDefaultType = (v: Type): boolean => NormalizeType(v) === DefaultType();
-export const IsAssignableType = (v: Type): boolean => IsType(v) || (((v as any) === 0) && !IsType(0 as any));
-export const eqTypeValue = (a: Type, b: Type): boolean => NormalizeType(a) === NormalizeType(b);
-export const eqTypeList = (a: Type[], b: Type[]): boolean => rt.eqList(a, b, eqTypeValue);
+export const DefaultType = (): Type => typeMeta.defaultValue;
+export const IsType = (v: Type): boolean => rt.isEnum(typeMeta, v);
+export const NormalizeType = (v: Type): Type => rt.normalizeEnum(typeMeta, v);
+export const IsDefaultType = (v: Type): boolean => rt.isDefaultEnum(typeMeta, v);
+export const IsAssignableType = (v: Type): boolean => rt.isAssignableEnum(typeMeta, v);
+export const eqTypeValue = (a: Type, b: Type): boolean => rt.eqEnumValue(typeMeta, a, b);
+export const eqTypeList = (a: Type[], b: Type[]): boolean => rt.eqEnumList(typeMeta, a, b);
 
-export const getTypeListBody = (buf: rt.Buffer, state: number): [Type[], rt.Err] => {
-    const [list, err] = rt.getDefaultList<Type>(
-        buf,
-        state,
-        () => DefaultType(),
-        (buf) => {
-            const [value, err] = rt.getU8(buf);
-            if (err !== null) return [DefaultType(), rt.errU(err)];
-            const item = value as Type;
-            if (!IsType(item)) return [DefaultType(), new Error(`非法枚举值: ${item}`)];
-            return [item, undefined];
-        },
-    );
-    return [list, err];
-};
+export const getTypeListBody = (buf: rt.Buffer, state: number): [Type[], rt.Err] => rt.getEnumList(typeMeta, buf, state);
 
-export const setTypeListBody = (buf: rt.Buffer, state: number, v: Type[]): rt.Err => {
-    return rt.setDefaultList<Type>(
-        buf,
-        state,
-        v,
-        (item) => IsDefaultType(item),
-        (buf, item) => {
-            if (!IsType(item)) return new Error(`非法枚举值: ${item}`);
-            return rt.setU8(buf, item as any);
-        },
-    );
-};
+export const setTypeListBody = (buf: rt.Buffer, state: number, v: Type[]): rt.Err => rt.setEnumList(typeMeta, buf, state, v);
 
 // 错误码
 export enum Status {
@@ -127,62 +61,29 @@ export enum Status {
     One = 11,
 }
 
-export const DefaultStatus = (): Status => Status.Ok;
-export const IsStatus = (v: Status): boolean => {
-    switch (v) {
-    case Status.Ok:
-    case Status.Err:
-    case Status.Two:
-    case Status.Three:
-    case Status.Four:
-    case Status.Five:
-    case Status.Six:
-    case Status.Seven:
-    case Status.One:
-        return true;
-    default:
-        return false;
-    }
-};
+const statusMeta = rt.defineEnum<Status>(Status.Ok, [
+    Status.Ok,
+    Status.Err,
+    Status.Two,
+    Status.Three,
+    Status.Four,
+    Status.Five,
+    Status.Six,
+    Status.Seven,
+    Status.One,
+] as const);
 
-export const NormalizeStatus = (v: Status): Status => {
-    if (IsStatus(v)) return v;
-    if ((v as any) === 0) return DefaultStatus();
-    return v;
-};
-export const IsDefaultStatus = (v: Status): boolean => NormalizeStatus(v) === DefaultStatus();
-export const IsAssignableStatus = (v: Status): boolean => IsStatus(v) || (((v as any) === 0) && !IsStatus(0 as any));
-export const eqStatusValue = (a: Status, b: Status): boolean => NormalizeStatus(a) === NormalizeStatus(b);
-export const eqStatusList = (a: Status[], b: Status[]): boolean => rt.eqList(a, b, eqStatusValue);
+export const DefaultStatus = (): Status => statusMeta.defaultValue;
+export const IsStatus = (v: Status): boolean => rt.isEnum(statusMeta, v);
+export const NormalizeStatus = (v: Status): Status => rt.normalizeEnum(statusMeta, v);
+export const IsDefaultStatus = (v: Status): boolean => rt.isDefaultEnum(statusMeta, v);
+export const IsAssignableStatus = (v: Status): boolean => rt.isAssignableEnum(statusMeta, v);
+export const eqStatusValue = (a: Status, b: Status): boolean => rt.eqEnumValue(statusMeta, a, b);
+export const eqStatusList = (a: Status[], b: Status[]): boolean => rt.eqEnumList(statusMeta, a, b);
 
-export const getStatusListBody = (buf: rt.Buffer, state: number): [Status[], rt.Err] => {
-    const [list, err] = rt.getDefaultList<Status>(
-        buf,
-        state,
-        () => DefaultStatus(),
-        (buf) => {
-            const [value, err] = rt.getU8(buf);
-            if (err !== null) return [DefaultStatus(), rt.errU(err)];
-            const item = value as Status;
-            if (!IsStatus(item)) return [DefaultStatus(), new Error(`非法枚举值: ${item}`)];
-            return [item, undefined];
-        },
-    );
-    return [list, err];
-};
+export const getStatusListBody = (buf: rt.Buffer, state: number): [Status[], rt.Err] => rt.getEnumList(statusMeta, buf, state);
 
-export const setStatusListBody = (buf: rt.Buffer, state: number, v: Status[]): rt.Err => {
-    return rt.setDefaultList<Status>(
-        buf,
-        state,
-        v,
-        (item) => IsDefaultStatus(item),
-        (buf, item) => {
-            if (!IsStatus(item)) return new Error(`非法枚举值: ${item}`);
-            return rt.setU8(buf, item as any);
-        },
-    );
-};
+export const setStatusListBody = (buf: rt.Buffer, state: number, v: Status[]): rt.Err => rt.setEnumList(statusMeta, buf, state, v);
 
 // 状态A
 export enum StatusA {
@@ -196,61 +97,28 @@ export enum StatusA {
     Seven = 7,
 }
 
-export const DefaultStatusA = (): StatusA => StatusA.Ok;
-export const IsStatusA = (v: StatusA): boolean => {
-    switch (v) {
-    case StatusA.Ok:
-    case StatusA.One:
-    case StatusA.Two:
-    case StatusA.Three:
-    case StatusA.Four:
-    case StatusA.Five:
-    case StatusA.Six:
-    case StatusA.Seven:
-        return true;
-    default:
-        return false;
-    }
-};
+const statusAMeta = rt.defineEnum<StatusA>(StatusA.Ok, [
+    StatusA.Ok,
+    StatusA.One,
+    StatusA.Two,
+    StatusA.Three,
+    StatusA.Four,
+    StatusA.Five,
+    StatusA.Six,
+    StatusA.Seven,
+] as const);
 
-export const NormalizeStatusA = (v: StatusA): StatusA => {
-    if (IsStatusA(v)) return v;
-    if ((v as any) === 0) return DefaultStatusA();
-    return v;
-};
-export const IsDefaultStatusA = (v: StatusA): boolean => NormalizeStatusA(v) === DefaultStatusA();
-export const IsAssignableStatusA = (v: StatusA): boolean => IsStatusA(v) || (((v as any) === 0) && !IsStatusA(0 as any));
-export const eqStatusAValue = (a: StatusA, b: StatusA): boolean => NormalizeStatusA(a) === NormalizeStatusA(b);
-export const eqStatusAList = (a: StatusA[], b: StatusA[]): boolean => rt.eqList(a, b, eqStatusAValue);
+export const DefaultStatusA = (): StatusA => statusAMeta.defaultValue;
+export const IsStatusA = (v: StatusA): boolean => rt.isEnum(statusAMeta, v);
+export const NormalizeStatusA = (v: StatusA): StatusA => rt.normalizeEnum(statusAMeta, v);
+export const IsDefaultStatusA = (v: StatusA): boolean => rt.isDefaultEnum(statusAMeta, v);
+export const IsAssignableStatusA = (v: StatusA): boolean => rt.isAssignableEnum(statusAMeta, v);
+export const eqStatusAValue = (a: StatusA, b: StatusA): boolean => rt.eqEnumValue(statusAMeta, a, b);
+export const eqStatusAList = (a: StatusA[], b: StatusA[]): boolean => rt.eqEnumList(statusAMeta, a, b);
 
-export const getStatusAListBody = (buf: rt.Buffer, state: number): [StatusA[], rt.Err] => {
-    const [list, err] = rt.getDefaultList<StatusA>(
-        buf,
-        state,
-        () => DefaultStatusA(),
-        (buf) => {
-            const [value, err] = rt.getU8(buf);
-            if (err !== null) return [DefaultStatusA(), rt.errU(err)];
-            const item = value as StatusA;
-            if (!IsStatusA(item)) return [DefaultStatusA(), new Error(`非法枚举值: ${item}`)];
-            return [item, undefined];
-        },
-    );
-    return [list, err];
-};
+export const getStatusAListBody = (buf: rt.Buffer, state: number): [StatusA[], rt.Err] => rt.getEnumList(statusAMeta, buf, state);
 
-export const setStatusAListBody = (buf: rt.Buffer, state: number, v: StatusA[]): rt.Err => {
-    return rt.setDefaultList<StatusA>(
-        buf,
-        state,
-        v,
-        (item) => IsDefaultStatusA(item),
-        (buf, item) => {
-            if (!IsStatusA(item)) return new Error(`非法枚举值: ${item}`);
-            return rt.setU8(buf, item as any);
-        },
-    );
-};
+export const setStatusAListBody = (buf: rt.Buffer, state: number, v: StatusA[]): rt.Err => rt.setEnumList(statusAMeta, buf, state, v);
 
 // 订单状态
 export enum ItemStatus {
@@ -258,55 +126,22 @@ export enum ItemStatus {
     Online = 1,
 }
 
-export const DefaultItemStatus = (): ItemStatus => ItemStatus.Offline;
-export const IsItemStatus = (v: ItemStatus): boolean => {
-    switch (v) {
-    case ItemStatus.Offline:
-    case ItemStatus.Online:
-        return true;
-    default:
-        return false;
-    }
-};
+const itemStatusMeta = rt.defineEnum<ItemStatus>(ItemStatus.Offline, [
+    ItemStatus.Offline,
+    ItemStatus.Online,
+] as const);
 
-export const NormalizeItemStatus = (v: ItemStatus): ItemStatus => {
-    if (IsItemStatus(v)) return v;
-    if ((v as any) === 0) return DefaultItemStatus();
-    return v;
-};
-export const IsDefaultItemStatus = (v: ItemStatus): boolean => NormalizeItemStatus(v) === DefaultItemStatus();
-export const IsAssignableItemStatus = (v: ItemStatus): boolean => IsItemStatus(v) || (((v as any) === 0) && !IsItemStatus(0 as any));
-export const eqItemStatusValue = (a: ItemStatus, b: ItemStatus): boolean => NormalizeItemStatus(a) === NormalizeItemStatus(b);
-export const eqItemStatusList = (a: ItemStatus[], b: ItemStatus[]): boolean => rt.eqList(a, b, eqItemStatusValue);
+export const DefaultItemStatus = (): ItemStatus => itemStatusMeta.defaultValue;
+export const IsItemStatus = (v: ItemStatus): boolean => rt.isEnum(itemStatusMeta, v);
+export const NormalizeItemStatus = (v: ItemStatus): ItemStatus => rt.normalizeEnum(itemStatusMeta, v);
+export const IsDefaultItemStatus = (v: ItemStatus): boolean => rt.isDefaultEnum(itemStatusMeta, v);
+export const IsAssignableItemStatus = (v: ItemStatus): boolean => rt.isAssignableEnum(itemStatusMeta, v);
+export const eqItemStatusValue = (a: ItemStatus, b: ItemStatus): boolean => rt.eqEnumValue(itemStatusMeta, a, b);
+export const eqItemStatusList = (a: ItemStatus[], b: ItemStatus[]): boolean => rt.eqEnumList(itemStatusMeta, a, b);
 
-export const getItemStatusListBody = (buf: rt.Buffer, state: number): [ItemStatus[], rt.Err] => {
-    const [list, err] = rt.getDefaultList<ItemStatus>(
-        buf,
-        state,
-        () => DefaultItemStatus(),
-        (buf) => {
-            const [value, err] = rt.getU8(buf);
-            if (err !== null) return [DefaultItemStatus(), rt.errU(err)];
-            const item = value as ItemStatus;
-            if (!IsItemStatus(item)) return [DefaultItemStatus(), new Error(`非法枚举值: ${item}`)];
-            return [item, undefined];
-        },
-    );
-    return [list, err];
-};
+export const getItemStatusListBody = (buf: rt.Buffer, state: number): [ItemStatus[], rt.Err] => rt.getEnumList(itemStatusMeta, buf, state);
 
-export const setItemStatusListBody = (buf: rt.Buffer, state: number, v: ItemStatus[]): rt.Err => {
-    return rt.setDefaultList<ItemStatus>(
-        buf,
-        state,
-        v,
-        (item) => IsDefaultItemStatus(item),
-        (buf, item) => {
-            if (!IsItemStatus(item)) return new Error(`非法枚举值: ${item}`);
-            return rt.setU8(buf, item as any);
-        },
-    );
-};
+export const setItemStatusListBody = (buf: rt.Buffer, state: number, v: ItemStatus[]): rt.Err => rt.setEnumList(itemStatusMeta, buf, state, v);
 
 // 可否选号
 export enum SimPickPhone {
@@ -316,57 +151,24 @@ export enum SimPickPhone {
     Abcc = 4,
 }
 
-export const DefaultSimPickPhone = (): SimPickPhone => SimPickPhone.No;
-export const IsSimPickPhone = (v: SimPickPhone): boolean => {
-    switch (v) {
-    case SimPickPhone.No:
-    case SimPickPhone.Yes:
-    case SimPickPhone.Active:
-    case SimPickPhone.Abcc:
-        return true;
-    default:
-        return false;
-    }
-};
+const simPickPhoneMeta = rt.defineEnum<SimPickPhone>(SimPickPhone.No, [
+    SimPickPhone.No,
+    SimPickPhone.Yes,
+    SimPickPhone.Active,
+    SimPickPhone.Abcc,
+] as const);
 
-export const NormalizeSimPickPhone = (v: SimPickPhone): SimPickPhone => {
-    if (IsSimPickPhone(v)) return v;
-    if ((v as any) === 0) return DefaultSimPickPhone();
-    return v;
-};
-export const IsDefaultSimPickPhone = (v: SimPickPhone): boolean => NormalizeSimPickPhone(v) === DefaultSimPickPhone();
-export const IsAssignableSimPickPhone = (v: SimPickPhone): boolean => IsSimPickPhone(v) || (((v as any) === 0) && !IsSimPickPhone(0 as any));
-export const eqSimPickPhoneValue = (a: SimPickPhone, b: SimPickPhone): boolean => NormalizeSimPickPhone(a) === NormalizeSimPickPhone(b);
-export const eqSimPickPhoneList = (a: SimPickPhone[], b: SimPickPhone[]): boolean => rt.eqList(a, b, eqSimPickPhoneValue);
+export const DefaultSimPickPhone = (): SimPickPhone => simPickPhoneMeta.defaultValue;
+export const IsSimPickPhone = (v: SimPickPhone): boolean => rt.isEnum(simPickPhoneMeta, v);
+export const NormalizeSimPickPhone = (v: SimPickPhone): SimPickPhone => rt.normalizeEnum(simPickPhoneMeta, v);
+export const IsDefaultSimPickPhone = (v: SimPickPhone): boolean => rt.isDefaultEnum(simPickPhoneMeta, v);
+export const IsAssignableSimPickPhone = (v: SimPickPhone): boolean => rt.isAssignableEnum(simPickPhoneMeta, v);
+export const eqSimPickPhoneValue = (a: SimPickPhone, b: SimPickPhone): boolean => rt.eqEnumValue(simPickPhoneMeta, a, b);
+export const eqSimPickPhoneList = (a: SimPickPhone[], b: SimPickPhone[]): boolean => rt.eqEnumList(simPickPhoneMeta, a, b);
 
-export const getSimPickPhoneListBody = (buf: rt.Buffer, state: number): [SimPickPhone[], rt.Err] => {
-    const [list, err] = rt.getDefaultList<SimPickPhone>(
-        buf,
-        state,
-        () => DefaultSimPickPhone(),
-        (buf) => {
-            const [value, err] = rt.getU8(buf);
-            if (err !== null) return [DefaultSimPickPhone(), rt.errU(err)];
-            const item = value as SimPickPhone;
-            if (!IsSimPickPhone(item)) return [DefaultSimPickPhone(), new Error(`非法枚举值: ${item}`)];
-            return [item, undefined];
-        },
-    );
-    return [list, err];
-};
+export const getSimPickPhoneListBody = (buf: rt.Buffer, state: number): [SimPickPhone[], rt.Err] => rt.getEnumList(simPickPhoneMeta, buf, state);
 
-export const setSimPickPhoneListBody = (buf: rt.Buffer, state: number, v: SimPickPhone[]): rt.Err => {
-    return rt.setDefaultList<SimPickPhone>(
-        buf,
-        state,
-        v,
-        (item) => IsDefaultSimPickPhone(item),
-        (buf, item) => {
-            if (!IsSimPickPhone(item)) return new Error(`非法枚举值: ${item}`);
-            return rt.setU8(buf, item as any);
-        },
-    );
-};
+export const setSimPickPhoneListBody = (buf: rt.Buffer, state: number, v: SimPickPhone[]): rt.Err => rt.setEnumList(simPickPhoneMeta, buf, state, v);
 
 // 运营商
 export enum SimOperator {
@@ -380,61 +182,28 @@ export enum SimOperator {
     B = 12,
 }
 
-export const DefaultSimOperator = (): SimOperator => SimOperator.Zz;
-export const IsSimOperator = (v: SimOperator): boolean => {
-    switch (v) {
-    case SimOperator.Zz:
-    case SimOperator.Lt:
-    case SimOperator.Yd:
-    case SimOperator.Dx:
-    case SimOperator.Gd:
-    case SimOperator.Xx:
-    case SimOperator.A:
-    case SimOperator.B:
-        return true;
-    default:
-        return false;
-    }
-};
+const simOperatorMeta = rt.defineEnum<SimOperator>(SimOperator.Zz, [
+    SimOperator.Zz,
+    SimOperator.Lt,
+    SimOperator.Yd,
+    SimOperator.Dx,
+    SimOperator.Gd,
+    SimOperator.Xx,
+    SimOperator.A,
+    SimOperator.B,
+] as const);
 
-export const NormalizeSimOperator = (v: SimOperator): SimOperator => {
-    if (IsSimOperator(v)) return v;
-    if ((v as any) === 0) return DefaultSimOperator();
-    return v;
-};
-export const IsDefaultSimOperator = (v: SimOperator): boolean => NormalizeSimOperator(v) === DefaultSimOperator();
-export const IsAssignableSimOperator = (v: SimOperator): boolean => IsSimOperator(v) || (((v as any) === 0) && !IsSimOperator(0 as any));
-export const eqSimOperatorValue = (a: SimOperator, b: SimOperator): boolean => NormalizeSimOperator(a) === NormalizeSimOperator(b);
-export const eqSimOperatorList = (a: SimOperator[], b: SimOperator[]): boolean => rt.eqList(a, b, eqSimOperatorValue);
+export const DefaultSimOperator = (): SimOperator => simOperatorMeta.defaultValue;
+export const IsSimOperator = (v: SimOperator): boolean => rt.isEnum(simOperatorMeta, v);
+export const NormalizeSimOperator = (v: SimOperator): SimOperator => rt.normalizeEnum(simOperatorMeta, v);
+export const IsDefaultSimOperator = (v: SimOperator): boolean => rt.isDefaultEnum(simOperatorMeta, v);
+export const IsAssignableSimOperator = (v: SimOperator): boolean => rt.isAssignableEnum(simOperatorMeta, v);
+export const eqSimOperatorValue = (a: SimOperator, b: SimOperator): boolean => rt.eqEnumValue(simOperatorMeta, a, b);
+export const eqSimOperatorList = (a: SimOperator[], b: SimOperator[]): boolean => rt.eqEnumList(simOperatorMeta, a, b);
 
-export const getSimOperatorListBody = (buf: rt.Buffer, state: number): [SimOperator[], rt.Err] => {
-    const [list, err] = rt.getDefaultList<SimOperator>(
-        buf,
-        state,
-        () => DefaultSimOperator(),
-        (buf) => {
-            const [value, err] = rt.getU8(buf);
-            if (err !== null) return [DefaultSimOperator(), rt.errU(err)];
-            const item = value as SimOperator;
-            if (!IsSimOperator(item)) return [DefaultSimOperator(), new Error(`非法枚举值: ${item}`)];
-            return [item, undefined];
-        },
-    );
-    return [list, err];
-};
+export const getSimOperatorListBody = (buf: rt.Buffer, state: number): [SimOperator[], rt.Err] => rt.getEnumList(simOperatorMeta, buf, state);
 
-export const setSimOperatorListBody = (buf: rt.Buffer, state: number, v: SimOperator[]): rt.Err => {
-    return rt.setDefaultList<SimOperator>(
-        buf,
-        state,
-        v,
-        (item) => IsDefaultSimOperator(item),
-        (buf, item) => {
-            if (!IsSimOperator(item)) return new Error(`非法枚举值: ${item}`);
-            return rt.setU8(buf, item as any);
-        },
-    );
-};
+export const setSimOperatorListBody = (buf: rt.Buffer, state: number, v: SimOperator[]): rt.Err => rt.setEnumList(simOperatorMeta, buf, state, v);
 
 // 订单状态
 // Pending      待处理
@@ -454,58 +223,25 @@ export enum OrderStatus {
     Settled = 6,
 }
 
-export const DefaultOrderStatus = (): OrderStatus => OrderStatus.Pending;
-export const IsOrderStatus = (v: OrderStatus): boolean => {
-    switch (v) {
-    case OrderStatus.Pending:
-    case OrderStatus.Closed:
-    case OrderStatus.Canceled:
-    case OrderStatus.Shipped:
-    case OrderStatus.Delivered:
-    case OrderStatus.Actived:
-    case OrderStatus.Settled:
-        return true;
-    default:
-        return false;
-    }
-};
+const orderStatusMeta = rt.defineEnum<OrderStatus>(OrderStatus.Pending, [
+    OrderStatus.Pending,
+    OrderStatus.Closed,
+    OrderStatus.Canceled,
+    OrderStatus.Shipped,
+    OrderStatus.Delivered,
+    OrderStatus.Actived,
+    OrderStatus.Settled,
+] as const);
 
-export const NormalizeOrderStatus = (v: OrderStatus): OrderStatus => {
-    if (IsOrderStatus(v)) return v;
-    if ((v as any) === 0) return DefaultOrderStatus();
-    return v;
-};
-export const IsDefaultOrderStatus = (v: OrderStatus): boolean => NormalizeOrderStatus(v) === DefaultOrderStatus();
-export const IsAssignableOrderStatus = (v: OrderStatus): boolean => IsOrderStatus(v) || (((v as any) === 0) && !IsOrderStatus(0 as any));
-export const eqOrderStatusValue = (a: OrderStatus, b: OrderStatus): boolean => NormalizeOrderStatus(a) === NormalizeOrderStatus(b);
-export const eqOrderStatusList = (a: OrderStatus[], b: OrderStatus[]): boolean => rt.eqList(a, b, eqOrderStatusValue);
+export const DefaultOrderStatus = (): OrderStatus => orderStatusMeta.defaultValue;
+export const IsOrderStatus = (v: OrderStatus): boolean => rt.isEnum(orderStatusMeta, v);
+export const NormalizeOrderStatus = (v: OrderStatus): OrderStatus => rt.normalizeEnum(orderStatusMeta, v);
+export const IsDefaultOrderStatus = (v: OrderStatus): boolean => rt.isDefaultEnum(orderStatusMeta, v);
+export const IsAssignableOrderStatus = (v: OrderStatus): boolean => rt.isAssignableEnum(orderStatusMeta, v);
+export const eqOrderStatusValue = (a: OrderStatus, b: OrderStatus): boolean => rt.eqEnumValue(orderStatusMeta, a, b);
+export const eqOrderStatusList = (a: OrderStatus[], b: OrderStatus[]): boolean => rt.eqEnumList(orderStatusMeta, a, b);
 
-export const getOrderStatusListBody = (buf: rt.Buffer, state: number): [OrderStatus[], rt.Err] => {
-    const [list, err] = rt.getDefaultList<OrderStatus>(
-        buf,
-        state,
-        () => DefaultOrderStatus(),
-        (buf) => {
-            const [value, err] = rt.getU8(buf);
-            if (err !== null) return [DefaultOrderStatus(), rt.errU(err)];
-            const item = value as OrderStatus;
-            if (!IsOrderStatus(item)) return [DefaultOrderStatus(), new Error(`非法枚举值: ${item}`)];
-            return [item, undefined];
-        },
-    );
-    return [list, err];
-};
+export const getOrderStatusListBody = (buf: rt.Buffer, state: number): [OrderStatus[], rt.Err] => rt.getEnumList(orderStatusMeta, buf, state);
 
-export const setOrderStatusListBody = (buf: rt.Buffer, state: number, v: OrderStatus[]): rt.Err => {
-    return rt.setDefaultList<OrderStatus>(
-        buf,
-        state,
-        v,
-        (item) => IsDefaultOrderStatus(item),
-        (buf, item) => {
-            if (!IsOrderStatus(item)) return new Error(`非法枚举值: ${item}`);
-            return rt.setU8(buf, item as any);
-        },
-    );
-};
+export const setOrderStatusListBody = (buf: rt.Buffer, state: number, v: OrderStatus[]): rt.Err => rt.setEnumList(orderStatusMeta, buf, state, v);
 

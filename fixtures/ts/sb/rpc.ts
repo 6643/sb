@@ -1,4 +1,6 @@
-import * as _ from "./_"
+import * as rt from "./type"
+import { DefaultOrderStatus, IsAssignableOrderStatus, IsOrderStatus, NormalizeOrderStatus, OrderStatus, getOrderStatusListBody, setOrderStatusListBody } from "./enum"
+import { SimInfo, getSimInfoListBody, newSimInfo, readSimInfo, setSimInfo, setSimInfoListBody } from "./struct_sim_info"
 
 const defaultMaxRespBytes = 4 * 1024 * 1024;
 const maxSafeRespBytes = Number.MAX_SAFE_INTEGER;
@@ -33,9 +35,9 @@ export interface RpcClient {
     getAuthorization: () => string | undefined;
     removeAuthorization: () => void;
     isAuthorized: () => boolean;
-    userGetAbc: () => Promise<[_.OrderStatus, RpcStatus]>;
-    userGetAbcd: (page: number, size: number) => Promise<[_.OrderStatus, RpcStatus]>;
-    userSetSimInfo: (info: _.SimInfo) => Promise<RpcStatus>;
+    userGetAbc: () => Promise<[OrderStatus, RpcStatus]>;
+    userGetAbcd: (page: number, size: number) => Promise<[OrderStatus, RpcStatus]>;
+    userSetSimInfo: (info: SimInfo) => Promise<RpcStatus>;
     getCount: (page: number) => Promise<[number, RpcStatus]>;
     getBin: (page: number) => Promise<[Uint8Array, RpcStatus]>;
 }
@@ -147,55 +149,55 @@ _rpcClientProto._fetch = async function(this: _RpcClientState, path: string, bod
 };
 
 // 获取用户的id
-_rpcClientProto.userGetAbc = async function(this: _RpcClientState, ): Promise<[_.OrderStatus, RpcStatus]> {
-    const buf = new _.Buffer();
+_rpcClientProto.userGetAbc = async function(this: _RpcClientState, ): Promise<[OrderStatus, RpcStatus]> {
+    const buf = new rt.Buffer();
     const [bytes, status] = await this._fetch("user.get_abc", buf.bytes);
-    if (status !== RpcErrCode.Ok || bytes === null) return [_.DefaultOrderStatus(), status];
-    const respBuf = new _.Buffer(bytes);
-    let result = _.DefaultOrderStatus() as any;
+    if (status !== RpcErrCode.Ok || bytes === null) return [DefaultOrderStatus(), status];
+    const respBuf = new rt.Buffer(bytes);
+    let result = DefaultOrderStatus() as any;
         {
-            const [value, err] = _.getU8(respBuf);
-            if (err !== null) return [_.DefaultOrderStatus(), RpcErrCode.RespErr];
-            const item = value as _.OrderStatus;
-            if (!_.IsOrderStatus(item)) return [_.DefaultOrderStatus(), RpcErrCode.RespErr];
+            const [value, err] = rt.getU8(respBuf);
+            if (err !== null) return [DefaultOrderStatus(), RpcErrCode.RespErr];
+            const item = value as OrderStatus;
+            if (!IsOrderStatus(item)) return [DefaultOrderStatus(), RpcErrCode.RespErr];
             result = item as any;
         }
-    if (respBuf.len !== 0) return [_.DefaultOrderStatus(), RpcErrCode.RespErr];
+    if (respBuf.len !== 0) return [DefaultOrderStatus(), RpcErrCode.RespErr];
     return [result as any, RpcErrCode.Ok];
 };
 
 // 获取abcd
-_rpcClientProto.userGetAbcd = async function(this: _RpcClientState, page: number, size: number): Promise<[_.OrderStatus, RpcStatus]> {
-    const buf = new _.Buffer();
+_rpcClientProto.userGetAbcd = async function(this: _RpcClientState, page: number, size: number): Promise<[OrderStatus, RpcStatus]> {
+    const buf = new rt.Buffer();
         {
-            const encodeErr = _.setU8(buf, page as any);
-            if (encodeErr !== null) return [_.DefaultOrderStatus(), RpcErrCode.ReqErr];
+            const encodeErr = rt.setU8(buf, page as any);
+            if (encodeErr !== null) return [DefaultOrderStatus(), RpcErrCode.ReqErr];
         }
         {
-            const encodeErr = _.setU8(buf, size as any);
-            if (encodeErr !== null) return [_.DefaultOrderStatus(), RpcErrCode.ReqErr];
+            const encodeErr = rt.setU8(buf, size as any);
+            if (encodeErr !== null) return [DefaultOrderStatus(), RpcErrCode.ReqErr];
         }
     const [bytes, status] = await this._fetch("user.get_abcd", buf.bytes);
-    if (status !== RpcErrCode.Ok || bytes === null) return [_.DefaultOrderStatus(), status];
-    const respBuf = new _.Buffer(bytes);
-    let result = _.DefaultOrderStatus() as any;
+    if (status !== RpcErrCode.Ok || bytes === null) return [DefaultOrderStatus(), status];
+    const respBuf = new rt.Buffer(bytes);
+    let result = DefaultOrderStatus() as any;
         {
-            const [value, err] = _.getU8(respBuf);
-            if (err !== null) return [_.DefaultOrderStatus(), RpcErrCode.RespErr];
-            const item = value as _.OrderStatus;
-            if (!_.IsOrderStatus(item)) return [_.DefaultOrderStatus(), RpcErrCode.RespErr];
+            const [value, err] = rt.getU8(respBuf);
+            if (err !== null) return [DefaultOrderStatus(), RpcErrCode.RespErr];
+            const item = value as OrderStatus;
+            if (!IsOrderStatus(item)) return [DefaultOrderStatus(), RpcErrCode.RespErr];
             result = item as any;
         }
-    if (respBuf.len !== 0) return [_.DefaultOrderStatus(), RpcErrCode.RespErr];
+    if (respBuf.len !== 0) return [DefaultOrderStatus(), RpcErrCode.RespErr];
     return [result as any, RpcErrCode.Ok];
 };
 
 // 设置sim信息
 // 无返回值
-_rpcClientProto.userSetSimInfo = async function(this: _RpcClientState, info: _.SimInfo): Promise<RpcStatus> {
-    const buf = new _.Buffer();
+_rpcClientProto.userSetSimInfo = async function(this: _RpcClientState, info: SimInfo): Promise<RpcStatus> {
+    const buf = new rt.Buffer();
         {
-            const encodeErr = _.setSimInfo(buf, info);
+            const encodeErr = setSimInfo(buf, info);
             if (encodeErr !== undefined) return RpcErrCode.ReqErr;
         }
     const [bytes, status] = await this._fetch("user.set_sim_info", buf.bytes);
@@ -206,17 +208,17 @@ _rpcClientProto.userSetSimInfo = async function(this: _RpcClientState, info: _.S
 
 // 获取数量
 _rpcClientProto.getCount = async function(this: _RpcClientState, page: number): Promise<[number, RpcStatus]> {
-    const buf = new _.Buffer();
+    const buf = new rt.Buffer();
         {
-            const encodeErr = _.setU8(buf, page as any);
+            const encodeErr = rt.setU8(buf, page as any);
             if (encodeErr !== null) return [0, RpcErrCode.ReqErr];
         }
     const [bytes, status] = await this._fetch("get_count", buf.bytes);
     if (status !== RpcErrCode.Ok || bytes === null) return [0, status];
-    const respBuf = new _.Buffer(bytes);
+    const respBuf = new rt.Buffer(bytes);
     let result = 0 as any;
         {
-            const [value, err] = _.getU8(respBuf);
+            const [value, err] = rt.getU8(respBuf);
             if (err !== null) return [0, RpcErrCode.RespErr];
             result = value as any;
         }
@@ -226,19 +228,19 @@ _rpcClientProto.getCount = async function(this: _RpcClientState, page: number): 
 
 // 获取bin
 _rpcClientProto.getBin = async function(this: _RpcClientState, page: number): Promise<[Uint8Array, RpcStatus]> {
-    const buf = new _.Buffer();
+    const buf = new rt.Buffer();
         {
-            const encodeErr = _.setU8(buf, page as any);
+            const encodeErr = rt.setU8(buf, page as any);
             if (encodeErr !== null) return [new Uint8Array(0), RpcErrCode.ReqErr];
         }
     const [bytes, status] = await this._fetch("get_bin", buf.bytes);
     if (status !== RpcErrCode.Ok || bytes === null) return [new Uint8Array(0), status];
-    const respBuf = new _.Buffer(bytes);
+    const respBuf = new rt.Buffer(bytes);
     let result = new Uint8Array(0) as any;
         {
-            const [state, errState] = _.getU8(respBuf);
+            const [state, errState] = rt.getU8(respBuf);
             if (errState !== null) return [new Uint8Array(0), RpcErrCode.RespErr];
-            const [value, err] = _.getBin(respBuf, state);
+            const [value, err] = rt.getBin(respBuf, state);
             if (err !== null) return [new Uint8Array(0), RpcErrCode.RespErr];
             result = value as any;
         }

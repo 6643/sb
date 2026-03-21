@@ -1,144 +1,45 @@
 import * as rt from "./type"
-import * as _ from "./_"
+import { DefaultOrderStatus, IsAssignableOrderStatus, IsDefaultOrderStatus, IsOrderStatus, NormalizeOrderStatus, OrderStatus, getOrderStatusListBody, setOrderStatusListBody } from "./enum"
+import { SimInfo, eqSimInfo, getSimInfoListBody, isZeroSimInfo, newSimInfo, readSimInfo, setSimInfo, setSimInfoListBody, validateSimInfo } from "./struct_sim_info"
 
 export interface RechargeB extends rt.Serializable, rt.Deserializable {
     // abcd
     id: number;
-    type: _.OrderStatus[];
+    type: OrderStatus[];
     phone: string[];
-    si: _.SimInfo | null;
+    si: SimInfo | null;
     bid: number;
 }
 
 const rechargeBHeaderWidths = [1, 2, 2, 1, 1] as const;
 
-export const newRechargeB = (): RechargeB => {
-    const s = {
+const rechargeBMeta = rt.defineStruct<RechargeB>({
+    name: "RechargeB",
+    headerWidths: rechargeBHeaderWidths,
+    create: () => ({
         id: 0,
         type: [],
         phone: [],
         si: null,
         bid: 0,
-    } as any as RechargeB;
-    s.set = (buf: rt.Buffer) => setRechargeB(buf, s);
-    s.get = (buf: rt.Buffer) => {
-        const [next, err] = getRechargeB(buf);
-        if (err === undefined) Object.assign(s, next);
-        return err;
-    };
-    return s;
-};
+    }) as any as RechargeB,
+    fields: [
 
-export const isZeroRechargeB = (s: RechargeB | null | undefined): boolean => {
-    if (s === null || s === undefined) return true;
-    if (s.id !== 0) return false;
-    if (!rt.isArrayValue(s.type) || s.type.length !== 0) return false;
-    if (!rt.isArrayValue(s.phone) || s.phone.length !== 0) return false;
-    if (!_.isZeroSimInfo(s.si as any)) return false;
-    if (s.bid !== 0) return false;
-    return true;
-};
+        rt.scalarField<RechargeB, number>("id", "Id", 0, rt.getU32, rt.setU32, rt.eqU32),
+        rt.defaultListField<RechargeB, OrderStatus>("type", "Type", DefaultOrderStatus, getOrderStatusListBody, setOrderStatusListBody, (item) => IsAssignableOrderStatus(item as any) ? undefined : new Error(`非法枚举值: ${item as any}`), (item) => IsDefaultOrderStatus(item as any), (left, right) => NormalizeOrderStatus(left as any) === NormalizeOrderStatus(right as any)),
+        rt.textListField<RechargeB>("phone", "Phone"),
+        rt.structField<RechargeB, SimInfo>("si", "Si", isZeroSimInfo, readSimInfo, setSimInfo, validateSimInfo, eqSimInfo),
+        rt.scalarField<RechargeB, number>("bid", "Bid", 0, rt.getU32, rt.setU32, rt.eqU32),
+    ],
+});
 
-export const validateRechargeB = (s: RechargeB | null | undefined): rt.Err => {
-    if (s === null || s === undefined) return undefined;
-    if (!rt.isArrayValue(s.type)) return new Error(`Type: value is not array`);
-    for (let i = 0; i < s.type.length; i++) {
-        if (!_.IsAssignableOrderStatus(s.type[i] as any)) return new Error(`Type[${i}] 非法枚举值: ${s.type[i] as any}`);
-    }
-    { const [, err] = rt.listCountState(s.type.length); if (err !== null) return new Error(`Type: ${err.message}`); }
-    if (!rt.isArrayValue(s.phone)) return new Error(`Phone: value is not array`);
-    { const [, err] = rt.listCountState(s.phone.length); if (err !== null) return new Error(`Phone: ${err.message}`); }
-    for (let i = 0; i < s.phone.length; i++) {
-        const [, err] = rt.textState(s.phone[i]);
-        if (err !== null) return new Error(`Phone[${i}]: ${err.message}`);
-    }
-    { const err = _.validateSimInfo(s.si); if (err !== undefined) return new Error(`Si: ${err.message}`); }
-    return undefined;
-};
-
-export const getRechargeB = (buf: rt.Buffer): [RechargeB, rt.Err] => {
-    const s = newRechargeB();
-    const headerBits = 7;
-    const [header, errHeader] = buf.read(rt.headerSize(headerBits));
-    if (errHeader !== null) return [s, new Error(`not enough data`)];
-    const [headerStates, errHeaderState] = rt.readHeader(header, rechargeBHeaderWidths, "RechargeB header");
-    if (errHeaderState !== undefined) return [s, errHeaderState];
-    const idPresent = headerStates[0] === 1;
-    const typeState = headerStates[1];
-    const phoneState = headerStates[2];
-    const siPresent = headerStates[3] === 1;
-    const bidPresent = headerStates[4] === 1;
-    if (idPresent) {
-        const [value, err] = rt.getU32(buf);
-        if (err !== null) return [s, new Error(`get RechargeB Id: ${err.message}`)];
-        s.id = value as any;
-    }
-    { const [value, err] = _.getOrderStatusListBody(buf, typeState); if (err !== undefined) return [s, new Error(`get RechargeB Type: ${err.message}`)]; s.type = value; }
-    { const [value, err] = rt.getTextList(buf, phoneState); if (err !== null) return [s, new Error(`get RechargeB Phone: ${err.message}`)]; s.phone = value; }
-    if (siPresent) {
-        const [value, err] = _.readSimInfo(buf);
-        if (err !== undefined) return [s, new Error(`get RechargeB Si: ${err.message}`)];
-        s.si = value;
-    }
-    if (bidPresent) {
-        const [value, err] = rt.getU32(buf);
-        if (err !== null) return [s, new Error(`get RechargeB Bid: ${err.message}`)];
-        s.bid = value as any;
-    }
-    const errValidate = validateRechargeB(s);
-    if (errValidate !== undefined) return [s, new Error(`validate failed: ${errValidate.message}`)];
-    return [s, undefined];
-};
-
-export const setRechargeB = (buf: rt.Buffer, s: RechargeB): rt.Err => {
-    if (s === null || s === undefined) return new Error(`set RechargeB: value is null or undefined`);
-    const errValidate = validateRechargeB(s);
-    if (errValidate !== undefined) return new Error(`validate RechargeB: ${errValidate.message}`);
-    const startOffset = buf.writeOffset;
-    const [typeState, errTypeState] = rt.listCountState(s.type.length);
-    if (errTypeState !== null) return errTypeState;
-    const [phoneState, errPhoneState] = rt.listCountState(s.phone.length);
-    if (errPhoneState !== null) return errPhoneState;
-    const headerStates = [
-        s.id !== 0 ? 1 : 0,
-        typeState,
-        phoneState,
-        !_.isZeroSimInfo(s.si as any) ? 1 : 0,
-        s.bid !== 0 ? 1 : 0,
-    ];
-    const [header, errHeader] = rt.writeHeader(rechargeBHeaderWidths, headerStates);
-    if (errHeader !== undefined) { buf.rewindWrite(startOffset); return new Error(`set header: ${errHeader.message}`); }
-    const errHeaderWrite = buf.write(header);
-    if (errHeaderWrite !== null) { buf.rewindWrite(startOffset); return errHeaderWrite; }
-    if (s.id !== 0) {
-        const err = rt.setU32(buf, s.id as any);
-        if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set RechargeB Id: ${err.message}`); }
-    }
-    { const err = _.setOrderStatusListBody(buf, typeState, s.type); if (err !== undefined) { buf.rewindWrite(startOffset); return new Error(`set RechargeB Type: ${err.message}`); } }
-    { const err = rt.setTextList(buf, phoneState, s.phone); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set RechargeB Phone: ${err.message}`); } }
-    if (!_.isZeroSimInfo(s.si)) {
-        const err = _.setSimInfo(buf, s.si!);
-        if (err !== undefined) { buf.rewindWrite(startOffset); return new Error(`set RechargeB Si: ${err.message}`); }
-    }
-    if (s.bid !== 0) {
-        const err = rt.setU32(buf, s.bid as any);
-        if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set RechargeB Bid: ${err.message}`); }
-    }
-    return undefined;
-};
-
+export const newRechargeB = (): RechargeB => rt.newStruct(rechargeBMeta, getRechargeB, setRechargeB);
+export const isZeroRechargeB = (s: RechargeB | null | undefined): boolean => rt.isZeroStruct(rechargeBMeta, s);
+export const validateRechargeB = (s: RechargeB | null | undefined): rt.Err => rt.validateStruct(rechargeBMeta, s);
+export const getRechargeB = (buf: rt.Buffer): [RechargeB, rt.Err] => rt.getStruct(rechargeBMeta, buf);
+export const setRechargeB = (buf: rt.Buffer, s: RechargeB): rt.Err => rt.setStruct(rechargeBMeta, buf, s);
 export const readRechargeB = (buf: rt.Buffer): [RechargeB, rt.Err] => getRechargeB(buf);
-
-export const eqRechargeB = (a: RechargeB | null | undefined, b: RechargeB | null | undefined): boolean => {
-    if (isZeroRechargeB(a as any) && isZeroRechargeB(b as any)) return true;
-    if (a === null || a === undefined || b === null || b === undefined) return false;
-    if (!rt.eqU32(a.id, b.id)) return false;
-    if (!_.eqOrderStatusList(a.type as any, b.type as any)) return false;
-    if (!rt.eqList(a.phone, b.phone, rt.eqText)) return false;
-    if (!_.eqSimInfo(a.si, b.si)) return false;
-    if (!rt.eqU32(a.bid, b.bid)) return false;
-    return true;
-};
+export const eqRechargeB = (a: RechargeB | null | undefined, b: RechargeB | null | undefined): boolean => rt.eqStruct(rechargeBMeta, a, b);
 
 export const getRechargeBListBody = (buf: rt.Buffer, state: number): [RechargeB[], rt.Err] => {
     const [list, err] = rt.getDefaultList<RechargeB>(

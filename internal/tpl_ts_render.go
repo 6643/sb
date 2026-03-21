@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -76,7 +77,6 @@ func (g *TsGenerator) renderEnumFile(enums []TplEnum) string {
 	w.Blank()
 	for _, enum := range enums {
 		enumName := PascalCase(enum.Name)
-		defaultName := enumName + PascalCase(enum.Children[0].Name)
 		w.WriteLineComment("// ", enum.Note)
 		w.Linef("export enum %s {", enumName)
 		for _, child := range enum.Children {
@@ -85,314 +85,72 @@ func (g *TsGenerator) renderEnumFile(enums []TplEnum) string {
 		}
 		w.Line("}")
 		w.Blank()
-		w.Linef("export const Default%s = (): %s => %s.%s;", enumName, enumName, enumName, PascalCase(enum.Children[0].Name))
-		w.Linef("export const Is%s = (v: %s): boolean => {", enumName, enumName)
-		w.Line("    switch (v) {")
+		w.Linef("const %sMeta = rt.defineEnum<%s>(%s.%s, [", CamelCase(enum.Name), enumName, enumName, PascalCase(enum.Children[0].Name))
 		for _, child := range enum.Children {
-			w.Linef("    case %s.%s:", enumName, PascalCase(child.Name))
+			w.Linef("    %s.%s,", enumName, PascalCase(child.Name))
 		}
-		w.Line("        return true;")
-		w.Line("    default:")
-		w.Line("        return false;")
-		w.Line("    }")
-		w.Line("};")
+		w.Line("] as const);")
 		w.Blank()
-		w.Linef("export const Normalize%s = (v: %s): %s => {", enumName, enumName, enumName)
-		w.Linef("    if (Is%s(v)) return v;", enumName)
-		w.Linef("    if ((v as any) === 0) return Default%s();", enumName)
-		w.Line("    return v;")
-		w.Line("};")
-		w.Linef("export const IsDefault%s = (v: %s): boolean => Normalize%s(v) === Default%s();", enumName, enumName, enumName, enumName)
-		w.Linef("export const IsAssignable%s = (v: %s): boolean => Is%s(v) || (((v as any) === 0) && !Is%s(0 as any));", enumName, enumName, enumName, enumName)
-		w.Linef("export const eq%sValue = (a: %s, b: %s): boolean => Normalize%s(a) === Normalize%s(b);", enumName, enumName, enumName, enumName, enumName)
-		w.Linef("export const eq%sList = (a: %s[], b: %s[]): boolean => rt.eqList(a, b, eq%sValue);", enumName, enumName, enumName, enumName)
+		w.Linef("export const Default%s = (): %s => %sMeta.defaultValue;", enumName, enumName, CamelCase(enum.Name))
+		w.Linef("export const Is%s = (v: %s): boolean => rt.isEnum(%sMeta, v);", enumName, enumName, CamelCase(enum.Name))
+		w.Linef("export const Normalize%s = (v: %s): %s => rt.normalizeEnum(%sMeta, v);", enumName, enumName, enumName, CamelCase(enum.Name))
+		w.Linef("export const IsDefault%s = (v: %s): boolean => rt.isDefaultEnum(%sMeta, v);", enumName, enumName, CamelCase(enum.Name))
+		w.Linef("export const IsAssignable%s = (v: %s): boolean => rt.isAssignableEnum(%sMeta, v);", enumName, enumName, CamelCase(enum.Name))
+		w.Linef("export const eq%sValue = (a: %s, b: %s): boolean => rt.eqEnumValue(%sMeta, a, b);", enumName, enumName, enumName, CamelCase(enum.Name))
+		w.Linef("export const eq%sList = (a: %s[], b: %s[]): boolean => rt.eqEnumList(%sMeta, a, b);", enumName, enumName, enumName, CamelCase(enum.Name))
 		w.Blank()
-		w.Linef("export const get%sListBody = (buf: rt.Buffer, state: number): [%s[], rt.Err] => {", enumName, enumName)
-		w.Linef("    const [list, err] = rt.getDefaultList<%s>(", enumName)
-		w.Line("        buf,")
-		w.Line("        state,")
-		w.Linef("        () => Default%s(),", enumName)
-		w.Line("        (buf) => {")
-		w.Line("            const [value, err] = rt.getU8(buf);")
-		w.Linef("            if (err !== null) return [Default%s(), rt.errU(err)];", enumName)
-		w.Linef("            const item = value as %s;", enumName)
-		w.Linef("            if (!Is%s(item)) return [Default%s(), new Error(`非法枚举值: ${item}`)];", enumName, enumName)
-		w.Line("            return [item, undefined];")
-		w.Line("        },")
-		w.Line("    );")
-		w.Line("    return [list, err];")
-		w.Line("};")
+		w.Linef("export const get%sListBody = (buf: rt.Buffer, state: number): [%s[], rt.Err] => rt.getEnumList(%sMeta, buf, state);", enumName, enumName, CamelCase(enum.Name))
 		w.Blank()
-		w.Linef("export const set%sListBody = (buf: rt.Buffer, state: number, v: %s[]): rt.Err => {", enumName, enumName)
-		w.Linef("    return rt.setDefaultList<%s>(", enumName)
-		w.Line("        buf,")
-		w.Line("        state,")
-		w.Line("        v,")
-		w.Linef("        (item) => IsDefault%s(item),", enumName)
-		w.Line("        (buf, item) => {")
-		w.Linef("            if (!Is%s(item)) return new Error(`非法枚举值: ${item}`);", enumName)
-		w.Line("            return rt.setU8(buf, item as any);")
-		w.Line("        },")
-		w.Line("    );")
-		w.Line("};")
+		w.Linef("export const set%sListBody = (buf: rt.Buffer, state: number, v: %s[]): rt.Err => rt.setEnumList(%sMeta, buf, state, v);", enumName, enumName, CamelCase(enum.Name))
 		w.Blank()
-		_ = defaultName
 	}
 	return w.String()
 }
 
 func (g *TsGenerator) renderStructFile(st TplStruct) string {
 	name := PascalCase(st.Name)
-	headerBits := g.headerBits(st)
 	headerWidthsName := g.structHeaderWidthsName(st)
+	metaName := CamelCase(st.Name) + "Meta"
 
 	var w sourceWriter
 	w.Line("import * as rt from \"./type\"")
-	w.Line("import * as _ from \"./_\"")
+	for _, line := range g.tsStructImportLines(st) {
+		w.Line(line)
+	}
 	w.Blank()
 	w.WriteLineComment("// ", st.Note)
 	w.Linef("export interface %s extends rt.Serializable, rt.Deserializable {", name)
 	for _, field := range st.Fields {
 		w.WriteLineComment("    // ", field.Note)
-		w.Linef("    %s: %s;", CamelCase(field.Name), g.fieldType(field.Type))
+		w.Linef("    %s: %s;", CamelCase(field.Name), g.structFieldType(field.Type))
 	}
 	w.Line("}")
 	w.Blank()
 	w.Linef("const %s = %s;", headerWidthsName, g.structHeaderWidthsLiteral(st))
 	w.Blank()
-	w.Linef("export const new%s = (): %s => {", name, name)
-	w.Line("    const s = {")
+	w.Linef("const %s = rt.defineStruct<%s>({", metaName, name)
+	w.Linef("    name: %q,", name)
+	w.Linef("    headerWidths: %s,", headerWidthsName)
+	w.Line("    create: () => ({")
 	for _, field := range st.Fields {
-		w.Linef("        %s: %s,", CamelCase(field.Name), g.defaultValue(field.Type))
+		w.Linef("        %s: %s,", CamelCase(field.Name), g.structDefaultValue(field.Type))
 	}
-	w.Linef("    } as any as %s;", name)
-	w.Linef("    s.set = (buf: rt.Buffer) => set%s(buf, s);", name)
-	w.Line("    s.get = (buf: rt.Buffer) => {")
-	w.Linef("        const [next, err] = get%s(buf);", name)
-	w.Line("        if (err === undefined) Object.assign(s, next);")
-	w.Line("        return err;")
-	w.Line("    };")
-	w.Line("    return s;")
-	w.Line("};")
+	w.Linef("    }) as any as %s,", name)
+	w.Line("    fields: [")
 	w.Blank()
-	w.Linef("export const isZero%s = (s: %s | null | undefined): boolean => {", name, name)
-	w.Line("    if (s === null || s === undefined) return true;")
 	for _, field := range st.Fields {
-		ref := "s." + CamelCase(field.Name)
-		w.Linef("    if (%s) return false;", g.nonDefaultExpr(field.Type, ref))
+		w.Linef("        %s,", g.tsFieldMetaExpr(name, field))
 	}
-	w.Line("    return true;")
-	w.Line("};")
+	w.Line("    ],")
+	w.Line("});")
 	w.Blank()
-	w.Linef("export const validate%s = (s: %s | null | undefined): rt.Err => {", name, name)
-	w.Line("    if (s === null || s === undefined) return undefined;")
-	for _, field := range st.Fields {
-		fieldName := PascalCase(field.Name)
-		ref := "s." + CamelCase(field.Name)
-		switch {
-		case field.Type.Kind == TplKindEnum && !field.Type.IsList:
-			w.Linef("    if (!_.IsAssignable%s(%s as any)) return new Error(`%s 非法枚举值: ${%s as any}`);", PascalCase(field.Type.Name), ref, fieldName, ref)
-		case field.Type.Kind == TplKindEnum && field.Type.IsList:
-			w.Linef("    if (!rt.isArrayValue(%s)) return new Error(`%s: value is not array`);", ref, fieldName)
-			w.Linef("    for (let i = 0; i < %s.length; i++) {", ref)
-			w.Linef("        if (!_.IsAssignable%s(%s[i] as any)) return new Error(`%s[${i}] 非法枚举值: ${%s[i] as any}`);", PascalCase(field.Type.Name), ref, fieldName, ref)
-			w.Line("    }")
-			w.Linef("    { const [, err] = rt.listCountState(%s.length); if (err !== null) return new Error(`%s: ${err.message}`); }", ref, fieldName)
-		case field.Type.Kind == TplKindStruct && !field.Type.IsList:
-			w.Linef("    { const err = _.validate%s(%s); if (err !== undefined) return new Error(`%s: ${err.message}`); }", PascalCase(field.Type.Name), ref, fieldName)
-		case field.Type.Kind == TplKindStruct && field.Type.IsList:
-			w.Linef("    if (!rt.isArrayValue(%s)) return new Error(`%s: value is not array`);", ref, fieldName)
-			w.Linef("    { const [, err] = rt.listCountState(%s.length); if (err !== null) return new Error(`%s: ${err.message}`); }", ref, fieldName)
-			w.Linef("    for (let i = 0; i < %s.length; i++) {", ref)
-			w.Linef("        const err = _.validate%s(%s[i]);", PascalCase(field.Type.Name), ref)
-			w.Linef("        if (err !== undefined) return new Error(`%s[${i}]: ${err.message}`);", fieldName)
-			w.Line("    }")
-		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "text":
-			w.Linef("    { const [, err] = rt.textState(%s); if (err !== null) return new Error(`%s: ${err.message}`); }", ref, fieldName)
-		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "bin":
-			w.Linef("    if (!rt.isBinValue(%s)) return new Error(`%s: value is not Uint8Array`);", ref, fieldName)
-			w.Linef("    { const [, err] = rt.binState(%s.byteLength); if (err !== null) return new Error(`%s: ${err.message}`); }", ref, fieldName)
-		case field.Type.Kind == TplKindBase && field.Type.IsList && field.Type.Name == "text":
-			w.Linef("    if (!rt.isArrayValue(%s)) return new Error(`%s: value is not array`);", ref, fieldName)
-			w.Linef("    { const [, err] = rt.listCountState(%s.length); if (err !== null) return new Error(`%s: ${err.message}`); }", ref, fieldName)
-			w.Linef("    for (let i = 0; i < %s.length; i++) {", ref)
-			w.Linef("        const [, err] = rt.textState(%s[i]);", ref)
-			w.Linef("        if (err !== null) return new Error(`%s[${i}]: ${err.message}`);", fieldName)
-			w.Line("    }")
-		case field.Type.Kind == TplKindBase && field.Type.IsList && field.Type.Name == "bin":
-			w.Linef("    if (!rt.isArrayValue(%s)) return new Error(`%s: value is not array`);", ref, fieldName)
-			w.Linef("    { const [, err] = rt.listCountState(%s.length); if (err !== null) return new Error(`%s: ${err.message}`); }", ref, fieldName)
-			w.Linef("    for (let i = 0; i < %s.length; i++) {", ref)
-			w.Linef("        if (!rt.isBinValue(%s[i])) return new Error(`%s[${i}]: value is not Uint8Array`);", ref, fieldName)
-			w.Linef("        const [, err] = rt.binState(%s[i].byteLength);", ref)
-			w.Linef("        if (err !== null) return new Error(`%s[${i}]: ${err.message}`);", fieldName)
-			w.Line("    }")
-		case field.Type.Kind == TplKindBase && field.Type.IsList:
-			w.Linef("    if (!rt.isArrayValue(%s)) return new Error(`%s: value is not array`);", ref, fieldName)
-			w.Linef("    { const [, err] = rt.listCountState(%s.length); if (err !== null) return new Error(`%s: ${err.message}`); }", ref, fieldName)
-		}
-	}
-	w.Line("    return undefined;")
-	w.Line("};")
-	w.Blank()
-	w.Linef("export const get%s = (buf: rt.Buffer): [%s, rt.Err] => {", name, name)
-	w.Linef("    const s = new%s();", name)
-	w.Linef("    const headerBits = %d;", headerBits)
-	w.Line("    const [header, errHeader] = buf.read(rt.headerSize(headerBits));")
-	w.Line("    if (errHeader !== null) return [s, new Error(`not enough data`)];")
-	w.Linef("    const [headerStates, errHeaderState] = rt.readHeader(header, %s, \"%s header\");", headerWidthsName, name)
-	w.Line("    if (errHeaderState !== undefined) return [s, errHeaderState];")
-	for i, field := range st.Fields {
-		fieldName := CamelCase(PascalCase(field.Name))
-		switch g.tagWidth(field.Type) {
-		case 1:
-			if field.Type.Name == "bool" {
-				w.Linef("    const %sState = headerStates[%d] === 1;", fieldName, i)
-			} else {
-				w.Linef("    const %sPresent = headerStates[%d] === 1;", fieldName, i)
-			}
-		case 2:
-			w.Linef("    const %sState = headerStates[%d];", fieldName, i)
-		}
-	}
-	for _, field := range st.Fields {
-		fieldName := PascalCase(field.Name)
-		fieldVar := "s." + CamelCase(field.Name)
-		stateVar := CamelCase(fieldName)
-		switch {
-		case field.Type.Name == "bool":
-			w.Linef("    %s = %sState;", fieldVar, stateVar)
-		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "text":
-			w.Linef("    { const [value, err] = rt.getText(buf, %sState); if (err !== null) return [s, new Error(`get %s %s: ${err.message}`)]; %s = value; }", stateVar, name, fieldName, fieldVar)
-		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "bin":
-			w.Linef("    { const [value, err] = rt.getBin(buf, %sState); if (err !== null) return [s, new Error(`get %s %s: ${err.message}`)]; %s = value; }", stateVar, name, fieldName, fieldVar)
-		case field.Type.Kind == TplKindBase && field.Type.IsList:
-			if field.Type.Name == "bool" || field.Type.Name == "text" || field.Type.Name == "bin" {
-				w.Linef("    { const [value, err] = %s; if (err !== null) return [s, new Error(`get %s %s: ${err.message}`)]; %s = value; }", g.listGetExpr(field.Type, stateVar+"State"), name, fieldName, fieldVar)
-			} else {
-				w.Linef("    { const [value, err] = %s; if (err !== undefined) return [s, new Error(`get %s %s: ${err.message}`)]; %s = value; }", g.listGetExpr(field.Type, stateVar+"State"), name, fieldName, fieldVar)
-			}
-		case field.Type.Kind == TplKindStruct && field.Type.IsList:
-			w.Linef("    { const [value, err] = _.get%sListBody(buf, %sState); if (err !== undefined) return [s, new Error(`get %s %s: ${err.message}`)]; %s = value; }", PascalCase(field.Type.Name), stateVar, name, fieldName, fieldVar)
-		case field.Type.Kind == TplKindEnum && field.Type.IsList:
-			w.Linef("    { const [value, err] = _.get%sListBody(buf, %sState); if (err !== undefined) return [s, new Error(`get %s %s: ${err.message}`)]; %s = value; }", PascalCase(field.Type.Name), stateVar, name, fieldName, fieldVar)
-		case field.Type.Kind == TplKindStruct:
-			w.Linef("    if (%sPresent) {", stateVar)
-			w.Linef("        const [value, err] = _.read%s(buf);", PascalCase(field.Type.Name))
-			w.Linef("        if (err !== undefined) return [s, new Error(`get %s %s: ${err.message}`)];", name, fieldName)
-			w.Linef("        %s = value;", fieldVar)
-			w.Line("    }")
-		case field.Type.Kind == TplKindEnum:
-			w.Linef("    %s = _.Default%s();", fieldVar, PascalCase(field.Type.Name))
-			w.Linef("    if (%sPresent) {", stateVar)
-			w.Line("        const [value, err] = rt.getU8(buf);")
-			w.Linef("        if (err !== null) return [s, new Error(`get %s %s: ${err.message}`)];", name, fieldName)
-			w.Linef("        const item = value as _.%s;", PascalCase(field.Type.Name))
-			w.Linef("        if (!_.Is%s(item)) return [s, new Error(`get %s %s: 非法枚举值: ${item}`)];", PascalCase(field.Type.Name), name, fieldName)
-			w.Linef("        %s = item;", fieldVar)
-			w.Line("    }")
-		default:
-			w.Linef("    if (%sPresent) {", stateVar)
-			w.Linef("        const [value, err] = rt.%s(buf);", g.primitiveGetter(field.Type.Name))
-			w.Linef("        if (err !== null) return [s, new Error(`get %s %s: ${err.message}`)];", name, fieldName)
-			w.Linef("        %s = value as any;", fieldVar)
-			w.Line("    }")
-		}
-	}
-	w.Linef("    const errValidate = validate%s(s);", name)
-	w.Line("    if (errValidate !== undefined) return [s, new Error(`validate failed: ${errValidate.message}`)];")
-	w.Line("    return [s, undefined];")
-	w.Line("};")
-	w.Blank()
-	w.Linef("export const set%s = (buf: rt.Buffer, s: %s): rt.Err => {", name, name)
-	w.Linef("    if (s === null || s === undefined) return new Error(`set %s: value is null or undefined`);", name)
-	w.Linef("    const errValidate = validate%s(s);", name)
-	w.Linef("    if (errValidate !== undefined) return new Error(`validate %s: ${errValidate.message}`);", name)
-	w.Line("    const startOffset = buf.writeOffset;")
-	for _, field := range st.Fields {
-		if g.tagWidth(field.Type) != 2 {
-			continue
-		}
-		fieldName := PascalCase(field.Name)
-		ref := "s." + CamelCase(field.Name)
-		switch {
-		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "text":
-			w.Linef("    const [%sState, err%sState] = rt.textState(%s);", CamelCase(fieldName), fieldName, ref)
-		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "bin":
-			w.Linef("    const [%sState, err%sState] = rt.binState(%s.byteLength);", CamelCase(fieldName), fieldName, ref)
-		default:
-			w.Linef("    const [%sState, err%sState] = rt.listCountState(%s.length);", CamelCase(fieldName), fieldName, ref)
-		}
-		w.Linef("    if (err%sState !== null) return err%sState;", fieldName, fieldName)
-	}
-	w.Line("    const headerStates = [")
-	for _, field := range st.Fields {
-		fieldName := PascalCase(field.Name)
-		ref := "s." + CamelCase(field.Name)
-		switch {
-		case field.Type.Name == "bool":
-			w.Linef("        %s ? 1 : 0,", ref)
-		case g.tagWidth(field.Type) == 1:
-			w.Linef("        %s ? 1 : 0,", g.nonDefaultExpr(field.Type, ref))
-		default:
-			w.Linef("        %sState,", CamelCase(fieldName))
-		}
-	}
-	w.Line("    ];")
-	w.Linef("    const [header, errHeader] = rt.writeHeader(%s, headerStates);", headerWidthsName)
-	w.Line("    if (errHeader !== undefined) { buf.rewindWrite(startOffset); return new Error(`set header: ${errHeader.message}`); }")
-	w.Line("    const errHeaderWrite = buf.write(header);")
-	w.Line("    if (errHeaderWrite !== null) { buf.rewindWrite(startOffset); return errHeaderWrite; }")
-	for _, field := range st.Fields {
-		fieldName := PascalCase(field.Name)
-		ref := "s." + CamelCase(field.Name)
-		switch {
-		case field.Type.Name == "bool":
-		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "text":
-			w.Linef("    { const err = rt.setText(buf, %sState, %s); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set %s %s: ${err.message}`); } }", CamelCase(fieldName), ref, name, fieldName)
-		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "bin":
-			w.Linef("    { const err = rt.setBin(buf, %sState, %s); if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set %s %s: ${err.message}`); } }", CamelCase(fieldName), ref, name, fieldName)
-		case field.Type.Kind == TplKindBase && field.Type.IsList:
-			if field.Type.Name == "bool" || field.Type.Name == "text" || field.Type.Name == "bin" {
-				w.Linef("    { const err = %s; if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set %s %s: ${err.message}`); } }", g.listSetExpr(field.Type, ref, CamelCase(fieldName)+"State"), name, fieldName)
-			} else {
-				w.Linef("    { const err = %s; if (err !== undefined) { buf.rewindWrite(startOffset); return new Error(`set %s %s: ${err.message}`); } }", g.listSetExpr(field.Type, ref, CamelCase(fieldName)+"State"), name, fieldName)
-			}
-		case field.Type.Kind == TplKindStruct && field.Type.IsList:
-			w.Linef("    { const err = _.set%sListBody(buf, %sState, %s); if (err !== undefined) { buf.rewindWrite(startOffset); return new Error(`set %s %s: ${err.message}`); } }", PascalCase(field.Type.Name), CamelCase(fieldName), ref, name, fieldName)
-		case field.Type.Kind == TplKindEnum && field.Type.IsList:
-			w.Linef("    { const err = _.set%sListBody(buf, %sState, %s); if (err !== undefined) { buf.rewindWrite(startOffset); return new Error(`set %s %s: ${err.message}`); } }", PascalCase(field.Type.Name), CamelCase(fieldName), ref, name, fieldName)
-		case field.Type.Kind == TplKindStruct:
-			w.Linef("    if (!_.isZero%s(%s)) {", PascalCase(field.Type.Name), ref)
-			w.Linef("        const err = _.set%s(buf, %s!);", PascalCase(field.Type.Name), ref)
-			w.Linef("        if (err !== undefined) { buf.rewindWrite(startOffset); return new Error(`set %s %s: ${err.message}`); }", name, fieldName)
-			w.Line("    }")
-		case field.Type.Kind == TplKindEnum:
-			w.Linef("    if (!_.IsDefault%s(%s as any)) {", PascalCase(field.Type.Name), ref)
-			w.Linef("        const err = rt.setU8(buf, _.Normalize%s(%s as any) as any);", PascalCase(field.Type.Name), ref)
-			w.Linef("        if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set %s %s: ${err.message}`); }", name, fieldName)
-			w.Line("    }")
-		default:
-			w.Linef("    if (%s) {", g.nonDefaultExpr(field.Type, ref))
-			w.Linef("        const err = rt.%s(buf, %s as any);", g.primitiveSetter(field.Type.Name), ref)
-			w.Linef("        if (err !== null) { buf.rewindWrite(startOffset); return new Error(`set %s %s: ${err.message}`); }", name, fieldName)
-			w.Line("    }")
-		}
-	}
-	w.Line("    return undefined;")
-	w.Line("};")
-	w.Blank()
+	w.Linef("export const new%s = (): %s => rt.newStruct(%s, get%s, set%s);", name, name, metaName, name, name)
+	w.Linef("export const isZero%s = (s: %s | null | undefined): boolean => rt.isZeroStruct(%s, s);", name, name, metaName)
+	w.Linef("export const validate%s = (s: %s | null | undefined): rt.Err => rt.validateStruct(%s, s);", name, name, metaName)
+	w.Linef("export const get%s = (buf: rt.Buffer): [%s, rt.Err] => rt.getStruct(%s, buf);", name, name, metaName)
+	w.Linef("export const set%s = (buf: rt.Buffer, s: %s): rt.Err => rt.setStruct(%s, buf, s);", name, name, metaName)
 	w.Linef("export const read%s = (buf: rt.Buffer): [%s, rt.Err] => get%s(buf);", name, name, name)
-	w.Blank()
-	w.Linef("export const eq%s = (a: %s | null | undefined, b: %s | null | undefined): boolean => {", name, name, name)
-	w.Linef("    if (isZero%s(a as any) && isZero%s(b as any)) return true;", name, name)
-	w.Line("    if (a === null || a === undefined || b === null || b === undefined) return false;")
-	for _, field := range st.Fields {
-		fieldName := CamelCase(field.Name)
-		w.Linef("    if (!%s) return false;", g.eqExpr(field.Type, "a."+fieldName, "b."+fieldName))
-	}
-	w.Line("    return true;")
-	w.Line("};")
+	w.Linef("export const eq%s = (a: %s | null | undefined, b: %s | null | undefined): boolean => rt.eqStruct(%s, a, b);", name, name, name, metaName)
 	w.Blank()
 	g.renderStructListBodyHelpers(&w, st)
 	return w.String()
@@ -444,7 +202,10 @@ func (g *TsGenerator) structHeaderWidthsLiteral(st TplStruct) string {
 
 func (g *TsGenerator) renderRPCFile(apis []TplApi) string {
 	var w sourceWriter
-	w.Line("import * as _ from \"./_\"")
+	w.Line("import * as rt from \"./type\"")
+	for _, line := range g.tsRpcImportLines(apis) {
+		w.Line(line)
+	}
 	w.Blank()
 	w.Line("const defaultMaxRespBytes = 4 * 1024 * 1024;")
 	w.Line("const maxSafeRespBytes = Number.MAX_SAFE_INTEGER;")
@@ -598,7 +359,7 @@ func (g *TsGenerator) renderRPCFile(apis []TplApi) string {
 		w.Blank()
 		w.WriteLineComment("// ", api.Note)
 		w.Linef("_rpcClientProto.%s = async function(this: _RpcClientState, %s): Promise<%s> {", methodName, g.rpcArgList(api.Args), promiseType)
-		w.Line("    const buf = new _.Buffer();")
+		w.Line("    const buf = new rt.Buffer();")
 		for _, arg := range api.Args {
 			g.tsDirectWrite(&w, arg.Type, CamelCase(arg.Name), "buf", g.rpcReqErrReturn(api.Result, defaultVal))
 		}
@@ -610,7 +371,7 @@ func (g *TsGenerator) renderRPCFile(apis []TplApi) string {
 			w.Line("};")
 			continue
 		}
-		w.Line("    const respBuf = new _.Buffer(bytes);")
+		w.Line("    const respBuf = new rt.Buffer(bytes);")
 		w.Linef("    let result = %s as any;", defaultVal)
 		g.tsDirectRead(&w, api.Result, "result", "respBuf", fmt.Sprintf("[%s, RpcErrCode.RespErr]", defaultVal))
 		w.Linef("    if (respBuf.len !== 0) return [%s, RpcErrCode.RespErr];", defaultVal)
@@ -839,6 +600,171 @@ func (g *TsGenerator) primitiveEq(name string) string {
 	}
 }
 
+func (g *TsGenerator) tsStructImportLines(st TplStruct) []string {
+	enumImports := map[string]map[string]struct{}{}
+	structImports := map[string]map[string]struct{}{}
+
+	add := func(group map[string]map[string]struct{}, file string, names ...string) {
+		if _, ok := group[file]; !ok {
+			group[file] = map[string]struct{}{}
+		}
+		for _, name := range names {
+			group[file][name] = struct{}{}
+		}
+	}
+
+	for _, field := range st.Fields {
+		typeName := PascalCase(field.Type.Name)
+		switch field.Type.Kind {
+		case TplKindEnum:
+			add(enumImports, "./enum", typeName, "Default"+typeName, "Is"+typeName, "IsAssignable"+typeName, "IsDefault"+typeName, "Normalize"+typeName, "get"+typeName+"ListBody", "set"+typeName+"ListBody")
+		case TplKindStruct:
+			if typeName == PascalCase(st.Name) {
+				continue
+			}
+			file := "./struct_" + SnakeCase(field.Type.Name)
+			add(structImports, file, typeName, "new"+typeName, "isZero"+typeName, "validate"+typeName, "read"+typeName, "set"+typeName, "eq"+typeName, "get"+typeName+"ListBody", "set"+typeName+"ListBody")
+		}
+	}
+
+	lines := make([]string, 0, len(enumImports)+len(structImports))
+	if names, ok := enumImports["./enum"]; ok {
+		lines = append(lines, fmt.Sprintf("import { %s } from \"./enum\"", joinImportNames(names)))
+	}
+	structFiles := make([]string, 0, len(structImports))
+	for file := range structImports {
+		structFiles = append(structFiles, file)
+	}
+	slices.Sort(structFiles)
+	for _, file := range structFiles {
+		lines = append(lines, fmt.Sprintf("import { %s } from %q", joinImportNames(structImports[file]), file))
+	}
+	return lines
+}
+
+func (g *TsGenerator) tsRpcImportLines(apis []TplApi) []string {
+	enumImports := map[string]struct{}{}
+	structImports := map[string]map[string]struct{}{}
+	addStruct := func(file string, names ...string) {
+		if _, ok := structImports[file]; !ok {
+			structImports[file] = map[string]struct{}{}
+		}
+		for _, name := range names {
+			structImports[file][name] = struct{}{}
+		}
+	}
+	visit := func(t TplType) {
+		if t.Kind == TplKindEnum {
+			typeName := PascalCase(t.Name)
+			for _, name := range []string{
+				typeName,
+				"Default" + typeName,
+				"Is" + typeName,
+				"IsAssignable" + typeName,
+				"Normalize" + typeName,
+				"get" + typeName + "ListBody",
+				"set" + typeName + "ListBody",
+			} {
+				enumImports[name] = struct{}{}
+			}
+			return
+		}
+		if t.Kind == TplKindStruct {
+			typeName := PascalCase(t.Name)
+			file := "./struct_" + SnakeCase(t.Name)
+			addStruct(file, typeName, "new"+typeName, "read"+typeName, "set"+typeName, "get"+typeName+"ListBody", "set"+typeName+"ListBody")
+		}
+	}
+	for _, api := range apis {
+		for _, arg := range api.Args {
+			visit(arg.Type)
+		}
+		visit(api.Result)
+	}
+	lines := make([]string, 0, len(structImports)+1)
+	if len(enumImports) > 0 {
+		lines = append(lines, fmt.Sprintf("import { %s } from \"./enum\"", joinImportNames(enumImports)))
+	}
+	structFiles := make([]string, 0, len(structImports))
+	for file := range structImports {
+		structFiles = append(structFiles, file)
+	}
+	slices.Sort(structFiles)
+	for _, file := range structFiles {
+		lines = append(lines, fmt.Sprintf("import { %s } from %q", joinImportNames(structImports[file]), file))
+	}
+	return lines
+}
+
+func joinImportNames(values map[string]struct{}) string {
+	names := make([]string, 0, len(values))
+	for name := range values {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return strings.Join(names, ", ")
+}
+
+func (g *TsGenerator) structFieldType(t TplType) string {
+	base := g.getTsType(TplType{Name: t.Name, Kind: t.Kind})
+	if t.IsList {
+		return base + "[]"
+	}
+	if t.Kind == TplKindStruct {
+		return base + " | null"
+	}
+	return base
+}
+
+func (g *TsGenerator) structDefaultValue(t TplType) string {
+	if t.IsList {
+		return "[]"
+	}
+	switch t.Kind {
+	case TplKindBase:
+		return g.getTsValue(t.Name)
+	case TplKindEnum:
+		return fmt.Sprintf("Default%s()", PascalCase(t.Name))
+	default:
+		return "null"
+	}
+}
+
+func (g *TsGenerator) tsFieldMetaExpr(structName string, field TplStructField) string {
+	key := CamelCase(field.Name)
+	label := PascalCase(field.Name)
+	t := field.Type
+	typeName := PascalCase(t.Name)
+	tsType := g.getTsType(TplType{Name: t.Name, Kind: t.Kind})
+
+	switch {
+	case t.Name == "bool" && !t.IsList:
+		return fmt.Sprintf("rt.boolField<%s>(%q, %q)", structName, key, label)
+	case t.Kind == TplKindBase && !t.IsList && t.Name == "text":
+		return fmt.Sprintf("rt.textField<%s>(%q, %q)", structName, key, label)
+	case t.Kind == TplKindBase && !t.IsList && t.Name == "bin":
+		return fmt.Sprintf("rt.binField<%s>(%q, %q)", structName, key, label)
+	case t.Kind == TplKindBase && !t.IsList:
+		return fmt.Sprintf("rt.scalarField<%s, %s>(%q, %q, %s, rt.%s, rt.%s, %s)", structName, tsType, key, label, g.primitiveDefault(t.Name), g.primitiveGetter(t.Name), g.primitiveSetter(t.Name), g.primitiveEq(t.Name))
+	case t.Kind == TplKindEnum && !t.IsList:
+		return fmt.Sprintf("rt.enumField<%s, %s>(%q, %q, Default%s, Is%s, IsAssignable%s, Normalize%s)", structName, typeName, key, label, typeName, typeName, typeName, typeName)
+	case t.Kind == TplKindStruct && !t.IsList:
+		return fmt.Sprintf("rt.structField<%s, %s>(%q, %q, isZero%s, read%s, set%s, validate%s, eq%s)", structName, typeName, key, label, typeName, typeName, typeName, typeName, typeName)
+	case t.IsList && t.Name == "bool":
+		return fmt.Sprintf("rt.boolListField<%s>(%q, %q)", structName, key, label)
+	case t.IsList && t.Name == "text":
+		return fmt.Sprintf("rt.textListField<%s>(%q, %q)", structName, key, label)
+	case t.IsList && t.Name == "bin":
+		return fmt.Sprintf("rt.binListField<%s>(%q, %q)", structName, key, label)
+	case t.IsList && t.Kind == TplKindBase:
+		return fmt.Sprintf("rt.zeroListField<%s, %s>(%q, %q, %s, rt.%s, rt.%s, %s)", structName, tsType, key, label, g.primitiveDefault(t.Name), g.primitiveGetter(t.Name), g.primitiveSetter(t.Name), g.primitiveEq(t.Name))
+	case t.IsList && t.Kind == TplKindEnum:
+		return fmt.Sprintf("rt.defaultListField<%s, %s>(%q, %q, Default%s, get%sListBody, set%sListBody, (item) => IsAssignable%s(item as any) ? undefined : new Error(`非法枚举值: ${item as any}`), (item) => IsDefault%s(item as any), (left, right) => Normalize%s(left as any) === Normalize%s(right as any))", structName, typeName, key, label, typeName, typeName, typeName, typeName, typeName, typeName, typeName)
+	default:
+		return fmt.Sprintf("rt.defaultListField<%s, %s>(%q, %q, new%s, get%sListBody, set%sListBody, validate%s, isZero%s, eq%s)", structName, typeName, key, label, typeName, typeName, typeName, typeName, typeName, typeName)
+	}
+}
+
 func (g *TsGenerator) listGetExpr(t TplType, stateVar string) string {
 	switch t.Name {
 	case "bool":
@@ -940,11 +866,7 @@ func (g *TsGenerator) eqExpr(t TplType, left, right string) string {
 func (g *TsGenerator) rpcArgList(args []TplApiArg) string {
 	parts := make([]string, 0, len(args))
 	for _, arg := range args {
-		prefix := ""
-		if arg.Type.Kind != TplKindBase {
-			prefix = "_."
-		}
-		parts = append(parts, fmt.Sprintf("%s: %s%s", CamelCase(arg.Name), prefix, g.getTsLogicType(arg.Type)))
+		parts = append(parts, fmt.Sprintf("%s: %s", CamelCase(arg.Name), g.getTsLogicType(arg.Type)))
 	}
 	return strings.Join(parts, ", ")
 }
@@ -953,11 +875,7 @@ func (g *TsGenerator) rpcPromiseType(result TplType) string {
 	if result.Name == "nil" {
 		return "RpcErrCode"
 	}
-	prefix := ""
-	if result.Kind != TplKindBase {
-		prefix = "_."
-	}
-	return fmt.Sprintf("[%s%s, RpcErrCode]", prefix, g.getTsLogicType(result))
+	return fmt.Sprintf("[%s, RpcErrCode]", g.getTsLogicType(result))
 }
 
 func (g *TsGenerator) rpcDefaultValue(result TplType) string {
@@ -968,9 +886,9 @@ func (g *TsGenerator) rpcDefaultValue(result TplType) string {
 	case TplKindBase:
 		return g.getTsValue(result.Name)
 	case TplKindEnum:
-		return fmt.Sprintf("_.Default%s()", PascalCase(result.Name))
+		return fmt.Sprintf("Default%s()", PascalCase(result.Name))
 	case TplKindStruct:
-		return fmt.Sprintf("_.new%s()", PascalCase(result.Name))
+		return fmt.Sprintf("new%s()", PascalCase(result.Name))
 	default:
 		return "null"
 	}
@@ -1031,24 +949,24 @@ func (g *TsGenerator) tsDirectRead(w *sourceWriter, t TplType, target, bufVar, e
 	w.Line("        {")
 	switch {
 	case t.Name == "bool" && !t.IsList:
-		w.Linef("            const [value, err] = _.getU8(%s);", bufVar)
+		w.Linef("            const [value, err] = rt.getU8(%s);", bufVar)
 		w.Linef("            if (err !== null) return %s;", errReturn)
 		w.Linef("            if (value > 1) return %s;", errReturn)
 		w.Linef("            %s = (value !== 0) as any;", target)
 	case t.Kind == TplKindBase && !t.IsList && t.Name == "text":
-		w.Linef("            const [state, errState] = _.getU8(%s);", bufVar)
+		w.Linef("            const [state, errState] = rt.getU8(%s);", bufVar)
 		w.Linef("            if (errState !== null) return %s;", errReturn)
-		w.Linef("            const [value, err] = _.getText(%s, state);", bufVar)
+		w.Linef("            const [value, err] = rt.getText(%s, state);", bufVar)
 		w.Linef("            if (err !== null) return %s;", errReturn)
 		w.Linef("            %s = value as any;", target)
 	case t.Kind == TplKindBase && !t.IsList && t.Name == "bin":
-		w.Linef("            const [state, errState] = _.getU8(%s);", bufVar)
+		w.Linef("            const [state, errState] = rt.getU8(%s);", bufVar)
 		w.Linef("            if (errState !== null) return %s;", errReturn)
-		w.Linef("            const [value, err] = _.getBin(%s, state);", bufVar)
+		w.Linef("            const [value, err] = rt.getBin(%s, state);", bufVar)
 		w.Linef("            if (err !== null) return %s;", errReturn)
 		w.Linef("            %s = value as any;", target)
 	case t.IsList:
-		w.Linef("            const [state, errState] = _.getU8(%s);", bufVar)
+		w.Linef("            const [state, errState] = rt.getU8(%s);", bufVar)
 		w.Linef("            if (errState !== null) return %s;", errReturn)
 		w.Linef("            const [value, err] = %s;", g.tsDirectListGetExpr(t, "state", bufVar))
 		if t.Name == "bool" || t.Name == "text" || t.Name == "bin" {
@@ -1058,18 +976,18 @@ func (g *TsGenerator) tsDirectRead(w *sourceWriter, t TplType, target, bufVar, e
 		}
 		w.Linef("            %s = value as any;", target)
 	case t.Kind == TplKindStruct:
-		w.Linef("            const [value, err] = _.read%s(%s);", PascalCase(t.Name), bufVar)
+		w.Linef("            const [value, err] = read%s(%s);", PascalCase(t.Name), bufVar)
 		w.Linef("            if (err !== undefined) return %s;", errReturn)
 		w.Linef("            %s = value as any;", target)
 	case t.Kind == TplKindEnum:
 		typeName := PascalCase(t.Name)
-		w.Linef("            const [value, err] = _.getU8(%s);", bufVar)
+		w.Linef("            const [value, err] = rt.getU8(%s);", bufVar)
 		w.Linef("            if (err !== null) return %s;", errReturn)
-		w.Linef("            const item = value as _.%s;", typeName)
-		w.Linef("            if (!_.Is%s(item)) return %s;", typeName, errReturn)
+		w.Linef("            const item = value as %s;", typeName)
+		w.Linef("            if (!Is%s(item)) return %s;", typeName, errReturn)
 		w.Linef("            %s = item as any;", target)
 	default:
-		w.Linef("            const [value, err] = _.%s(%s);", g.primitiveGetter(t.Name), bufVar)
+		w.Linef("            const [value, err] = rt.%s(%s);", g.primitiveGetter(t.Name), bufVar)
 		w.Linef("            if (err !== null) return %s;", errReturn)
 		w.Linef("            %s = value as any;", target)
 	}
@@ -1080,26 +998,26 @@ func (g *TsGenerator) tsDirectWrite(w *sourceWriter, t TplType, ref, bufVar, err
 	w.Line("        {")
 	switch {
 	case t.Name == "bool" && !t.IsList:
-		w.Linef("            const encodeErr = _.setU8(%s, %s ? 1 : 0);", bufVar, ref)
+		w.Linef("            const encodeErr = rt.setU8(%s, %s ? 1 : 0);", bufVar, ref)
 		w.Linef("            if (encodeErr !== null) return %s;", errReturn)
 	case t.Kind == TplKindBase && !t.IsList && t.Name == "text":
-		w.Linef("            const [state, errState] = _.textState(%s);", ref)
+		w.Linef("            const [state, errState] = rt.textState(%s);", ref)
 		w.Linef("            if (errState !== null) return %s;", errReturn)
-		w.Linef("            const err0 = _.setU8(%s, state);", bufVar)
+		w.Linef("            const err0 = rt.setU8(%s, state);", bufVar)
 		w.Linef("            if (err0 !== null) return %s;", errReturn)
-		w.Linef("            const err1 = _.setText(%s, state, %s);", bufVar, ref)
+		w.Linef("            const err1 = rt.setText(%s, state, %s);", bufVar, ref)
 		w.Linef("            if (err1 !== null) return %s;", errReturn)
 	case t.Kind == TplKindBase && !t.IsList && t.Name == "bin":
-		w.Linef("            const [state, errState] = _.binState(%s.byteLength);", ref)
+		w.Linef("            const [state, errState] = rt.binState(%s.byteLength);", ref)
 		w.Linef("            if (errState !== null) return %s;", errReturn)
-		w.Linef("            const err0 = _.setU8(%s, state);", bufVar)
+		w.Linef("            const err0 = rt.setU8(%s, state);", bufVar)
 		w.Linef("            if (err0 !== null) return %s;", errReturn)
-		w.Linef("            const err1 = _.setBin(%s, state, %s);", bufVar, ref)
+		w.Linef("            const err1 = rt.setBin(%s, state, %s);", bufVar, ref)
 		w.Linef("            if (err1 !== null) return %s;", errReturn)
 	case t.IsList:
-		w.Linef("            const [state, errState] = _.listCountState(%s.length);", ref)
+		w.Linef("            const [state, errState] = rt.listCountState(%s.length);", ref)
 		w.Linef("            if (errState !== null) return %s;", errReturn)
-		w.Linef("            const err0 = _.setU8(%s, state);", bufVar)
+		w.Linef("            const err0 = rt.setU8(%s, state);", bufVar)
 		w.Linef("            if (err0 !== null) return %s;", errReturn)
 		w.Linef("            const err1 = %s;", g.tsDirectListSetExpr(t, ref, "state", bufVar))
 		if t.Name == "bool" || t.Name == "text" || t.Name == "bin" {
@@ -1108,15 +1026,15 @@ func (g *TsGenerator) tsDirectWrite(w *sourceWriter, t TplType, ref, bufVar, err
 			w.Linef("            if (err1 !== undefined) return %s;", errReturn)
 		}
 	case t.Kind == TplKindStruct:
-		w.Linef("            const encodeErr = _.set%s(%s, %s);", PascalCase(t.Name), bufVar, ref)
+		w.Linef("            const encodeErr = set%s(%s, %s);", PascalCase(t.Name), bufVar, ref)
 		w.Linef("            if (encodeErr !== undefined) return %s;", errReturn)
 	case t.Kind == TplKindEnum:
 		typeName := PascalCase(t.Name)
-		w.Linef("            if (!_.IsAssignable%s(%s as any)) return %s;", typeName, ref, errReturn)
-		w.Linef("            const encodeErr = _.setU8(%s, _.Normalize%s(%s as any) as any);", bufVar, typeName, ref)
+		w.Linef("            if (!IsAssignable%s(%s as any)) return %s;", typeName, ref, errReturn)
+		w.Linef("            const encodeErr = rt.setU8(%s, Normalize%s(%s as any) as any);", bufVar, typeName, ref)
 		w.Linef("            if (encodeErr !== null) return %s;", errReturn)
 	default:
-		w.Linef("            const encodeErr = _.%s(%s, %s as any);", g.primitiveSetter(t.Name), bufVar, ref)
+		w.Linef("            const encodeErr = rt.%s(%s, %s as any);", g.primitiveSetter(t.Name), bufVar, ref)
 		w.Linef("            if (encodeErr !== null) return %s;", errReturn)
 	}
 	w.Line("        }")
@@ -1125,34 +1043,34 @@ func (g *TsGenerator) tsDirectWrite(w *sourceWriter, t TplType, ref, bufVar, err
 func (g *TsGenerator) tsDirectListGetExpr(t TplType, stateVar, bufVar string) string {
 	switch {
 	case t.Name == "bool":
-		return fmt.Sprintf("_.getBoolList(%s, %s)", bufVar, stateVar)
+		return fmt.Sprintf("rt.getBoolList(%s, %s)", bufVar, stateVar)
 	case t.Name == "text":
-		return fmt.Sprintf("_.getTextList(%s, %s)", bufVar, stateVar)
+		return fmt.Sprintf("rt.getTextList(%s, %s)", bufVar, stateVar)
 	case t.Name == "bin":
-		return fmt.Sprintf("_.getBinList(%s, %s)", bufVar, stateVar)
+		return fmt.Sprintf("rt.getBinList(%s, %s)", bufVar, stateVar)
 	case t.Kind == TplKindBase:
-		return fmt.Sprintf("_.getDefaultList<%s>(%s, %s, %s, %s)", g.getTsType(TplType{Name: t.Name, Kind: t.Kind}), bufVar, stateVar, g.bitmapDefaultFactory(t), g.bitmapGetter(t))
+		return fmt.Sprintf("rt.getDefaultList<%s>(%s, %s, %s, %s)", g.getTsType(TplType{Name: t.Name, Kind: t.Kind}), bufVar, stateVar, g.bitmapDefaultFactory(t), g.bitmapGetter(t))
 	case t.Kind == TplKindEnum:
-		return fmt.Sprintf("_.get%sListBody(%s, %s)", PascalCase(t.Name), bufVar, stateVar)
+		return fmt.Sprintf("get%sListBody(%s, %s)", PascalCase(t.Name), bufVar, stateVar)
 	default:
-		return fmt.Sprintf("_.get%sListBody(%s, %s)", PascalCase(t.Name), bufVar, stateVar)
+		return fmt.Sprintf("get%sListBody(%s, %s)", PascalCase(t.Name), bufVar, stateVar)
 	}
 }
 
 func (g *TsGenerator) tsDirectListSetExpr(t TplType, ref, stateVar, bufVar string) string {
 	switch {
 	case t.Name == "bool":
-		return fmt.Sprintf("_.setBoolList(%s, %s, %s)", bufVar, stateVar, ref)
+		return fmt.Sprintf("rt.setBoolList(%s, %s, %s)", bufVar, stateVar, ref)
 	case t.Name == "text":
-		return fmt.Sprintf("_.setTextList(%s, %s, %s)", bufVar, stateVar, ref)
+		return fmt.Sprintf("rt.setTextList(%s, %s, %s)", bufVar, stateVar, ref)
 	case t.Name == "bin":
-		return fmt.Sprintf("_.setBinList(%s, %s, %s)", bufVar, stateVar, ref)
+		return fmt.Sprintf("rt.setBinList(%s, %s, %s)", bufVar, stateVar, ref)
 	case t.Kind == TplKindBase:
-		return fmt.Sprintf("_.setDefaultList<%s>(%s, %s, %s, %s, %s)", g.getTsType(TplType{Name: t.Name, Kind: t.Kind}), bufVar, stateVar, ref, g.bitmapIsDefault(t), g.bitmapSetter(t))
+		return fmt.Sprintf("rt.setDefaultList<%s>(%s, %s, %s, %s, %s)", g.getTsType(TplType{Name: t.Name, Kind: t.Kind}), bufVar, stateVar, ref, g.bitmapIsDefault(t), g.bitmapSetter(t))
 	case t.Kind == TplKindEnum:
-		return fmt.Sprintf("_.set%sListBody(%s, %s, %s)", PascalCase(t.Name), bufVar, stateVar, ref)
+		return fmt.Sprintf("set%sListBody(%s, %s, %s)", PascalCase(t.Name), bufVar, stateVar, ref)
 	default:
-		return fmt.Sprintf("_.set%sListBody(%s, %s, %s)", PascalCase(t.Name), bufVar, stateVar, ref)
+		return fmt.Sprintf("set%sListBody(%s, %s, %s)", PascalCase(t.Name), bufVar, stateVar, ref)
 	}
 }
 

@@ -27,6 +27,7 @@
 
 ### 2.3 仓库内 fixture
 
+- `fixtures/schema.sb`: fixture 生成所用的 schema
 - `fixtures/go/sb/`: Go fixture 与测试资产
 - `fixtures/ts/sb/`: TypeScript fixture 与测试资产
 
