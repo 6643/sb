@@ -43,7 +43,7 @@ go run . <input.sb> [flags]
 
 ```bash
 go build -o sb
-./sb -go ./demo/go -ts ./demo/ts -tag bson,json ./demo/aaa.sb
+./sb -go ./out/go -ts ./out/ts -tag bson,json ./demo/all_rules.sb
 ```
 
 ### 2.2 命令行参数
@@ -52,9 +52,10 @@ go build -o sb
 - `-ts`: TypeScript 代码输出目录, 默认 `./ts`
 - `-tag`: 为 Go 结构体追加 tag, 例如 `bson,json`
 
-### 2.3 实现落点
+### 2.3 仓库内参考目录
 
-- 当前仓库只保留 `demo/` 这一套示例 schema 与生成结果
+- `demo/`: 规则样例目录, 只保留 `.sb` 正例和说明
+- `fixtures/`: 仓库内保留的生成产物与测试资产
 - 目录结构、生成落点和测试入口统一见 [IMPLEMENTATION.md](IMPLEMENTATION.md)
 
 ## 3. `.sb` 语法
@@ -216,7 +217,7 @@ set_flag(enabled bool) => nil
 
 ```bash
 go test ./...
-go run . -go ./demo/go -ts ./demo/ts -tag bson,json ./demo/aaa.sb
+go run . -go ./out/go -ts ./out/ts -tag bson,json ./demo/all_rules.sb
 ```
 
 关键回归测试入口统一见 [IMPLEMENTATION.md](IMPLEMENTATION.md).

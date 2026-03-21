@@ -7,7 +7,7 @@ const runGoCrossTest = (name: string): void => {
     if (!hasGo) return;
     const repoRoot = decodeURIComponent(new URL("../../..", import.meta.url).pathname);
     const proc = Bun.spawnSync({
-        cmd: ["go", "test", "./demo/go/sb", "-run", goRunPattern(name), "-count=1"],
+        cmd: ["go", "test", "./fixtures/go/sb", "-run", goRunPattern(name), "-count=1"],
         cwd: repoRoot,
         env: { ...process.env, GOCACHE: "/tmp/go-build" },
         stdout: "pipe",

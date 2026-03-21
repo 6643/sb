@@ -22,14 +22,18 @@
 
 ### 2.2 仓库内示例生成结果
 
-- `demo/aaa.sb`: 仓库内保留的示例 schema
-- `demo/go/sb/`: Go 示例生成结果
-- `demo/ts/sb/`: TypeScript 示例生成结果
+- `demo/all_rules.sb`: 仓库内保留的规则总览样例
+- `demo/README.md`: 规则样例覆盖说明
 
-### 2.3 关键实现落点
+### 2.3 仓库内 fixture
 
-- Go runtime: `demo/go/sb/runtime.go`
-- TypeScript runtime: `demo/ts/sb/type.ts`
+- `fixtures/go/sb/`: Go fixture 与测试资产
+- `fixtures/ts/sb/`: TypeScript fixture 与测试资产
+
+### 2.4 关键实现落点
+
+- Go runtime: `fixtures/go/sb/runtime.go`
+- TypeScript runtime: `fixtures/ts/sb/type.ts`
 - Go 生成器: `internal/tpl_go_render.go`
 - TypeScript 生成器: `internal/tpl_ts_render.go`
 - 文档生成器: `internal/tpl_doc_render.go`
@@ -39,13 +43,14 @@
 当前生成命令:
 
 ```bash
-go run . -go ./demo/go -ts ./demo/ts -tag bson,json ./demo/aaa.sb
+go run . -go ./out/go -ts ./out/ts -tag bson,json ./demo/all_rules.sb
 ```
 
 说明:
 
 - 生成器输出目录由 `-go` 和 `-ts` 参数决定.
-- 当前仓库只保留 `demo/` 这套示例生成结果.
+- `demo/` 只用于规则样例说明.
+- 当前仓库保留的生成产物与测试资产位于 `fixtures/`.
 - 根目录不再保留额外的 `go/`、`ts/`、`aaa.sb` fixture.
 
 ## 4. 验证入口
@@ -53,18 +58,18 @@ go run . -go ./demo/go -ts ./demo/ts -tag bson,json ./demo/aaa.sb
 ### 4.1 Go
 
 - `go test ./internal`
-- `go test ./demo/go/sb`
+- `go test ./fixtures/go/sb`
 
 ### 4.2 TypeScript
 
-- `bun test demo/ts/sb`
+- `bun test fixtures/ts/sb`
 
 ### 4.3 关键回归
 
-- `demo/go/sb/runtime_test.go`: Go runtime 协议细节与 canonical 规则
-- `demo/go/sb/cross_consistency_test.go`: Go 端双端一致性回归
-- `demo/ts/sb/runtime.test.ts`: TS runtime 协议细节与 canonical 规则
-- `demo/ts/sb/cross_consistency.test.ts`: TS 侧驱动的双端一致性回归
+- `fixtures/go/sb/runtime_test.go`: Go runtime 协议细节与 canonical 规则
+- `fixtures/go/sb/cross_consistency_test.go`: Go 端双端一致性回归
+- `fixtures/ts/sb/runtime.test.ts`: TS runtime 协议细节与 canonical 规则
+- `fixtures/ts/sb/cross_consistency.test.ts`: TS 侧驱动的双端一致性回归
 
 ## 5. 文档边界
 

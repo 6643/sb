@@ -1,0 +1,51 @@
+// sb 规则总览
+// 本文件只放可解析的正例, 用于展示当前语法与主要结构约束.
+
+// 文件级注释
+// 隐式枚举值示例
+AccountStatus = Offline | Online | Deleted
+
+// 显式枚举值示例
+RpcCode = Ok(0) | Retry(7) | Fatal(255)
+
+// 混合显式值与隐式值示例
+AccessLevel = Guest | User | Admin(9)
+
+BaseInfo {
+  // 字段注释与 tag 示例
+  id u32 "_id"
+  active bool
+  signed8 i8
+  signed16 i16
+  signed32 i32
+  signed64 i64
+  unsigned8 u8
+  unsigned16 u16
+  unsigned32 u32
+  unsigned64 u64
+  score_f32 f32
+  score_f64 f64
+  title text
+  payload bin
+  labels [text]
+  blobs [bin]
+  counters [u32]
+  codes [RpcCode]
+}
+
+ExtendedInfo {
+  // 嵌入字段示例
+  ...BaseInfo
+  status AccountStatus
+  access AccessLevel
+  history [BaseInfo]
+}
+
+// 单段 API 名称
+single_ping() => nil
+
+// 双段 API 名称
+service.get_info(id u32) => ExtendedInfo
+
+// 多参数 API
+service.set_info(id u32, info ExtendedInfo, force bool) => RpcCode
