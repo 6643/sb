@@ -567,82 +567,36 @@ func (g *GoGenerator) renderEnum(w *sourceWriter, enum TplEnum) {
 	}
 	w.Line(")")
 	w.Blank()
-	w.Linef("func %s() %s { return %s }", defaultFunc, enumName, defaultName)
-	w.Linef("func %s(v %s) bool {", isFunc, enumName)
-	w.Line("\tswitch v {")
-	cases := make([]string, 0, len(enum.Children))
+	w.Linef("var %sMeta = DefineEnum[%s](", CamelCase(enum.Name), enumName)
+	w.Linef("\t%s,", defaultName)
 	for _, child := range enum.Children {
-		cases = append(cases, enumName+PascalCase(child.Name))
+		w.Linef("\t%s%s,", enumName, PascalCase(child.Name))
 	}
-	w.Linef("\tcase %s:", joinWithComma(cases))
-	w.Line("\t\treturn true")
-	w.Line("\tdefault:")
-	w.Line("\t\treturn false")
-	w.Line("\t}")
-	w.Line("}")
+	w.Line(")")
 	w.Blank()
-	w.Linef("func %s(v %s) %s {", normalizeFunc, enumName, enumName)
-	w.Linef("\tif %s(v) { return v }", isFunc)
-	w.Line("\tif v == 0 {")
-	w.Linef("\t\treturn %s()", defaultFunc)
-	w.Line("\t}")
-	w.Line("\treturn v")
-	w.Line("}")
+	w.Linef("func %s() %s { return %s }", defaultFunc, enumName, defaultName)
+	w.Linef("func %s(v %s) bool { return IsEnum(%sMeta, v) }", isFunc, enumName, CamelCase(enum.Name))
+	w.Linef("func %s(v %s) %s { return NormalizeEnum(%sMeta, v) }", normalizeFunc, enumName, enumName, CamelCase(enum.Name))
 	w.Blank()
-	w.Linef("func %s(v %s) bool { return %s(v) == %s() }", isDefaultFunc, enumName, normalizeFunc, defaultFunc)
-	w.Linef("func %s(v %s) bool { return %s(v) || (v == 0 && !%s(0)) }", isAssignableFunc, enumName, isFunc, isFunc)
-	w.Linef("func %s(a, b %s) bool { return %s(a) == %s(b) }", eqValueFunc, enumName, normalizeFunc, normalizeFunc)
-	w.Linef("func %s(a, b []%s) bool { return slices.EqualFunc(a, b, %s) }", eqListFunc, enumName, eqValueFunc)
-	w.Blank()
-	w.Linef("func size%sListItem(item %s) (int, error) {", enumName, enumName)
-	w.Linef("\tif !%s(item) { return 0, fmt.Errorf(\"非法枚举值: %%d\", item) }", isAssignableFunc)
-	w.Line("\treturn 1, nil")
-	w.Line("}")
-	w.Blank()
-	w.Linef("func get%sListItem(buf *bytes.Buffer) (%s, error) {", enumName, enumName)
-	w.Line("\tvalue, err := GetU8(buf)")
-	w.Line("\tif err != nil { return 0, err }")
-	w.Linef("\titem := %s(value)", enumName)
-	w.Linef("\tif !%s(item) { return 0, fmt.Errorf(\"非法枚举值: %%d\", item) }", isFunc)
-	w.Line("\treturn item, nil")
-	w.Line("}")
-	w.Blank()
-	w.Linef("func set%sListItem(buf *bytes.Buffer, item %s) error {", enumName, enumName)
-	w.Linef("\tif !%s(item) { return fmt.Errorf(\"非法枚举值: %%d\", item) }", isFunc)
-	w.Line("\treturn SetU8(buf, uint8(item))")
-	w.Line("}")
+	w.Linef("func %s(v %s) bool { return IsDefaultEnum(%sMeta, v) }", isDefaultFunc, enumName, CamelCase(enum.Name))
+	w.Linef("func %s(v %s) bool { return IsAssignableEnum(%sMeta, v) }", isAssignableFunc, enumName, CamelCase(enum.Name))
+	w.Linef("func %s(a, b %s) bool { return EqEnumValue(%sMeta, a, b) }", eqValueFunc, enumName, CamelCase(enum.Name))
+	w.Linef("func %s(a, b []%s) bool { return EqEnumList(%sMeta, a, b) }", eqListFunc, enumName, CamelCase(enum.Name))
 	w.Blank()
 	w.Linef("func get%sListBody(buf *bytes.Buffer, state uint8) ([]%s, error) {", enumName, enumName)
 	w.Linef("\treturn get%sListBodyReuse(buf, state, nil)", enumName)
 	w.Line("}")
 	w.Blank()
 	w.Linef("func get%sListBodyReuse(buf *bytes.Buffer, state uint8, dst []%s) ([]%s, error) {", enumName, enumName, enumName)
-	w.Line("\treturn GetDefaultListInto(")
-	w.Line("\t\tbuf,")
-	w.Line("\t\tstate,")
-	w.Line("\t\tdst,")
-	w.Linef("\t\t%s,", defaultFunc)
-	w.Linef("\t\tget%sListItem,", enumName)
-	w.Line("\t)")
+	w.Linef("\treturn GetEnumListInto(%sMeta, buf, state, dst)", CamelCase(enum.Name))
 	w.Line("}")
 	w.Blank()
 	w.Linef("func set%sListBody(buf *bytes.Buffer, state uint8, v []%s) error {", enumName, enumName)
-	w.Line("\treturn SetDefaultList(")
-	w.Line("\t\tbuf,")
-	w.Line("\t\tstate,")
-	w.Line("\t\tv,")
-	w.Linef("\t\t%s,", isDefaultFunc)
-	w.Linef("\t\tsize%sListItem,", enumName)
-	w.Linef("\t\tset%sListItem,", enumName)
-	w.Line("\t)")
+	w.Linef("\treturn SetEnumList(%sMeta, buf, state, v)", CamelCase(enum.Name))
 	w.Line("}")
 	w.Blank()
 	w.Linef("func size%sListBody(v []%s) (int, error) {", enumName, enumName)
-	w.Line("\treturn SizeDefaultList(")
-	w.Line("\t\tv,")
-	w.Linef("\t\t%s,", isDefaultFunc)
-	w.Linef("\t\tsize%sListItem,", enumName)
-	w.Line("\t)")
+	w.Linef("\treturn SizeEnumList(%sMeta, v)", CamelCase(enum.Name))
 	w.Line("}")
 }
 
@@ -699,55 +653,15 @@ func (g *GoGenerator) renderStruct(w *sourceWriter, st TplStruct) {
 	w.Blank()
 	w.Linef("var %s = [...]uint8{%s}", headerWidthsName, g.structHeaderWidthsLiteral(st))
 	w.Blank()
-	w.Linef("func %s(s *%s) bool {", isZeroFunc, structName)
-	w.Line("\tif s == nil { return true }")
+	w.Linef("var %s = DefineStruct[%s](", CamelCase(st.Name)+"Meta", structName)
 	for _, field := range st.Fields {
-		ref := "s." + PascalCase(field.Name)
-		w.Linef("\tif %s { return false }", g.nonDefaultExpr(field.Type, ref))
+		w.Linef("\t%s,", g.goStructFieldMetaExpr(structName, field))
 	}
-	w.Line("\treturn true")
-	w.Line("}")
+	w.Line(")")
 	w.Blank()
-	w.Linef("func %s(s *%s) error {", validateFunc, structName)
-	w.Line("\tif s == nil { return nil }")
-	for _, field := range st.Fields {
-		fieldName := PascalCase(field.Name)
-		ref := "s." + fieldName
-		switch {
-		case field.Type.Kind == TplKindEnum && !field.Type.IsList:
-			enumName := PascalCase(field.Type.Name)
-			w.Linef("\tif !%s(%s) { return fmt.Errorf(\"%s 非法枚举值: %%d\", %s) }", g.enumIsAssignableName(enumName), ref, fieldName, ref)
-		case field.Type.Kind == TplKindEnum && field.Type.IsList:
-			enumName := PascalCase(field.Type.Name)
-			w.Linef("\tfor i, item := range %s {", ref)
-			w.Linef("\t\tif !%s(item) { return fmt.Errorf(\"%s[%%d] 非法枚举值: %%d\", i, item) }", g.enumIsAssignableName(enumName), fieldName)
-			w.Line("\t}")
-		case field.Type.Kind == TplKindStruct && !field.Type.IsList:
-			typeName := PascalCase(field.Type.Name)
-			w.Linef("\tif err := %s(%s); err != nil { return fmt.Errorf(\"%s: %%w\", err) }", g.structValidateName(typeName), ref, fieldName)
-		case field.Type.Kind == TplKindStruct && field.Type.IsList:
-			typeName := PascalCase(field.Type.Name)
-			w.Linef("\tfor i, item := range %s {", ref)
-			w.Linef("\t\tif err := %s(item); err != nil { return fmt.Errorf(\"%s[%%d]: %%w\", i, err) }", g.structValidateName(typeName), fieldName)
-			w.Line("\t}")
-		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "text":
-			w.Linef("\tif _, err := TextState(len(%s)); err != nil { return fmt.Errorf(\"%s: %%w\", err) }", ref, fieldName)
-		case field.Type.Kind == TplKindBase && !field.Type.IsList && field.Type.Name == "bin":
-			w.Linef("\tif _, err := BinState(len(%s)); err != nil { return fmt.Errorf(\"%s: %%w\", err) }", ref, fieldName)
-		case field.Type.Kind == TplKindBase && field.Type.IsList && field.Type.Name == "text":
-			w.Linef("\tfor i, item := range %s {", ref)
-			w.Linef("\t\tif _, err := TextState(len(item)); err != nil { return fmt.Errorf(\"%s[%%d]: %%w\", i, err) }", fieldName)
-			w.Line("\t}")
-		case field.Type.Kind == TplKindBase && field.Type.IsList && field.Type.Name == "bin":
-			w.Linef("\tfor i, item := range %s {", ref)
-			w.Linef("\t\tif _, err := BinState(len(item)); err != nil { return fmt.Errorf(\"%s[%%d]: %%w\", i, err) }", fieldName)
-			w.Line("\t}")
-		case field.Type.Kind == TplKindBase && field.Type.IsList:
-			w.Linef("\tif _, err := ListCountState(len(%s)); err != nil { return fmt.Errorf(\"%s: %%w\", err) }", ref, fieldName)
-		}
-	}
-	w.Line("\treturn nil")
-	w.Line("}")
+	w.Linef("func %s(s *%s) bool { return IsZeroStruct(%sMeta, s) }", isZeroFunc, structName, CamelCase(st.Name))
+	w.Blank()
+	w.Linef("func %s(s *%s) error { return ValidateStruct(%sMeta, s) }", validateFunc, structName, CamelCase(st.Name))
 	w.Blank()
 	w.Linef("func %s(s *%s) (int, error) {", sizeValidatedFunc, structName)
 	w.Linef("\tif s == nil { return 0, fmt.Errorf(\"Size%s: nil value\") }", structName)
@@ -972,15 +886,7 @@ func (g *GoGenerator) renderStruct(w *sourceWriter, st TplStruct) {
 	w.Linef("\treturn s, %s(buf, s)", getFunc)
 	w.Line("}")
 	w.Blank()
-	w.Linef("func %s(a, b *%s) bool {", eqFunc, structName)
-	w.Linef("\tif %s(a) && %s(b) { return true }", isZeroFunc, isZeroFunc)
-	w.Line("\tif a == nil || b == nil { return false }")
-	for _, field := range st.Fields {
-		fieldName := PascalCase(field.Name)
-		w.Linef("\tif !%s { return false }", g.eqExpr(field.Type, "a."+fieldName, "b."+fieldName))
-	}
-	w.Line("\treturn true")
-	w.Line("}")
+	w.Linef("func %s(a, b *%s) bool { return EqStruct(%sMeta, a, b) }", eqFunc, structName, CamelCase(st.Name))
 	w.Blank()
 	g.renderStructListBodyHelpers(w, st)
 }
@@ -1320,6 +1226,78 @@ func (g *GoGenerator) eqExpr(t TplType, left, right string) string {
 		return fmt.Sprintf("(eqF64(%s, %s))", left, right)
 	default:
 		return fmt.Sprintf("(%s == %s)", left, right)
+	}
+}
+
+func (g *GoGenerator) goStructFieldMetaExpr(structName string, field TplStructField) string {
+	fieldName := PascalCase(field.Name)
+	label := fieldName
+	ref := fmt.Sprintf("func(s *%s) %s { return s.%s }", structName, g.getGoLogicType(field.Type), fieldName)
+
+	switch {
+	case field.Type.Name == "text" && !field.Type.IsList:
+		return fmt.Sprintf("TextField[%s](%q, %s)", structName, label, ref)
+	case field.Type.Name == "bin" && !field.Type.IsList:
+		return fmt.Sprintf("BinField[%s](%q, %s)", structName, label, ref)
+	case field.Type.Kind == TplKindEnum && !field.Type.IsList:
+		typeName := PascalCase(field.Type.Name)
+		return fmt.Sprintf("EnumField[%s, %s](%q, %s, %s, %s, %s)", structName, g.getGoLogicType(field.Type), label, ref, g.enumIsAssignableName(typeName), g.enumIsDefaultName(typeName), g.enumEqValueName(typeName))
+	case field.Type.Kind == TplKindStruct && !field.Type.IsList:
+		typeName := PascalCase(field.Type.Name)
+		return fmt.Sprintf("PtrField[%s, %s](%q, func(s *%s) *%s { return s.%s }, %s, %s, %s)", structName, typeName, label, structName, typeName, fieldName, g.structValidateName(typeName), g.structIsZeroName(typeName), g.structEqName(field.Type.Name))
+	case field.Type.IsList:
+		return fmt.Sprintf("SliceField[%s, %s](%q, func(s *%s) %s { return s.%s }, %s, %s)", structName, g.goListElemType(field.Type), label, structName, g.getGoLogicType(field.Type), fieldName, g.goListValidateExpr(field.Type), g.goListEqExpr(field.Type))
+	default:
+		return fmt.Sprintf("ScalarField[%s, %s](%q, %s)", structName, g.getGoLogicType(field.Type), label, ref)
+	}
+}
+
+func (g *GoGenerator) goListElemType(t TplType) string {
+	switch {
+	case t.Kind == TplKindStruct:
+		return "*" + PascalCase(t.Name)
+	case t.Kind == TplKindEnum:
+		return PascalCase(t.Name)
+	default:
+		return g.getGoType(TplType{Name: t.Name, Kind: t.Kind})
+	}
+}
+
+func (g *GoGenerator) goListValidateExpr(t TplType) string {
+	switch {
+	case t.Kind == TplKindStruct:
+		typeName := PascalCase(t.Name)
+		return fmt.Sprintf("func(values []*%s) error { _, err := size%sListBody(values); return err }", typeName, typeName)
+	case t.Kind == TplKindEnum:
+		typeName := PascalCase(t.Name)
+		return fmt.Sprintf("func(values []%s) error { _, err := size%sListBody(values); return err }", typeName, typeName)
+	case t.Name == "bool":
+		return "func(values []bool) error { _, err := SizeBoolList(values); return err }"
+	case t.Name == "text":
+		return "func(values []string) error { _, err := SizeTextList(values); return err }"
+	case t.Name == "bin":
+		return "func(values [][]byte) error { _, err := SizeBinList(values); return err }"
+	default:
+		width, _ := goBaseEncodedWidth(t.Name)
+		return fmt.Sprintf("func(values %s) error { _, err := SizeZeroList(values, %d); return err }", g.getGoLogicType(t), width)
+	}
+}
+
+func (g *GoGenerator) goListEqExpr(t TplType) string {
+	switch {
+	case t.Kind == TplKindStruct:
+		typeName := PascalCase(t.Name)
+		return fmt.Sprintf("func(a, b []*%s) bool { return slices.EqualFunc(a, b, %s) }", typeName, g.structEqName(t.Name))
+	case t.Kind == TplKindEnum:
+		return g.enumEqListName(PascalCase(t.Name))
+	case t.Name == "bin":
+		return "eqBinList"
+	case t.Name == "f32":
+		return "func(a, b []float32) bool { return slices.EqualFunc(a, b, eqF32) }"
+	case t.Name == "f64":
+		return "func(a, b []float64) bool { return slices.EqualFunc(a, b, eqF64) }"
+	default:
+		return fmt.Sprintf("func(a, b %s) bool { return slices.Equal(a, b) }", g.getGoLogicType(t))
 	}
 }
 

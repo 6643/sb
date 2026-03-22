@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"slices"
 	"unicode/utf8"
 )
 
@@ -113,6 +114,238 @@ type BitReader struct {
 	data      []byte
 	bitLimit  int
 	bitOffset int
+}
+
+type EnumMeta[T ~uint8] struct {
+	Default      T
+	Valid        []T
+	ZeroIsMember bool
+}
+
+func DefineEnum[T ~uint8](defaultValue T, valid ...T) EnumMeta[T] {
+	zeroIsMember := false
+	for _, item := range valid {
+		if item == 0 {
+			zeroIsMember = true
+			break
+		}
+	}
+	return EnumMeta[T]{
+		Default:      defaultValue,
+		Valid:        valid,
+		ZeroIsMember: zeroIsMember,
+	}
+}
+
+func IsEnum[T ~uint8](meta EnumMeta[T], value T) bool {
+	for _, item := range meta.Valid {
+		if item == value {
+			return true
+		}
+	}
+	return false
+}
+
+func NormalizeEnum[T ~uint8](meta EnumMeta[T], value T) T {
+	if IsEnum(meta, value) {
+		return value
+	}
+	if value == 0 {
+		return meta.Default
+	}
+	return value
+}
+
+func IsDefaultEnum[T ~uint8](meta EnumMeta[T], value T) bool {
+	return NormalizeEnum(meta, value) == meta.Default
+}
+
+func IsAssignableEnum[T ~uint8](meta EnumMeta[T], value T) bool {
+	return IsEnum(meta, value) || (value == 0 && !meta.ZeroIsMember)
+}
+
+func EqEnumValue[T ~uint8](meta EnumMeta[T], left, right T) bool {
+	return NormalizeEnum(meta, left) == NormalizeEnum(meta, right)
+}
+
+func EqEnumList[T ~uint8](meta EnumMeta[T], left, right []T) bool {
+	return slices.EqualFunc(left, right, func(a, b T) bool { return EqEnumValue(meta, a, b) })
+}
+
+func getEnumListItem[T ~uint8](meta EnumMeta[T], buf *bytes.Buffer) (T, error) {
+	value, err := GetU8(buf)
+	if err != nil {
+		return 0, err
+	}
+	item := T(value)
+	if !IsEnum(meta, item) {
+		return 0, fmt.Errorf("非法枚举值: %d", item)
+	}
+	return item, nil
+}
+
+func setEnumListItem[T ~uint8](meta EnumMeta[T], buf *bytes.Buffer, item T) error {
+	if !IsEnum(meta, item) {
+		return fmt.Errorf("非法枚举值: %d", item)
+	}
+	return SetU8(buf, uint8(item))
+}
+
+func sizeEnumListItem[T ~uint8](meta EnumMeta[T], item T) (int, error) {
+	if !IsAssignableEnum(meta, item) {
+		return 0, fmt.Errorf("非法枚举值: %d", item)
+	}
+	return 1, nil
+}
+
+func GetEnumListInto[T ~uint8](meta EnumMeta[T], buf *bytes.Buffer, state uint8, dst []T) ([]T, error) {
+	return GetDefaultListInto(
+		buf,
+		state,
+		dst,
+		func() T { return meta.Default },
+		func(next *bytes.Buffer) (T, error) { return getEnumListItem(meta, next) },
+	)
+}
+
+func SetEnumList[T ~uint8](meta EnumMeta[T], buf *bytes.Buffer, state uint8, values []T) error {
+	return SetDefaultList(
+		buf,
+		state,
+		values,
+		func(item T) bool { return IsDefaultEnum(meta, item) },
+		func(item T) (int, error) { return sizeEnumListItem(meta, item) },
+		func(next *bytes.Buffer, item T) error { return setEnumListItem(meta, next, item) },
+	)
+}
+
+func SizeEnumList[T ~uint8](meta EnumMeta[T], values []T) (int, error) {
+	return SizeDefaultList(
+		values,
+		func(item T) bool { return IsDefaultEnum(meta, item) },
+		func(item T) (int, error) { return sizeEnumListItem(meta, item) },
+	)
+}
+
+type StructField[T any] struct {
+	Label    string
+	IsZero   func(*T) bool
+	Validate func(*T) error
+	Equal    func(*T, *T) bool
+}
+
+type StructMeta[T any] struct {
+	Fields []StructField[T]
+}
+
+func DefineStruct[T any](fields ...StructField[T]) StructMeta[T] {
+	return StructMeta[T]{Fields: fields}
+}
+
+func IsZeroStruct[T any](meta StructMeta[T], value *T) bool {
+	if value == nil {
+		return true
+	}
+	for _, field := range meta.Fields {
+		if !field.IsZero(value) {
+			return false
+		}
+	}
+	return true
+}
+
+func ValidateStruct[T any](meta StructMeta[T], value *T) error {
+	if value == nil {
+		return nil
+	}
+	for _, field := range meta.Fields {
+		if err := field.Validate(value); err != nil {
+			return fmt.Errorf("%s: %w", field.Label, err)
+		}
+	}
+	return nil
+}
+
+func EqStruct[T any](meta StructMeta[T], left, right *T) bool {
+	if IsZeroStruct(meta, left) && IsZeroStruct(meta, right) {
+		return true
+	}
+	if left == nil || right == nil {
+		return false
+	}
+	for _, field := range meta.Fields {
+		if !field.Equal(left, right) {
+			return false
+		}
+	}
+	return true
+}
+
+func ScalarField[T any, V comparable](label string, get func(*T) V) StructField[T] {
+	var zero V
+	return StructField[T]{
+		Label:    label,
+		IsZero:   func(value *T) bool { return get(value) == zero },
+		Validate: func(*T) error { return nil },
+		Equal:    func(left, right *T) bool { return get(left) == get(right) },
+	}
+}
+
+func EnumField[T any, V ~uint8](label string, get func(*T) V, isAssignable func(V) bool, isDefault func(V) bool, equal func(V, V) bool) StructField[T] {
+	return StructField[T]{
+		Label:  label,
+		IsZero: func(value *T) bool { return isDefault(get(value)) },
+		Validate: func(value *T) error {
+			item := get(value)
+			if !isAssignable(item) {
+				return fmt.Errorf("非法枚举值: %d", item)
+			}
+			return nil
+		},
+		Equal: func(left, right *T) bool { return equal(get(left), get(right)) },
+	}
+}
+
+func TextField[T any](label string, get func(*T) string) StructField[T] {
+	return StructField[T]{
+		Label:  label,
+		IsZero: func(value *T) bool { return get(value) == "" },
+		Validate: func(value *T) error {
+			_, err := TextState(len(get(value)))
+			return err
+		},
+		Equal: func(left, right *T) bool { return get(left) == get(right) },
+	}
+}
+
+func BinField[T any](label string, get func(*T) []byte) StructField[T] {
+	return StructField[T]{
+		Label:  label,
+		IsZero: func(value *T) bool { return len(get(value)) == 0 },
+		Validate: func(value *T) error {
+			_, err := BinState(len(get(value)))
+			return err
+		},
+		Equal: func(left, right *T) bool { return bytes.Equal(get(left), get(right)) },
+	}
+}
+
+func SliceField[T any, V any](label string, get func(*T) []V, validate func([]V) error, equal func([]V, []V) bool) StructField[T] {
+	return StructField[T]{
+		Label:    label,
+		IsZero:   func(value *T) bool { return len(get(value)) == 0 },
+		Validate: func(value *T) error { return validate(get(value)) },
+		Equal:    func(left, right *T) bool { return equal(get(left), get(right)) },
+	}
+}
+
+func PtrField[T any, V any](label string, get func(*T) *V, validate func(*V) error, isZero func(*V) bool, equal func(*V, *V) bool) StructField[T] {
+	return StructField[T]{
+		Label:    label,
+		IsZero:   func(value *T) bool { return isZero(get(value)) },
+		Validate: func(value *T) error { return validate(get(value)) },
+		Equal:    func(left, right *T) bool { return equal(get(left), get(right)) },
+	}
 }
 
 func NewBitReader(data []byte, bitLimit int) *BitReader {
