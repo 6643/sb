@@ -18,12 +18,12 @@ func (g *TsGenerator) Generate(schema *TplSchema) error {
 		return err
 	}
 
-	files := []generatedFile{
-		{RelativePath: "type.ts", Data: []byte(renderTsRuntimeSource()), Perm: 0644},
-		{RelativePath: "enum.ts", Data: []byte(g.renderEnumFile(schema.Enums)), Perm: 0644},
-	}
+	files := g.tsGeneratedFiles(schema)
 	if len(schema.Enums) > 0 {
 		files = append(files, generatedFile{RelativePath: "enum_smoke.test.ts", Data: []byte(g.renderEnumSmokeTest(schema.Enums)), Perm: 0644})
+	}
+	if err := removeLegacyTSRuntimeFiles(targetDir, tsAllowedRuntimeFiles(files)); err != nil {
+		return err
 	}
 	if err := dir.WriteAll(files...); err != nil {
 		return err
@@ -71,9 +71,58 @@ func (g *TsGenerator) removeLegacyAPIWrapperStructFiles(targetDir string) error 
 	return nil
 }
 
+func (g *TsGenerator) tsGeneratedFiles(schema *TplSchema) []generatedFile {
+	return []generatedFile{
+		{RelativePath: "type.ts", Data: []byte(renderTsRuntimeSource()), Perm: 0644},
+		{RelativePath: "runtime_core.ts", Data: []byte(renderTsRuntimeCoreSource()), Perm: 0644},
+		{RelativePath: "runtime_base.ts", Data: []byte(renderTsRuntimeBaseSource()), Perm: 0644},
+		{RelativePath: "runtime_header.ts", Data: []byte(renderTsRuntimeHeaderSource()), Perm: 0644},
+		{RelativePath: "runtime_text.ts", Data: []byte(renderTsRuntimeTextSource()), Perm: 0644},
+		{RelativePath: "runtime_bin.ts", Data: []byte(renderTsRuntimeBinSource()), Perm: 0644},
+		{RelativePath: "runtime_list.ts", Data: []byte(renderTsRuntimeListSource()), Perm: 0644},
+		{RelativePath: "runtime_meta.ts", Data: []byte(renderTsRuntimeMetaSource()), Perm: 0644},
+		{RelativePath: "runtime_enum.ts", Data: []byte(renderTsRuntimeEnumSource()), Perm: 0644},
+		{RelativePath: "runtime_struct.ts", Data: []byte(renderTsRuntimeStructSource()), Perm: 0644},
+		{RelativePath: "enum.ts", Data: []byte(g.renderEnumFile(schema.Enums)), Perm: 0644},
+	}
+}
+
+func tsAllowedRuntimeFiles(files []generatedFile) map[string]struct{} {
+	allowed := make(map[string]struct{}, len(files))
+	for _, file := range files {
+		name := filepath.Base(file.RelativePath)
+		if !strings.HasPrefix(name, "runtime_") || !strings.HasSuffix(name, ".ts") {
+			continue
+		}
+		allowed[name] = struct{}{}
+	}
+	return allowed
+}
+
+func removeLegacyTSRuntimeFiles(targetDir string, allowed map[string]struct{}) error {
+	matches, err := filepath.Glob(filepath.Join(targetDir, "runtime_*.ts"))
+	if err != nil {
+		return err
+	}
+	for _, match := range matches {
+		name := filepath.Base(match)
+		if strings.HasSuffix(name, ".test.ts") {
+			continue
+		}
+		if _, ok := allowed[name]; ok {
+			continue
+		}
+		if err := os.Remove(match); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
 func (g *TsGenerator) renderEnumFile(enums []TplEnum) string {
 	var w sourceWriter
-	w.Line("import * as rt from \"./type\"")
+	w.Line("import * as rt from \"./runtime_core\"")
+	w.Line("import * as rm from \"./runtime_meta\"")
 	w.Blank()
 	for _, enum := range enums {
 		enumName := PascalCase(enum.Name)
@@ -85,23 +134,23 @@ func (g *TsGenerator) renderEnumFile(enums []TplEnum) string {
 		}
 		w.Line("}")
 		w.Blank()
-		w.Linef("const %sMeta = rt.defineEnum<%s>(%s.%s, [", CamelCase(enum.Name), enumName, enumName, PascalCase(enum.Children[0].Name))
+		w.Linef("const %sMeta = rm.defineEnum<%s>(%s.%s, [", CamelCase(enum.Name), enumName, enumName, PascalCase(enum.Children[0].Name))
 		for _, child := range enum.Children {
 			w.Linef("    %s.%s,", enumName, PascalCase(child.Name))
 		}
 		w.Line("] as const);")
 		w.Blank()
 		w.Linef("export const Default%s = (): %s => %sMeta.defaultValue;", enumName, enumName, CamelCase(enum.Name))
-		w.Linef("export const Is%s = (v: %s): boolean => rt.isEnum(%sMeta, v);", enumName, enumName, CamelCase(enum.Name))
-		w.Linef("export const Normalize%s = (v: %s): %s => rt.normalizeEnum(%sMeta, v);", enumName, enumName, enumName, CamelCase(enum.Name))
-		w.Linef("export const IsDefault%s = (v: %s): boolean => rt.isDefaultEnum(%sMeta, v);", enumName, enumName, CamelCase(enum.Name))
-		w.Linef("export const IsAssignable%s = (v: %s): boolean => rt.isAssignableEnum(%sMeta, v);", enumName, enumName, CamelCase(enum.Name))
-		w.Linef("export const eq%sValue = (a: %s, b: %s): boolean => rt.eqEnumValue(%sMeta, a, b);", enumName, enumName, enumName, CamelCase(enum.Name))
-		w.Linef("export const eq%sList = (a: %s[], b: %s[]): boolean => rt.eqEnumList(%sMeta, a, b);", enumName, enumName, enumName, CamelCase(enum.Name))
+		w.Linef("export const Is%s = (v: %s): boolean => rm.isEnum(%sMeta, v);", enumName, enumName, CamelCase(enum.Name))
+		w.Linef("export const Normalize%s = (v: %s): %s => rm.normalizeEnum(%sMeta, v);", enumName, enumName, enumName, CamelCase(enum.Name))
+		w.Linef("export const IsDefault%s = (v: %s): boolean => rm.isDefaultEnum(%sMeta, v);", enumName, enumName, CamelCase(enum.Name))
+		w.Linef("export const IsAssignable%s = (v: %s): boolean => rm.isAssignableEnum(%sMeta, v);", enumName, enumName, CamelCase(enum.Name))
+		w.Linef("export const eq%sValue = (a: %s, b: %s): boolean => rm.eqEnumValue(%sMeta, a, b);", enumName, enumName, enumName, CamelCase(enum.Name))
+		w.Linef("export const eq%sList = (a: %s[], b: %s[]): boolean => rm.eqEnumList(%sMeta, a, b);", enumName, enumName, enumName, CamelCase(enum.Name))
 		w.Blank()
-		w.Linef("export const get%sListBody = (buf: rt.Buffer, state: number): [%s[], rt.Err] => rt.getEnumList(%sMeta, buf, state);", enumName, enumName, CamelCase(enum.Name))
+		w.Linef("export const get%sListBody = (buf: rt.Buffer, state: number): [%s[], rt.Err] => rm.getEnumList(%sMeta, buf, state);", enumName, enumName, CamelCase(enum.Name))
 		w.Blank()
-		w.Linef("export const set%sListBody = (buf: rt.Buffer, state: number, v: %s[]): rt.Err => rt.setEnumList(%sMeta, buf, state, v);", enumName, enumName, CamelCase(enum.Name))
+		w.Linef("export const set%sListBody = (buf: rt.Buffer, state: number, v: %s[]): rt.Err => rm.setEnumList(%sMeta, buf, state, v);", enumName, enumName, CamelCase(enum.Name))
 		w.Blank()
 	}
 	return w.String()
@@ -113,7 +162,8 @@ func (g *TsGenerator) renderStructFile(st TplStruct) string {
 	metaName := CamelCase(st.Name) + "Meta"
 
 	var w sourceWriter
-	w.Line("import * as rt from \"./type\"")
+	w.Line("import * as rt from \"./runtime_core\"")
+	w.Line("import * as rm from \"./runtime_meta\"")
 	for _, line := range g.tsStructImportLines(st) {
 		w.Line(line)
 	}
@@ -128,7 +178,7 @@ func (g *TsGenerator) renderStructFile(st TplStruct) string {
 	w.Blank()
 	w.Linef("const %s = %s;", headerWidthsName, g.structHeaderWidthsLiteral(st))
 	w.Blank()
-	w.Linef("const %s = rt.defineStruct<%s>({", metaName, name)
+	w.Linef("const %s = rm.defineStruct<%s>({", metaName, name)
 	w.Linef("    name: %q,", name)
 	w.Linef("    headerWidths: %s,", headerWidthsName)
 	w.Line("    create: () => ({")
@@ -144,13 +194,13 @@ func (g *TsGenerator) renderStructFile(st TplStruct) string {
 	w.Line("    ],")
 	w.Line("});")
 	w.Blank()
-	w.Linef("export const new%s = (): %s => rt.newStruct(%s, get%s, set%s);", name, name, metaName, name, name)
-	w.Linef("export const isZero%s = (s: %s | null | undefined): boolean => rt.isZeroStruct(%s, s);", name, name, metaName)
-	w.Linef("export const validate%s = (s: %s | null | undefined): rt.Err => rt.validateStruct(%s, s);", name, name, metaName)
-	w.Linef("export const get%s = (buf: rt.Buffer): [%s, rt.Err] => rt.getStruct(%s, buf);", name, name, metaName)
-	w.Linef("export const set%s = (buf: rt.Buffer, s: %s): rt.Err => rt.setStruct(%s, buf, s);", name, name, metaName)
+	w.Linef("export const new%s = (): %s => rm.newStruct(%s, get%s, set%s);", name, name, metaName, name, name)
+	w.Linef("export const isZero%s = (s: %s | null | undefined): boolean => rm.isZeroStruct(%s, s);", name, name, metaName)
+	w.Linef("export const validate%s = (s: %s | null | undefined): rt.Err => rm.validateStruct(%s, s);", name, name, metaName)
+	w.Linef("export const get%s = (buf: rt.Buffer): [%s, rt.Err] => rm.getStruct(%s, buf);", name, name, metaName)
+	w.Linef("export const set%s = (buf: rt.Buffer, s: %s): rt.Err => rm.setStruct(%s, buf, s);", name, name, metaName)
 	w.Linef("export const read%s = (buf: rt.Buffer): [%s, rt.Err] => get%s(buf);", name, name, name)
-	w.Linef("export const eq%s = (a: %s | null | undefined, b: %s | null | undefined): boolean => rt.eqStruct(%s, a, b);", name, name, name, metaName)
+	w.Linef("export const eq%s = (a: %s | null | undefined, b: %s | null | undefined): boolean => rm.eqStruct(%s, a, b);", name, name, name, metaName)
 	w.Blank()
 	g.renderStructListBodyHelpers(&w, st)
 	return w.String()
@@ -202,7 +252,7 @@ func (g *TsGenerator) structHeaderWidthsLiteral(st TplStruct) string {
 
 func (g *TsGenerator) renderRPCFile(apis []TplApi) string {
 	var w sourceWriter
-	w.Line("import * as rt from \"./type\"")
+	w.Line("import * as rt from \"./runtime_core\"")
 	for _, line := range g.tsRpcImportLines(apis) {
 		w.Line(line)
 	}
@@ -739,29 +789,29 @@ func (g *TsGenerator) tsFieldMetaExpr(structName string, field TplStructField) s
 
 	switch {
 	case t.Name == "bool" && !t.IsList:
-		return fmt.Sprintf("rt.boolField<%s>(%q, %q)", structName, key, label)
+		return fmt.Sprintf("rm.boolField<%s>(%q, %q)", structName, key, label)
 	case t.Kind == TplKindBase && !t.IsList && t.Name == "text":
-		return fmt.Sprintf("rt.textField<%s>(%q, %q)", structName, key, label)
+		return fmt.Sprintf("rm.textField<%s>(%q, %q)", structName, key, label)
 	case t.Kind == TplKindBase && !t.IsList && t.Name == "bin":
-		return fmt.Sprintf("rt.binField<%s>(%q, %q)", structName, key, label)
+		return fmt.Sprintf("rm.binField<%s>(%q, %q)", structName, key, label)
 	case t.Kind == TplKindBase && !t.IsList:
-		return fmt.Sprintf("rt.scalarField<%s, %s>(%q, %q, %s, rt.%s, rt.%s, %s)", structName, tsType, key, label, g.primitiveDefault(t.Name), g.primitiveGetter(t.Name), g.primitiveSetter(t.Name), g.primitiveEq(t.Name))
+		return fmt.Sprintf("rm.scalarField<%s, %s>(%q, %q, %s, rt.%s, rt.%s, %s)", structName, tsType, key, label, g.primitiveDefault(t.Name), g.primitiveGetter(t.Name), g.primitiveSetter(t.Name), g.primitiveEq(t.Name))
 	case t.Kind == TplKindEnum && !t.IsList:
-		return fmt.Sprintf("rt.enumField<%s, %s>(%q, %q, Default%s, Is%s, IsAssignable%s, Normalize%s)", structName, typeName, key, label, typeName, typeName, typeName, typeName)
+		return fmt.Sprintf("rm.enumField<%s, %s>(%q, %q, Default%s, Is%s, IsAssignable%s, Normalize%s)", structName, typeName, key, label, typeName, typeName, typeName, typeName)
 	case t.Kind == TplKindStruct && !t.IsList:
-		return fmt.Sprintf("rt.structField<%s, %s>(%q, %q, isZero%s, read%s, set%s, validate%s, eq%s)", structName, typeName, key, label, typeName, typeName, typeName, typeName, typeName)
+		return fmt.Sprintf("rm.structField<%s, %s>(%q, %q, isZero%s, read%s, set%s, validate%s, eq%s)", structName, typeName, key, label, typeName, typeName, typeName, typeName, typeName)
 	case t.IsList && t.Name == "bool":
-		return fmt.Sprintf("rt.boolListField<%s>(%q, %q)", structName, key, label)
+		return fmt.Sprintf("rm.boolListField<%s>(%q, %q)", structName, key, label)
 	case t.IsList && t.Name == "text":
-		return fmt.Sprintf("rt.textListField<%s>(%q, %q)", structName, key, label)
+		return fmt.Sprintf("rm.textListField<%s>(%q, %q)", structName, key, label)
 	case t.IsList && t.Name == "bin":
-		return fmt.Sprintf("rt.binListField<%s>(%q, %q)", structName, key, label)
+		return fmt.Sprintf("rm.binListField<%s>(%q, %q)", structName, key, label)
 	case t.IsList && t.Kind == TplKindBase:
-		return fmt.Sprintf("rt.zeroListField<%s, %s>(%q, %q, %s, rt.%s, rt.%s, %s)", structName, tsType, key, label, g.primitiveDefault(t.Name), g.primitiveGetter(t.Name), g.primitiveSetter(t.Name), g.primitiveEq(t.Name))
+		return fmt.Sprintf("rm.zeroListField<%s, %s>(%q, %q, %s, rt.%s, rt.%s, %s)", structName, tsType, key, label, g.primitiveDefault(t.Name), g.primitiveGetter(t.Name), g.primitiveSetter(t.Name), g.primitiveEq(t.Name))
 	case t.IsList && t.Kind == TplKindEnum:
-		return fmt.Sprintf("rt.defaultListField<%s, %s>(%q, %q, Default%s, get%sListBody, set%sListBody, (item) => IsAssignable%s(item as any) ? undefined : new Error(`非法枚举值: ${item as any}`), (item) => IsDefault%s(item as any), (left, right) => Normalize%s(left as any) === Normalize%s(right as any))", structName, typeName, key, label, typeName, typeName, typeName, typeName, typeName, typeName, typeName)
+		return fmt.Sprintf("rm.defaultListField<%s, %s>(%q, %q, Default%s, get%sListBody, set%sListBody, (item) => IsAssignable%s(item as any) ? undefined : new Error(`非法枚举值: ${item as any}`), (item) => IsDefault%s(item as any), (left, right) => Normalize%s(left as any) === Normalize%s(right as any))", structName, typeName, key, label, typeName, typeName, typeName, typeName, typeName, typeName, typeName)
 	default:
-		return fmt.Sprintf("rt.defaultListField<%s, %s>(%q, %q, new%s, get%sListBody, set%sListBody, validate%s, isZero%s, eq%s)", structName, typeName, key, label, typeName, typeName, typeName, typeName, typeName, typeName)
+		return fmt.Sprintf("rm.defaultListField<%s, %s>(%q, %q, new%s, get%sListBody, set%sListBody, validate%s, isZero%s, eq%s)", structName, typeName, key, label, typeName, typeName, typeName, typeName, typeName, typeName)
 	}
 }
 

@@ -1,4 +1,4 @@
-import * as rt from "./type"
+import * as rt from "./runtime_core"
 import { DefaultOrderStatus, IsAssignableOrderStatus, IsOrderStatus, NormalizeOrderStatus, OrderStatus, getOrderStatusListBody, setOrderStatusListBody } from "./enum"
 import { SimInfo, getSimInfoListBody, newSimInfo, readSimInfo, setSimInfo, setSimInfoListBody } from "./struct_sim_info"
 

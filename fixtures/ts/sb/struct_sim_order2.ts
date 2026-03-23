@@ -1,4 +1,5 @@
-import * as rt from "./type"
+import * as rt from "./runtime_core"
+import * as rm from "./runtime_meta"
 
 export interface SimOrder2 extends rt.Serializable, rt.Deserializable {
     // SIM卡ID
@@ -19,7 +20,7 @@ export interface SimOrder2 extends rt.Serializable, rt.Deserializable {
 
 const simOrder2HeaderWidths = [1, 2, 2, 2, 1, 2, 2] as const;
 
-const simOrder2Meta = rt.defineStruct<SimOrder2>({
+const simOrder2Meta = rm.defineStruct<SimOrder2>({
     name: "SimOrder2",
     headerWidths: simOrder2HeaderWidths,
     create: () => ({
@@ -33,23 +34,23 @@ const simOrder2Meta = rt.defineStruct<SimOrder2>({
     }) as any as SimOrder2,
     fields: [
 
-        rt.scalarField<SimOrder2, number>("id", "Id", 0, rt.getU32, rt.setU32, rt.eqU32),
-        rt.textField<SimOrder2>("name", "Name"),
-        rt.textField<SimOrder2>("phone", "Phone"),
-        rt.textField<SimOrder2>("idNo", "IdNo"),
-        rt.scalarField<SimOrder2, number>("cityCode", "CityCode", 0, rt.getU32, rt.setU32, rt.eqU32),
-        rt.textField<SimOrder2>("address", "Address"),
-        rt.textField<SimOrder2>("newPhone", "NewPhone"),
+        rm.scalarField<SimOrder2, number>("id", "Id", 0, rt.getU32, rt.setU32, rt.eqU32),
+        rm.textField<SimOrder2>("name", "Name"),
+        rm.textField<SimOrder2>("phone", "Phone"),
+        rm.textField<SimOrder2>("idNo", "IdNo"),
+        rm.scalarField<SimOrder2, number>("cityCode", "CityCode", 0, rt.getU32, rt.setU32, rt.eqU32),
+        rm.textField<SimOrder2>("address", "Address"),
+        rm.textField<SimOrder2>("newPhone", "NewPhone"),
     ],
 });
 
-export const newSimOrder2 = (): SimOrder2 => rt.newStruct(simOrder2Meta, getSimOrder2, setSimOrder2);
-export const isZeroSimOrder2 = (s: SimOrder2 | null | undefined): boolean => rt.isZeroStruct(simOrder2Meta, s);
-export const validateSimOrder2 = (s: SimOrder2 | null | undefined): rt.Err => rt.validateStruct(simOrder2Meta, s);
-export const getSimOrder2 = (buf: rt.Buffer): [SimOrder2, rt.Err] => rt.getStruct(simOrder2Meta, buf);
-export const setSimOrder2 = (buf: rt.Buffer, s: SimOrder2): rt.Err => rt.setStruct(simOrder2Meta, buf, s);
+export const newSimOrder2 = (): SimOrder2 => rm.newStruct(simOrder2Meta, getSimOrder2, setSimOrder2);
+export const isZeroSimOrder2 = (s: SimOrder2 | null | undefined): boolean => rm.isZeroStruct(simOrder2Meta, s);
+export const validateSimOrder2 = (s: SimOrder2 | null | undefined): rt.Err => rm.validateStruct(simOrder2Meta, s);
+export const getSimOrder2 = (buf: rt.Buffer): [SimOrder2, rt.Err] => rm.getStruct(simOrder2Meta, buf);
+export const setSimOrder2 = (buf: rt.Buffer, s: SimOrder2): rt.Err => rm.setStruct(simOrder2Meta, buf, s);
 export const readSimOrder2 = (buf: rt.Buffer): [SimOrder2, rt.Err] => getSimOrder2(buf);
-export const eqSimOrder2 = (a: SimOrder2 | null | undefined, b: SimOrder2 | null | undefined): boolean => rt.eqStruct(simOrder2Meta, a, b);
+export const eqSimOrder2 = (a: SimOrder2 | null | undefined, b: SimOrder2 | null | undefined): boolean => rm.eqStruct(simOrder2Meta, a, b);
 
 export const getSimOrder2ListBody = (buf: rt.Buffer, state: number): [SimOrder2[], rt.Err] => {
     const [list, err] = rt.getDefaultList<SimOrder2>(
