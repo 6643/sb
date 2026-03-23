@@ -1,4 +1,5 @@
-import * as rt from "./type"
+import * as rt from "./runtime_core"
+import * as rm from "./runtime_meta"
 
 export interface SimInfo extends rt.Serializable, rt.Deserializable {
     id: number;
@@ -13,7 +14,7 @@ export interface SimInfo extends rt.Serializable, rt.Deserializable {
 
 const simInfoHeaderWidths = [1, 2, 2, 1, 1, 1, 1, 2] as const;
 
-const simInfoMeta = rt.defineStruct<SimInfo>({
+const simInfoMeta = rm.defineStruct<SimInfo>({
     name: "SimInfo",
     headerWidths: simInfoHeaderWidths,
     create: () => ({
@@ -28,24 +29,24 @@ const simInfoMeta = rt.defineStruct<SimInfo>({
     }) as any as SimInfo,
     fields: [
 
-        rt.scalarField<SimInfo, number>("id", "Id", 0, rt.getU32, rt.setU32, rt.eqU32),
-        rt.textField<SimInfo>("title", "Title"),
-        rt.textField<SimInfo>("content", "Content"),
-        rt.boolField<SimInfo>("a", "A"),
-        rt.boolField<SimInfo>("b", "B"),
-        rt.boolField<SimInfo>("c", "C"),
-        rt.boolField<SimInfo>("d", "D"),
-        rt.binField<SimInfo>("zip", "Zip"),
+        rm.scalarField<SimInfo, number>("id", "Id", 0, rt.getU32, rt.setU32, rt.eqU32),
+        rm.textField<SimInfo>("title", "Title"),
+        rm.textField<SimInfo>("content", "Content"),
+        rm.boolField<SimInfo>("a", "A"),
+        rm.boolField<SimInfo>("b", "B"),
+        rm.boolField<SimInfo>("c", "C"),
+        rm.boolField<SimInfo>("d", "D"),
+        rm.binField<SimInfo>("zip", "Zip"),
     ],
 });
 
-export const newSimInfo = (): SimInfo => rt.newStruct(simInfoMeta, getSimInfo, setSimInfo);
-export const isZeroSimInfo = (s: SimInfo | null | undefined): boolean => rt.isZeroStruct(simInfoMeta, s);
-export const validateSimInfo = (s: SimInfo | null | undefined): rt.Err => rt.validateStruct(simInfoMeta, s);
-export const getSimInfo = (buf: rt.Buffer): [SimInfo, rt.Err] => rt.getStruct(simInfoMeta, buf);
-export const setSimInfo = (buf: rt.Buffer, s: SimInfo): rt.Err => rt.setStruct(simInfoMeta, buf, s);
+export const newSimInfo = (): SimInfo => rm.newStruct(simInfoMeta, getSimInfo, setSimInfo);
+export const isZeroSimInfo = (s: SimInfo | null | undefined): boolean => rm.isZeroStruct(simInfoMeta, s);
+export const validateSimInfo = (s: SimInfo | null | undefined): rt.Err => rm.validateStruct(simInfoMeta, s);
+export const getSimInfo = (buf: rt.Buffer): [SimInfo, rt.Err] => rm.getStruct(simInfoMeta, buf);
+export const setSimInfo = (buf: rt.Buffer, s: SimInfo): rt.Err => rm.setStruct(simInfoMeta, buf, s);
 export const readSimInfo = (buf: rt.Buffer): [SimInfo, rt.Err] => getSimInfo(buf);
-export const eqSimInfo = (a: SimInfo | null | undefined, b: SimInfo | null | undefined): boolean => rt.eqStruct(simInfoMeta, a, b);
+export const eqSimInfo = (a: SimInfo | null | undefined, b: SimInfo | null | undefined): boolean => rm.eqStruct(simInfoMeta, a, b);
 
 export const getSimInfoListBody = (buf: rt.Buffer, state: number): [SimInfo[], rt.Err] => {
     const [list, err] = rt.getDefaultList<SimInfo>(

@@ -1,4 +1,5 @@
-import * as rt from "./type"
+import * as rt from "./runtime_core"
+import * as rm from "./runtime_meta"
 
 // 账户状态
 export enum AccountStatus {
@@ -7,23 +8,23 @@ export enum AccountStatus {
     Deleted = 2,
 }
 
-const accountStatusMeta = rt.defineEnum<AccountStatus>(AccountStatus.Offline, [
+const accountStatusMeta = rm.defineEnum<AccountStatus>(AccountStatus.Offline, [
     AccountStatus.Offline,
     AccountStatus.Online,
     AccountStatus.Deleted,
 ] as const);
 
 export const DefaultAccountStatus = (): AccountStatus => accountStatusMeta.defaultValue;
-export const IsAccountStatus = (v: AccountStatus): boolean => rt.isEnum(accountStatusMeta, v);
-export const NormalizeAccountStatus = (v: AccountStatus): AccountStatus => rt.normalizeEnum(accountStatusMeta, v);
-export const IsDefaultAccountStatus = (v: AccountStatus): boolean => rt.isDefaultEnum(accountStatusMeta, v);
-export const IsAssignableAccountStatus = (v: AccountStatus): boolean => rt.isAssignableEnum(accountStatusMeta, v);
-export const eqAccountStatusValue = (a: AccountStatus, b: AccountStatus): boolean => rt.eqEnumValue(accountStatusMeta, a, b);
-export const eqAccountStatusList = (a: AccountStatus[], b: AccountStatus[]): boolean => rt.eqEnumList(accountStatusMeta, a, b);
+export const IsAccountStatus = (v: AccountStatus): boolean => rm.isEnum(accountStatusMeta, v);
+export const NormalizeAccountStatus = (v: AccountStatus): AccountStatus => rm.normalizeEnum(accountStatusMeta, v);
+export const IsDefaultAccountStatus = (v: AccountStatus): boolean => rm.isDefaultEnum(accountStatusMeta, v);
+export const IsAssignableAccountStatus = (v: AccountStatus): boolean => rm.isAssignableEnum(accountStatusMeta, v);
+export const eqAccountStatusValue = (a: AccountStatus, b: AccountStatus): boolean => rm.eqEnumValue(accountStatusMeta, a, b);
+export const eqAccountStatusList = (a: AccountStatus[], b: AccountStatus[]): boolean => rm.eqEnumList(accountStatusMeta, a, b);
 
-export const getAccountStatusListBody = (buf: rt.Buffer, state: number): [AccountStatus[], rt.Err] => rt.getEnumList(accountStatusMeta, buf, state);
+export const getAccountStatusListBody = (buf: rt.Buffer, state: number): [AccountStatus[], rt.Err] => rm.getEnumList(accountStatusMeta, buf, state);
 
-export const setAccountStatusListBody = (buf: rt.Buffer, state: number, v: AccountStatus[]): rt.Err => rt.setEnumList(accountStatusMeta, buf, state, v);
+export const setAccountStatusListBody = (buf: rt.Buffer, state: number, v: AccountStatus[]): rt.Err => rm.setEnumList(accountStatusMeta, buf, state, v);
 
 // 类型
 export enum Type {
@@ -31,22 +32,22 @@ export enum Type {
     Recharge = 1,
 }
 
-const typeMeta = rt.defineEnum<Type>(Type.Sim, [
+const typeMeta = rm.defineEnum<Type>(Type.Sim, [
     Type.Sim,
     Type.Recharge,
 ] as const);
 
 export const DefaultType = (): Type => typeMeta.defaultValue;
-export const IsType = (v: Type): boolean => rt.isEnum(typeMeta, v);
-export const NormalizeType = (v: Type): Type => rt.normalizeEnum(typeMeta, v);
-export const IsDefaultType = (v: Type): boolean => rt.isDefaultEnum(typeMeta, v);
-export const IsAssignableType = (v: Type): boolean => rt.isAssignableEnum(typeMeta, v);
-export const eqTypeValue = (a: Type, b: Type): boolean => rt.eqEnumValue(typeMeta, a, b);
-export const eqTypeList = (a: Type[], b: Type[]): boolean => rt.eqEnumList(typeMeta, a, b);
+export const IsType = (v: Type): boolean => rm.isEnum(typeMeta, v);
+export const NormalizeType = (v: Type): Type => rm.normalizeEnum(typeMeta, v);
+export const IsDefaultType = (v: Type): boolean => rm.isDefaultEnum(typeMeta, v);
+export const IsAssignableType = (v: Type): boolean => rm.isAssignableEnum(typeMeta, v);
+export const eqTypeValue = (a: Type, b: Type): boolean => rm.eqEnumValue(typeMeta, a, b);
+export const eqTypeList = (a: Type[], b: Type[]): boolean => rm.eqEnumList(typeMeta, a, b);
 
-export const getTypeListBody = (buf: rt.Buffer, state: number): [Type[], rt.Err] => rt.getEnumList(typeMeta, buf, state);
+export const getTypeListBody = (buf: rt.Buffer, state: number): [Type[], rt.Err] => rm.getEnumList(typeMeta, buf, state);
 
-export const setTypeListBody = (buf: rt.Buffer, state: number, v: Type[]): rt.Err => rt.setEnumList(typeMeta, buf, state, v);
+export const setTypeListBody = (buf: rt.Buffer, state: number, v: Type[]): rt.Err => rm.setEnumList(typeMeta, buf, state, v);
 
 // 错误码
 export enum Status {
@@ -61,7 +62,7 @@ export enum Status {
     One = 11,
 }
 
-const statusMeta = rt.defineEnum<Status>(Status.Ok, [
+const statusMeta = rm.defineEnum<Status>(Status.Ok, [
     Status.Ok,
     Status.Err,
     Status.Two,
@@ -74,16 +75,16 @@ const statusMeta = rt.defineEnum<Status>(Status.Ok, [
 ] as const);
 
 export const DefaultStatus = (): Status => statusMeta.defaultValue;
-export const IsStatus = (v: Status): boolean => rt.isEnum(statusMeta, v);
-export const NormalizeStatus = (v: Status): Status => rt.normalizeEnum(statusMeta, v);
-export const IsDefaultStatus = (v: Status): boolean => rt.isDefaultEnum(statusMeta, v);
-export const IsAssignableStatus = (v: Status): boolean => rt.isAssignableEnum(statusMeta, v);
-export const eqStatusValue = (a: Status, b: Status): boolean => rt.eqEnumValue(statusMeta, a, b);
-export const eqStatusList = (a: Status[], b: Status[]): boolean => rt.eqEnumList(statusMeta, a, b);
+export const IsStatus = (v: Status): boolean => rm.isEnum(statusMeta, v);
+export const NormalizeStatus = (v: Status): Status => rm.normalizeEnum(statusMeta, v);
+export const IsDefaultStatus = (v: Status): boolean => rm.isDefaultEnum(statusMeta, v);
+export const IsAssignableStatus = (v: Status): boolean => rm.isAssignableEnum(statusMeta, v);
+export const eqStatusValue = (a: Status, b: Status): boolean => rm.eqEnumValue(statusMeta, a, b);
+export const eqStatusList = (a: Status[], b: Status[]): boolean => rm.eqEnumList(statusMeta, a, b);
 
-export const getStatusListBody = (buf: rt.Buffer, state: number): [Status[], rt.Err] => rt.getEnumList(statusMeta, buf, state);
+export const getStatusListBody = (buf: rt.Buffer, state: number): [Status[], rt.Err] => rm.getEnumList(statusMeta, buf, state);
 
-export const setStatusListBody = (buf: rt.Buffer, state: number, v: Status[]): rt.Err => rt.setEnumList(statusMeta, buf, state, v);
+export const setStatusListBody = (buf: rt.Buffer, state: number, v: Status[]): rt.Err => rm.setEnumList(statusMeta, buf, state, v);
 
 // 状态A
 export enum StatusA {
@@ -97,7 +98,7 @@ export enum StatusA {
     Seven = 7,
 }
 
-const statusAMeta = rt.defineEnum<StatusA>(StatusA.Ok, [
+const statusAMeta = rm.defineEnum<StatusA>(StatusA.Ok, [
     StatusA.Ok,
     StatusA.One,
     StatusA.Two,
@@ -109,16 +110,16 @@ const statusAMeta = rt.defineEnum<StatusA>(StatusA.Ok, [
 ] as const);
 
 export const DefaultStatusA = (): StatusA => statusAMeta.defaultValue;
-export const IsStatusA = (v: StatusA): boolean => rt.isEnum(statusAMeta, v);
-export const NormalizeStatusA = (v: StatusA): StatusA => rt.normalizeEnum(statusAMeta, v);
-export const IsDefaultStatusA = (v: StatusA): boolean => rt.isDefaultEnum(statusAMeta, v);
-export const IsAssignableStatusA = (v: StatusA): boolean => rt.isAssignableEnum(statusAMeta, v);
-export const eqStatusAValue = (a: StatusA, b: StatusA): boolean => rt.eqEnumValue(statusAMeta, a, b);
-export const eqStatusAList = (a: StatusA[], b: StatusA[]): boolean => rt.eqEnumList(statusAMeta, a, b);
+export const IsStatusA = (v: StatusA): boolean => rm.isEnum(statusAMeta, v);
+export const NormalizeStatusA = (v: StatusA): StatusA => rm.normalizeEnum(statusAMeta, v);
+export const IsDefaultStatusA = (v: StatusA): boolean => rm.isDefaultEnum(statusAMeta, v);
+export const IsAssignableStatusA = (v: StatusA): boolean => rm.isAssignableEnum(statusAMeta, v);
+export const eqStatusAValue = (a: StatusA, b: StatusA): boolean => rm.eqEnumValue(statusAMeta, a, b);
+export const eqStatusAList = (a: StatusA[], b: StatusA[]): boolean => rm.eqEnumList(statusAMeta, a, b);
 
-export const getStatusAListBody = (buf: rt.Buffer, state: number): [StatusA[], rt.Err] => rt.getEnumList(statusAMeta, buf, state);
+export const getStatusAListBody = (buf: rt.Buffer, state: number): [StatusA[], rt.Err] => rm.getEnumList(statusAMeta, buf, state);
 
-export const setStatusAListBody = (buf: rt.Buffer, state: number, v: StatusA[]): rt.Err => rt.setEnumList(statusAMeta, buf, state, v);
+export const setStatusAListBody = (buf: rt.Buffer, state: number, v: StatusA[]): rt.Err => rm.setEnumList(statusAMeta, buf, state, v);
 
 // 订单状态
 export enum ItemStatus {
@@ -126,22 +127,22 @@ export enum ItemStatus {
     Online = 1,
 }
 
-const itemStatusMeta = rt.defineEnum<ItemStatus>(ItemStatus.Offline, [
+const itemStatusMeta = rm.defineEnum<ItemStatus>(ItemStatus.Offline, [
     ItemStatus.Offline,
     ItemStatus.Online,
 ] as const);
 
 export const DefaultItemStatus = (): ItemStatus => itemStatusMeta.defaultValue;
-export const IsItemStatus = (v: ItemStatus): boolean => rt.isEnum(itemStatusMeta, v);
-export const NormalizeItemStatus = (v: ItemStatus): ItemStatus => rt.normalizeEnum(itemStatusMeta, v);
-export const IsDefaultItemStatus = (v: ItemStatus): boolean => rt.isDefaultEnum(itemStatusMeta, v);
-export const IsAssignableItemStatus = (v: ItemStatus): boolean => rt.isAssignableEnum(itemStatusMeta, v);
-export const eqItemStatusValue = (a: ItemStatus, b: ItemStatus): boolean => rt.eqEnumValue(itemStatusMeta, a, b);
-export const eqItemStatusList = (a: ItemStatus[], b: ItemStatus[]): boolean => rt.eqEnumList(itemStatusMeta, a, b);
+export const IsItemStatus = (v: ItemStatus): boolean => rm.isEnum(itemStatusMeta, v);
+export const NormalizeItemStatus = (v: ItemStatus): ItemStatus => rm.normalizeEnum(itemStatusMeta, v);
+export const IsDefaultItemStatus = (v: ItemStatus): boolean => rm.isDefaultEnum(itemStatusMeta, v);
+export const IsAssignableItemStatus = (v: ItemStatus): boolean => rm.isAssignableEnum(itemStatusMeta, v);
+export const eqItemStatusValue = (a: ItemStatus, b: ItemStatus): boolean => rm.eqEnumValue(itemStatusMeta, a, b);
+export const eqItemStatusList = (a: ItemStatus[], b: ItemStatus[]): boolean => rm.eqEnumList(itemStatusMeta, a, b);
 
-export const getItemStatusListBody = (buf: rt.Buffer, state: number): [ItemStatus[], rt.Err] => rt.getEnumList(itemStatusMeta, buf, state);
+export const getItemStatusListBody = (buf: rt.Buffer, state: number): [ItemStatus[], rt.Err] => rm.getEnumList(itemStatusMeta, buf, state);
 
-export const setItemStatusListBody = (buf: rt.Buffer, state: number, v: ItemStatus[]): rt.Err => rt.setEnumList(itemStatusMeta, buf, state, v);
+export const setItemStatusListBody = (buf: rt.Buffer, state: number, v: ItemStatus[]): rt.Err => rm.setEnumList(itemStatusMeta, buf, state, v);
 
 // 可否选号
 export enum SimPickPhone {
@@ -151,7 +152,7 @@ export enum SimPickPhone {
     Abcc = 4,
 }
 
-const simPickPhoneMeta = rt.defineEnum<SimPickPhone>(SimPickPhone.No, [
+const simPickPhoneMeta = rm.defineEnum<SimPickPhone>(SimPickPhone.No, [
     SimPickPhone.No,
     SimPickPhone.Yes,
     SimPickPhone.Active,
@@ -159,16 +160,16 @@ const simPickPhoneMeta = rt.defineEnum<SimPickPhone>(SimPickPhone.No, [
 ] as const);
 
 export const DefaultSimPickPhone = (): SimPickPhone => simPickPhoneMeta.defaultValue;
-export const IsSimPickPhone = (v: SimPickPhone): boolean => rt.isEnum(simPickPhoneMeta, v);
-export const NormalizeSimPickPhone = (v: SimPickPhone): SimPickPhone => rt.normalizeEnum(simPickPhoneMeta, v);
-export const IsDefaultSimPickPhone = (v: SimPickPhone): boolean => rt.isDefaultEnum(simPickPhoneMeta, v);
-export const IsAssignableSimPickPhone = (v: SimPickPhone): boolean => rt.isAssignableEnum(simPickPhoneMeta, v);
-export const eqSimPickPhoneValue = (a: SimPickPhone, b: SimPickPhone): boolean => rt.eqEnumValue(simPickPhoneMeta, a, b);
-export const eqSimPickPhoneList = (a: SimPickPhone[], b: SimPickPhone[]): boolean => rt.eqEnumList(simPickPhoneMeta, a, b);
+export const IsSimPickPhone = (v: SimPickPhone): boolean => rm.isEnum(simPickPhoneMeta, v);
+export const NormalizeSimPickPhone = (v: SimPickPhone): SimPickPhone => rm.normalizeEnum(simPickPhoneMeta, v);
+export const IsDefaultSimPickPhone = (v: SimPickPhone): boolean => rm.isDefaultEnum(simPickPhoneMeta, v);
+export const IsAssignableSimPickPhone = (v: SimPickPhone): boolean => rm.isAssignableEnum(simPickPhoneMeta, v);
+export const eqSimPickPhoneValue = (a: SimPickPhone, b: SimPickPhone): boolean => rm.eqEnumValue(simPickPhoneMeta, a, b);
+export const eqSimPickPhoneList = (a: SimPickPhone[], b: SimPickPhone[]): boolean => rm.eqEnumList(simPickPhoneMeta, a, b);
 
-export const getSimPickPhoneListBody = (buf: rt.Buffer, state: number): [SimPickPhone[], rt.Err] => rt.getEnumList(simPickPhoneMeta, buf, state);
+export const getSimPickPhoneListBody = (buf: rt.Buffer, state: number): [SimPickPhone[], rt.Err] => rm.getEnumList(simPickPhoneMeta, buf, state);
 
-export const setSimPickPhoneListBody = (buf: rt.Buffer, state: number, v: SimPickPhone[]): rt.Err => rt.setEnumList(simPickPhoneMeta, buf, state, v);
+export const setSimPickPhoneListBody = (buf: rt.Buffer, state: number, v: SimPickPhone[]): rt.Err => rm.setEnumList(simPickPhoneMeta, buf, state, v);
 
 // 运营商
 export enum SimOperator {
@@ -182,7 +183,7 @@ export enum SimOperator {
     B = 12,
 }
 
-const simOperatorMeta = rt.defineEnum<SimOperator>(SimOperator.Zz, [
+const simOperatorMeta = rm.defineEnum<SimOperator>(SimOperator.Zz, [
     SimOperator.Zz,
     SimOperator.Lt,
     SimOperator.Yd,
@@ -194,16 +195,16 @@ const simOperatorMeta = rt.defineEnum<SimOperator>(SimOperator.Zz, [
 ] as const);
 
 export const DefaultSimOperator = (): SimOperator => simOperatorMeta.defaultValue;
-export const IsSimOperator = (v: SimOperator): boolean => rt.isEnum(simOperatorMeta, v);
-export const NormalizeSimOperator = (v: SimOperator): SimOperator => rt.normalizeEnum(simOperatorMeta, v);
-export const IsDefaultSimOperator = (v: SimOperator): boolean => rt.isDefaultEnum(simOperatorMeta, v);
-export const IsAssignableSimOperator = (v: SimOperator): boolean => rt.isAssignableEnum(simOperatorMeta, v);
-export const eqSimOperatorValue = (a: SimOperator, b: SimOperator): boolean => rt.eqEnumValue(simOperatorMeta, a, b);
-export const eqSimOperatorList = (a: SimOperator[], b: SimOperator[]): boolean => rt.eqEnumList(simOperatorMeta, a, b);
+export const IsSimOperator = (v: SimOperator): boolean => rm.isEnum(simOperatorMeta, v);
+export const NormalizeSimOperator = (v: SimOperator): SimOperator => rm.normalizeEnum(simOperatorMeta, v);
+export const IsDefaultSimOperator = (v: SimOperator): boolean => rm.isDefaultEnum(simOperatorMeta, v);
+export const IsAssignableSimOperator = (v: SimOperator): boolean => rm.isAssignableEnum(simOperatorMeta, v);
+export const eqSimOperatorValue = (a: SimOperator, b: SimOperator): boolean => rm.eqEnumValue(simOperatorMeta, a, b);
+export const eqSimOperatorList = (a: SimOperator[], b: SimOperator[]): boolean => rm.eqEnumList(simOperatorMeta, a, b);
 
-export const getSimOperatorListBody = (buf: rt.Buffer, state: number): [SimOperator[], rt.Err] => rt.getEnumList(simOperatorMeta, buf, state);
+export const getSimOperatorListBody = (buf: rt.Buffer, state: number): [SimOperator[], rt.Err] => rm.getEnumList(simOperatorMeta, buf, state);
 
-export const setSimOperatorListBody = (buf: rt.Buffer, state: number, v: SimOperator[]): rt.Err => rt.setEnumList(simOperatorMeta, buf, state, v);
+export const setSimOperatorListBody = (buf: rt.Buffer, state: number, v: SimOperator[]): rt.Err => rm.setEnumList(simOperatorMeta, buf, state, v);
 
 // 订单状态
 // Pending      待处理
@@ -223,7 +224,7 @@ export enum OrderStatus {
     Settled = 6,
 }
 
-const orderStatusMeta = rt.defineEnum<OrderStatus>(OrderStatus.Pending, [
+const orderStatusMeta = rm.defineEnum<OrderStatus>(OrderStatus.Pending, [
     OrderStatus.Pending,
     OrderStatus.Closed,
     OrderStatus.Canceled,
@@ -234,14 +235,14 @@ const orderStatusMeta = rt.defineEnum<OrderStatus>(OrderStatus.Pending, [
 ] as const);
 
 export const DefaultOrderStatus = (): OrderStatus => orderStatusMeta.defaultValue;
-export const IsOrderStatus = (v: OrderStatus): boolean => rt.isEnum(orderStatusMeta, v);
-export const NormalizeOrderStatus = (v: OrderStatus): OrderStatus => rt.normalizeEnum(orderStatusMeta, v);
-export const IsDefaultOrderStatus = (v: OrderStatus): boolean => rt.isDefaultEnum(orderStatusMeta, v);
-export const IsAssignableOrderStatus = (v: OrderStatus): boolean => rt.isAssignableEnum(orderStatusMeta, v);
-export const eqOrderStatusValue = (a: OrderStatus, b: OrderStatus): boolean => rt.eqEnumValue(orderStatusMeta, a, b);
-export const eqOrderStatusList = (a: OrderStatus[], b: OrderStatus[]): boolean => rt.eqEnumList(orderStatusMeta, a, b);
+export const IsOrderStatus = (v: OrderStatus): boolean => rm.isEnum(orderStatusMeta, v);
+export const NormalizeOrderStatus = (v: OrderStatus): OrderStatus => rm.normalizeEnum(orderStatusMeta, v);
+export const IsDefaultOrderStatus = (v: OrderStatus): boolean => rm.isDefaultEnum(orderStatusMeta, v);
+export const IsAssignableOrderStatus = (v: OrderStatus): boolean => rm.isAssignableEnum(orderStatusMeta, v);
+export const eqOrderStatusValue = (a: OrderStatus, b: OrderStatus): boolean => rm.eqEnumValue(orderStatusMeta, a, b);
+export const eqOrderStatusList = (a: OrderStatus[], b: OrderStatus[]): boolean => rm.eqEnumList(orderStatusMeta, a, b);
 
-export const getOrderStatusListBody = (buf: rt.Buffer, state: number): [OrderStatus[], rt.Err] => rt.getEnumList(orderStatusMeta, buf, state);
+export const getOrderStatusListBody = (buf: rt.Buffer, state: number): [OrderStatus[], rt.Err] => rm.getEnumList(orderStatusMeta, buf, state);
 
-export const setOrderStatusListBody = (buf: rt.Buffer, state: number, v: OrderStatus[]): rt.Err => rt.setEnumList(orderStatusMeta, buf, state, v);
+export const setOrderStatusListBody = (buf: rt.Buffer, state: number, v: OrderStatus[]): rt.Err => rm.setEnumList(orderStatusMeta, buf, state, v);
 

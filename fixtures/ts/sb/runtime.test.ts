@@ -20,6 +20,7 @@ import {
     setI32,
     setI64,
     setI8,
+    setBin,
     setText,
     setU16,
     setU24,
@@ -52,6 +53,21 @@ const encodeGameWireForTest = (id: number, name: string): Uint8Array => {
 };
 
 describe("runtime header helpers", () => {
+    test("./type keeps representative runtime exports usable", () => {
+        const [header, headerErr] = writeHeader([1, 1], [1, 0]);
+        expect(headerErr).toBeUndefined();
+        expect(Array.from(header)).toEqual([0x80]);
+
+        const textBuf = new Buffer(new Uint8Array([0x02, 0x68, 0x69]));
+        const [text, textErr] = getText(textBuf, StateU8);
+        expect(textErr).toBeNull();
+        expect(text).toBe("hi");
+
+        const binBuf = new Buffer();
+        expect(setBin(binBuf, StateU8, new Uint8Array([0x01, 0x02]))).toBeNull();
+        expect(binBuf.bytes).toEqual(new Uint8Array([0x02, 0x01, 0x02]));
+    });
+
     test("protocol Game vectors match spec bytes", () => {
         expect(encodeGameWireForTest(0, "lol")).toEqual(new Uint8Array([0x20, 0x03, 0x6c, 0x6f, 0x6c]));
         expect(encodeGameWireForTest(7, "")).toEqual(new Uint8Array([0x80, 0x07, 0x00, 0x00, 0x00]));
