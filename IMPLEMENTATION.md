@@ -15,7 +15,7 @@
 ### 2.1 手写源码
 
 - `main.go`: CLI 入口
-- `internal/`: 解析器、语义分析、生成器模板和相关测试
+- `internal/`: 解析器、语义分析、生成器模板和相关测试; 解析、语义、Go/TS 生成和文档生成均按职责拆分到同名前缀文件
 - `grammar.peg`: 语法设计参考文档, 不参与当前解析实现
 - `PROTOCOL.md`: 协议规范
 - `README.md`: 使用概览
@@ -35,9 +35,10 @@
 
 - Go runtime: `fixtures/go/sb/runtime.go`
 - TypeScript runtime: `fixtures/ts/sb/type.ts`
-- Go 生成器: `internal/tpl_go_render.go`
-- TypeScript 生成器: `internal/tpl_ts_render.go`
-- 文档生成器: `internal/tpl_doc_render.go`
+- Go 生成器: `internal/tpl_go_*.go`
+- Go runtime 模板: `internal/tpl_go_runtime_*.go.txt`
+- TypeScript 生成器: `internal/tpl_ts_*.go`
+- 文档生成器: `internal/tpl_doc_*.go`
 
 ## 3. 生成链路
 
@@ -83,6 +84,11 @@ go run . -go ./out/go -ts ./out/ts -tag bson,json ./demo/all_rules.sb
 - `grammar.peg` 仅作设计参考, 不参与当前解析实现.
 - 当前语法真相源是:
   - `internal/lexer_scanner.go`
+  - `internal/parser_core.go`
   - `internal/parser_schema.go`
+  - `internal/parser_struct.go`
+  - `internal/parser_enum.go`
+  - `internal/parser_api.go`
+  - `internal/parser_type.go`
   - `internal/parser_schema_test.go`
 - 当语法边界发生变化时, 应先更新实现与测试, 再决定是否同步更新 `grammar.peg`.

@@ -1,0 +1,281 @@
+func getListCount(buf *bytes.Buffer, state uint8) (int, error) {
+	switch state {
+	case StateZero:
+		return 0, nil
+	case StateU8:
+		value, err := GetU8(buf)
+		if err != nil {
+			return 0, err
+		}
+		if value == 0 {
+			return 0, fmt.Errorf("list count state %d encoded zero count", state)
+		}
+		return int(value), nil
+	case StateU16, StateU24:
+		return 0, fmt.Errorf("list count state %d is illegal", state)
+	default:
+		return 0, fmt.Errorf("invalid list count state: %d", state)
+	}
+}
+
+func setListCount(buf *bytes.Buffer, state uint8, count int) error {
+	canonical, err := ListCountState(count)
+	if err != nil {
+		return err
+	}
+	if state != canonical {
+		return fmt.Errorf("list count state %d is not canonical for count %d", state, count)
+	}
+	switch state {
+	case StateZero:
+		return nil
+	case StateU8:
+		return SetU8(buf, uint8(count))
+	default:
+		return fmt.Errorf("invalid list count state: %d", state)
+	}
+}
+
+func readBitmap(buf *bytes.Buffer, count int, kind string) ([]byte, error) {
+	size := bitmapSize(count)
+	if buf.Len() < size {
+		return nil, fmt.Errorf("%s not enough data: %d - %d", kind, buf.Len(), size)
+	}
+	data := append([]byte(nil), buf.Next(size)...)
+	if err := ValidatePaddingZero(data, count, "bitmap"); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func bitmapBit(bitmap []byte, index int) bool {
+	byteIndex := index / 8
+	bitIndex := 7 - (index % 8)
+	return (bitmap[byteIndex] & (1 << bitIndex)) != 0
+}
+
+func writeBitmapFromDefaults[T any](values []T, isDefault func(T) bool) ([]byte, int) {
+	bitmap := make([]byte, bitmapSize(len(values)))
+	nonDefaultCount := 0
+	for i, item := range values {
+		if isDefault(item) {
+			continue
+		}
+		byteIndex := i / 8
+		bitIndex := 7 - (i % 8)
+		bitmap[byteIndex] |= 1 << bitIndex
+		nonDefaultCount++
+	}
+	return bitmap, nonDefaultCount
+}
+
+func GetDefaultListInto[T any](buf *bytes.Buffer, state uint8, dst []T, defaultItem func() T, getItem func(*bytes.Buffer) (T, error)) ([]T, error) {
+	count, err := getListCount(buf, state)
+	if err != nil {
+		return nil, err
+	}
+	if count == 0 {
+		if dst != nil {
+			return dst[:0], nil
+		}
+		return nil, nil
+	}
+	bitmap, err := readBitmap(buf, count, "bitmap list")
+	if err != nil {
+		return nil, err
+	}
+	if cap(dst) >= count {
+		dst = dst[:count]
+	} else {
+		dst = make([]T, count)
+	}
+	for i := 0; i < count; i++ {
+		if !bitmapBit(bitmap, i) {
+			dst[i] = defaultItem()
+			continue
+		}
+		item, itemErr := getItem(buf)
+		if itemErr != nil {
+			return nil, fmt.Errorf("bitmap list[%d]: %w", i, itemErr)
+		}
+		dst[i] = item
+	}
+	return dst, nil
+}
+
+func SetDefaultList[T any](buf *bytes.Buffer, state uint8, values []T, isDefault func(T) bool, sizeItem func(T) (int, error), setItem func(*bytes.Buffer, T) error) error {
+	canonical, err := ListCountState(len(values))
+	if err != nil {
+		return err
+	}
+	if state != canonical {
+		return fmt.Errorf("bitmap list state %d is not canonical for count %d", state, len(values))
+	}
+	if err := setListCount(buf, state, len(values)); err != nil {
+		return err
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	bitmap, _ := writeBitmapFromDefaults(values, isDefault)
+	if _, err := buf.Write(bitmap); err != nil {
+		return err
+	}
+	for i, item := range values {
+		if isDefault(item) {
+			continue
+		}
+		if _, err := sizeItem(item); err != nil {
+			return fmt.Errorf("bitmap list[%d]: %w", i, err)
+		}
+		if err := setItem(buf, item); err != nil {
+			return fmt.Errorf("bitmap list[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func SizeDefaultList[T any](values []T, isDefault func(T) bool, sizeItem func(T) (int, error)) (int, error) {
+	state, err := ListCountState(len(values))
+	if err != nil {
+		return 0, err
+	}
+	if state == StateZero {
+		return 0, nil
+	}
+	size := 1 + bitmapSize(len(values))
+	for i, item := range values {
+		if isDefault(item) {
+			continue
+		}
+		itemSize, itemErr := sizeItem(item)
+		if itemErr != nil {
+			return 0, fmt.Errorf("bitmap list[%d]: %w", i, itemErr)
+		}
+		size += itemSize
+	}
+	return size, nil
+}
+
+func GetZeroListInto[T comparable](buf *bytes.Buffer, state uint8, dst []T, getItem func(*bytes.Buffer) (T, error)) ([]T, error) {
+	var zero T
+	return GetDefaultListInto(buf, state, dst, func() T { return zero }, getItem)
+}
+
+func SetZeroList[T comparable](buf *bytes.Buffer, state uint8, values []T, itemSize int, setItem func(*bytes.Buffer, T) error) error {
+	var zero T
+	return SetDefaultList(
+		buf,
+		state,
+		values,
+		func(item T) bool { return item == zero },
+		func(T) (int, error) { return itemSize, nil },
+		setItem,
+	)
+}
+
+func SizeZeroList[T comparable](values []T, itemSize int) (int, error) {
+	var zero T
+	return SizeDefaultList(
+		values,
+		func(item T) bool { return item == zero },
+		func(T) (int, error) { return itemSize, nil },
+	)
+}
+
+func GetDefaultPtrListInto[T any](buf *bytes.Buffer, state uint8, dst []*T, defaultItem func() *T, getItem func(*bytes.Buffer, *T) error) ([]*T, error) {
+	count, err := getListCount(buf, state)
+	if err != nil {
+		return nil, err
+	}
+	if count == 0 {
+		if dst != nil {
+			return dst[:0], nil
+		}
+		return nil, nil
+	}
+	bitmap, err := readBitmap(buf, count, "bitmap ptr list")
+	if err != nil {
+		return nil, err
+	}
+	if cap(dst) >= count {
+		dst = dst[:count]
+	} else {
+		dst = make([]*T, count)
+	}
+	for i := 0; i < count; i++ {
+		if !bitmapBit(bitmap, i) {
+			dst[i] = nil
+			continue
+		}
+		item := dst[i]
+		if item == nil {
+			item = defaultItem()
+		}
+		if err := getItem(buf, item); err != nil {
+			return nil, fmt.Errorf("bitmap list[%d]: %w", i, err)
+		}
+		dst[i] = item
+	}
+	return dst, nil
+}
+
+func SetDefaultPtrList[T any](buf *bytes.Buffer, state uint8, values []*T, typeName string, validate func(*T) error, isZero func(*T) bool, sizeItem func(*T) (int, error), setItem func(*bytes.Buffer, *T) error) error {
+	canonical, err := ListCountState(len(values))
+	if err != nil {
+		return err
+	}
+	if state != canonical {
+		return fmt.Errorf("%s list state %d is not canonical for count %d", typeName, state, len(values))
+	}
+	if err := setListCount(buf, state, len(values)); err != nil {
+		return err
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	bitmap, _ := writeBitmapFromDefaults(values, isZero)
+	if _, err := buf.Write(bitmap); err != nil {
+		return err
+	}
+	for i, item := range values {
+		if isZero(item) {
+			continue
+		}
+		if err := validate(item); err != nil {
+			return fmt.Errorf("%s list[%d]: %w", typeName, i, err)
+		}
+		if _, err := sizeItem(item); err != nil {
+			return fmt.Errorf("%s list[%d]: %w", typeName, i, err)
+		}
+		if err := setItem(buf, item); err != nil {
+			return fmt.Errorf("%s list[%d]: %w", typeName, i, err)
+		}
+	}
+	return nil
+}
+
+func SizeDefaultPtrList[T any](values []*T, typeName string, validate func(*T) error, isZero func(*T) bool, sizeItem func(*T) (int, error)) (int, error) {
+	state, err := ListCountState(len(values))
+	if err != nil {
+		return 0, err
+	}
+	if state == StateZero {
+		return 0, nil
+	}
+	size := 1 + bitmapSize(len(values))
+	for i, item := range values {
+		if isZero(item) {
+			continue
+		}
+		if err := validate(item); err != nil {
+			return 0, fmt.Errorf("%s list[%d]: %w", typeName, i, err)
+		}
+		itemSize, itemErr := sizeItem(item)
+		if itemErr != nil {
+			return 0, fmt.Errorf("%s list[%d]: %w", typeName, i, itemErr)
+		}
+		size += itemSize
+	}
+	return size, nil
+}

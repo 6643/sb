@@ -193,6 +193,51 @@ func TestTsGeneratorWritesSchemaFile(t *testing.T) {
 	assertNotContains(t, rpcText, "from \"./runtime_meta\"")
 }
 
+func TestTsGeneratorRemovesStaleManagedSchemaFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	g := NewTsGenerator(Config{TsDir: tmpDir})
+	sbDir := filepath.Join(tmpDir, "sb")
+
+	withDefs := &TplSchema{
+		Enums: []TplEnum{
+			{Name: "status", Children: []TplEnumChild{{ID: 0, Name: "ok"}}},
+		},
+		Structs: []TplStruct{
+			{Name: "user", Fields: []TplStructField{{Name: "id", Type: TplType{Name: "u32", Kind: TplKindBase}}}},
+		},
+		Apis: []TplApi{
+			{Name: "get_count", Result: TplType{Name: "u32", Kind: TplKindBase}},
+		},
+	}
+	changedDefs := &TplSchema{
+		Structs: []TplStruct{
+			{Name: "order", Fields: []TplStructField{{Name: "id", Type: TplType{Name: "u32", Kind: TplKindBase}}}},
+		},
+	}
+
+	if err := g.Generate(withDefs); err != nil {
+		t.Fatalf("generate schema with defs failed: %v", err)
+	}
+	manualTest := filepath.Join(sbDir, "rpc_manual.test.ts")
+	if err := os.WriteFile(manualTest, []byte("keep"), 0o644); err != nil {
+		t.Fatalf("write manual test failed: %v", err)
+	}
+
+	if err := g.Generate(changedDefs); err != nil {
+		t.Fatalf("regenerate changed schema failed: %v", err)
+	}
+
+	assertFileMissing(t, filepath.Join(sbDir, "struct_user.ts"))
+	assertFileMissing(t, filepath.Join(sbDir, "rpc.ts"))
+	assertFileMissing(t, filepath.Join(sbDir, "rpc_smoke.test.ts"))
+	assertFileMissing(t, filepath.Join(sbDir, "enum_smoke.test.ts"))
+	assertFileExists(t, filepath.Join(sbDir, "struct_order.ts"))
+	assertFileExists(t, manualTest)
+	indexText := mustReadFile(t, filepath.Join(sbDir, "_.ts"))
+	assertContains(t, indexText, "export * from \"./struct_order\"")
+	assertNotContains(t, indexText, "export * from \"./struct_user\"")
+}
+
 func assertRuntimeContractFilesExactly(t *testing.T, dir string, want []string) {
 	t.Helper()
 	runtimeEntries, err := filepath.Glob(filepath.Join(dir, "runtime_*.ts"))

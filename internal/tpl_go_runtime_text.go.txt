@@ -1,0 +1,163 @@
+func textLengthState(length int) (uint8, error) {
+	if length < 0 {
+		return 0, fmt.Errorf("negative text length: %d", length)
+	}
+	if length == 0 {
+		return StateZero, nil
+	}
+	if length <= 0xFF {
+		return StateU8, nil
+	}
+	if length <= 0xFFFF {
+		return StateU16, nil
+	}
+	return 0, fmt.Errorf("text length exceeds u16 max: %d", length)
+}
+
+func TextState(length int) (uint8, error) {
+	return textLengthState(length)
+}
+
+func BinState(length int) (uint8, error) {
+	if length < 0 {
+		return 0, fmt.Errorf("negative bin length: %d", length)
+	}
+	if length == 0 {
+		return StateZero, nil
+	}
+	if length <= 0xFF {
+		return StateU8, nil
+	}
+	if length <= 0xFFFF {
+		return StateU16, nil
+	}
+	if length <= 0xFFFFFF {
+		return StateU24, nil
+	}
+	return 0, fmt.Errorf("bin length exceeds u24 max: %d", length)
+}
+
+func ListCountState(count int) (uint8, error) {
+	if count < 0 {
+		return 0, fmt.Errorf("negative list count: %d", count)
+	}
+	if count == 0 {
+		return StateZero, nil
+	}
+	if count <= 0xFF {
+		return StateU8, nil
+	}
+	return 0, fmt.Errorf("list count exceeds u8 max: %d", count)
+}
+
+func readStateLength(buf *bytes.Buffer, state uint8, max int, kind string) (int, error) {
+	switch state {
+	case StateZero:
+		return 0, nil
+	case StateU8:
+		value, err := GetU8(buf)
+		if err != nil {
+			return 0, err
+		}
+		if value == 0 {
+			return 0, fmt.Errorf("%s state %d encoded zero length", kind, state)
+		}
+		return int(value), nil
+	case StateU16:
+		value, err := GetU16(buf)
+		if err != nil {
+			return 0, err
+		}
+		if value == 0 {
+			return 0, fmt.Errorf("%s state %d encoded zero length", kind, state)
+		}
+		if value <= 0xFF {
+			return 0, fmt.Errorf("%s state %d is not canonical for length %d", kind, state, value)
+		}
+		return int(value), nil
+	case StateU24:
+		if max < 0x10000 {
+			return 0, fmt.Errorf("%s state %d is illegal", kind, state)
+		}
+		value, err := GetU24(buf)
+		if err != nil {
+			return 0, err
+		}
+		if value == 0 {
+			return 0, fmt.Errorf("%s state %d encoded zero length", kind, state)
+		}
+		if value <= 0xFFFF {
+			return 0, fmt.Errorf("%s state %d is not canonical for length %d", kind, state, value)
+		}
+		return int(value), nil
+	default:
+		return 0, fmt.Errorf("invalid %s state: %d", kind, state)
+	}
+}
+
+func GetText(buf *bytes.Buffer, state uint8) (string, error) {
+	length, err := readStateLength(buf, state, 0xFFFF, "text")
+	if err != nil {
+		return "", err
+	}
+	if length == 0 {
+		return "", nil
+	}
+	if buf.Len() < length {
+		return "", fmt.Errorf("text body not enough data: %d - %d", buf.Len(), length)
+	}
+	data := buf.Next(length)
+	if !utf8.Valid(data) {
+		return "", fmt.Errorf("text body invalid utf-8")
+	}
+	return string(data), nil
+}
+
+func SetText(buf *bytes.Buffer, state uint8, value string) error {
+	if !utf8.ValidString(value) {
+		return fmt.Errorf("text value invalid utf-8")
+	}
+	canonical, err := TextState(len(value))
+	if err != nil {
+		return err
+	}
+	if state != canonical {
+		return fmt.Errorf("text state %d is not canonical for length %d", state, len(value))
+	}
+	switch state {
+	case StateZero:
+		return nil
+	case StateU8:
+		if err := SetU8(buf, uint8(len(value))); err != nil {
+			return err
+		}
+	case StateU16:
+		if err := SetU16(buf, uint16(len(value))); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("invalid text state: %d", state)
+	}
+	_, err = buf.WriteString(value)
+	return err
+}
+
+func SizeText(value string) (int, error) {
+	if !utf8.ValidString(value) {
+		return 0, fmt.Errorf("text value invalid utf-8")
+	}
+	state, err := TextState(len(value))
+	if err != nil {
+		return 0, err
+	}
+	switch state {
+	case StateZero:
+		return 0, nil
+	case StateU8:
+		return 1 + len(value), nil
+	case StateU16:
+		return 2 + len(value), nil
+	default:
+		return 0, fmt.Errorf("invalid text state: %d", state)
+	}
+}

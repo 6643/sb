@@ -1,0 +1,157 @@
+func GetBinInto(buf *bytes.Buffer, state uint8, dst []byte) ([]byte, error) {
+	length, err := readStateLength(buf, state, 0xFFFFFF, "bin")
+	if err != nil {
+		return nil, err
+	}
+	if length == 0 {
+		if dst != nil {
+			return dst[:0], nil
+		}
+		return nil, nil
+	}
+	if buf.Len() < length {
+		return nil, fmt.Errorf("bin body not enough data: %d - %d", buf.Len(), length)
+	}
+	if cap(dst) >= length {
+		dst = dst[:length]
+	} else {
+		dst = make([]byte, length)
+	}
+	copy(dst, buf.Next(length))
+	return dst, nil
+}
+
+func SetBin(buf *bytes.Buffer, state uint8, value []byte) error {
+	canonical, err := BinState(len(value))
+	if err != nil {
+		return err
+	}
+	if state != canonical {
+		return fmt.Errorf("bin state %d is not canonical for length %d", state, len(value))
+	}
+	switch state {
+	case StateZero:
+		return nil
+	case StateU8:
+		if err := SetU8(buf, uint8(len(value))); err != nil {
+			return err
+		}
+	case StateU16:
+		if err := SetU16(buf, uint16(len(value))); err != nil {
+			return err
+		}
+	case StateU24:
+		if err := SetU24(buf, uint32(len(value))); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("invalid bin state: %d", state)
+	}
+	_, err = buf.Write(value)
+	return err
+}
+
+func SizeBin(value []byte) (int, error) {
+	state, err := BinState(len(value))
+	if err != nil {
+		return 0, err
+	}
+	switch state {
+	case StateZero:
+		return 0, nil
+	case StateU8:
+		return 1 + len(value), nil
+	case StateU16:
+		return 2 + len(value), nil
+	case StateU24:
+		return 3 + len(value), nil
+	default:
+		return 0, fmt.Errorf("invalid bin state: %d", state)
+	}
+}
+
+func GetBinListInto(buf *bytes.Buffer, state uint8, dst [][]byte) ([][]byte, error) {
+	count, err := getListCount(buf, state)
+	if err != nil {
+		return nil, err
+	}
+	if count == 0 {
+		if dst != nil {
+			return dst[:0], nil
+		}
+		return nil, nil
+	}
+	states, err := readStateBlock(buf, count, "bin list state block")
+	if err != nil {
+		return nil, err
+	}
+	if cap(dst) >= count {
+		dst = dst[:count]
+	} else {
+		dst = make([][]byte, count)
+	}
+	for i, itemState := range states {
+		item, itemErr := GetBinInto(buf, itemState, dst[i])
+		if itemErr != nil {
+			return nil, fmt.Errorf("bin list[%d]: %w", i, itemErr)
+		}
+		dst[i] = item
+	}
+	return dst, nil
+}
+
+func SetBinList(buf *bytes.Buffer, state uint8, values [][]byte) error {
+	canonical, err := ListCountState(len(values))
+	if err != nil {
+		return err
+	}
+	if state != canonical {
+		return fmt.Errorf("bin list state %d is not canonical for count %d", state, len(values))
+	}
+	if err := setListCount(buf, state, len(values)); err != nil {
+		return err
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	states := make([]uint8, len(values))
+	for i, item := range values {
+		itemState, itemErr := BinState(len(item))
+		if itemErr != nil {
+			return fmt.Errorf("bin list[%d]: %w", i, itemErr)
+		}
+		states[i] = itemState
+	}
+	header, err := writeStateBlock(states)
+	if err != nil {
+		return err
+	}
+	if _, err := buf.Write(header); err != nil {
+		return err
+	}
+	for i, item := range values {
+		if err := SetBin(buf, states[i], item); err != nil {
+			return fmt.Errorf("bin list[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func SizeBinList(values [][]byte) (int, error) {
+	state, err := ListCountState(len(values))
+	if err != nil {
+		return 0, err
+	}
+	if state == StateZero {
+		return 0, nil
+	}
+	size := 1 + itemHeaderSize(len(values))
+	for i, item := range values {
+		itemSize, itemErr := SizeBin(item)
+		if itemErr != nil {
+			return 0, fmt.Errorf("bin list[%d]: %w", i, itemErr)
+		}
+		size += itemSize
+	}
+	return size, nil
+}

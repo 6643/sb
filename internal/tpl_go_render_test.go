@@ -158,3 +158,48 @@ func TestGoGeneratorWritesSchemaFile(t *testing.T) {
 	stubText := string(stubContent)
 	assertContains(t, stubText, "func user_get_count(ctx context.Context, page uint8) (result uint8, errCode RpcErrCode) {")
 }
+
+func TestGoGeneratorRemovesStaleManagedAPIFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	g := NewGoGenerator(Config{GoDir: tmpDir})
+	sbDir := filepath.Join(tmpDir, "sb")
+
+	withAPI := &TplSchema{
+		Structs: []TplStruct{
+			{Name: "user", Fields: []TplStructField{{Name: "id", Type: TplType{Name: "u32", Kind: TplKindBase}}}},
+		},
+		Apis: []TplApi{
+			{Name: "get_count", Result: TplType{Name: "u32", Kind: TplKindBase}},
+			{Name: "old_count", Result: TplType{Name: "u32", Kind: TplKindBase}},
+		},
+	}
+	withoutAPI := &TplSchema{
+		Structs: []TplStruct{
+			{Name: "user", Fields: []TplStructField{{Name: "id", Type: TplType{Name: "u32", Kind: TplKindBase}}}},
+		},
+	}
+
+	if err := g.Generate(withAPI); err != nil {
+		t.Fatalf("generate schema with api failed: %v", err)
+	}
+	manualStub := filepath.Join(sbDir, "api.old_count.go")
+	manualContent := []byte("// manual edit\npackage sb\n")
+	if err := os.WriteFile(manualStub, manualContent, 0o644); err != nil {
+		t.Fatalf("mark old stub manual failed: %v", err)
+	}
+
+	if err := g.Generate(withoutAPI); err != nil {
+		t.Fatalf("regenerate schema without api failed: %v", err)
+	}
+
+	assertFileMissing(t, filepath.Join(sbDir, "api._.go"))
+	assertFileMissing(t, filepath.Join(sbDir, "api.get_count.go"))
+	assertFileMissing(t, filepath.Join(sbDir, "rpc.go"))
+	content, err := os.ReadFile(manualStub)
+	if err != nil {
+		t.Fatalf("read manual api stub failed: %v", err)
+	}
+	if string(content) != string(manualContent) {
+		t.Fatalf("manual api stub changed: got=%q want=%q", string(content), string(manualContent))
+	}
+}

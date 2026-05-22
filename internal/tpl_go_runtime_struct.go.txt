@@ -1,0 +1,120 @@
+type StructField[T any] struct {
+	Label    string
+	IsZero   func(*T) bool
+	Validate func(*T) error
+	Equal    func(*T, *T) bool
+}
+
+type StructMeta[T any] struct {
+	Fields []StructField[T]
+}
+
+func DefineStruct[T any](fields ...StructField[T]) StructMeta[T] {
+	return StructMeta[T]{Fields: fields}
+}
+
+func IsZeroStruct[T any](meta StructMeta[T], value *T) bool {
+	if value == nil {
+		return true
+	}
+	for _, field := range meta.Fields {
+		if !field.IsZero(value) {
+			return false
+		}
+	}
+	return true
+}
+
+func ValidateStruct[T any](meta StructMeta[T], value *T) error {
+	if value == nil {
+		return nil
+	}
+	for _, field := range meta.Fields {
+		if err := field.Validate(value); err != nil {
+			return fmt.Errorf("%s: %w", field.Label, err)
+		}
+	}
+	return nil
+}
+
+func EqStruct[T any](meta StructMeta[T], left, right *T) bool {
+	if IsZeroStruct(meta, left) && IsZeroStruct(meta, right) {
+		return true
+	}
+	if left == nil || right == nil {
+		return false
+	}
+	for _, field := range meta.Fields {
+		if !field.Equal(left, right) {
+			return false
+		}
+	}
+	return true
+}
+
+func ScalarField[T any, V comparable](label string, get func(*T) V) StructField[T] {
+	var zero V
+	return StructField[T]{
+		Label:    label,
+		IsZero:   func(value *T) bool { return get(value) == zero },
+		Validate: func(*T) error { return nil },
+		Equal:    func(left, right *T) bool { return get(left) == get(right) },
+	}
+}
+
+func EnumField[T any, V ~uint8](label string, get func(*T) V, isAssignable func(V) bool, isDefault func(V) bool, equal func(V, V) bool) StructField[T] {
+	return StructField[T]{
+		Label:  label,
+		IsZero: func(value *T) bool { return isDefault(get(value)) },
+		Validate: func(value *T) error {
+			item := get(value)
+			if !isAssignable(item) {
+				return fmt.Errorf("非法枚举值: %d", item)
+			}
+			return nil
+		},
+		Equal: func(left, right *T) bool { return equal(get(left), get(right)) },
+	}
+}
+
+func TextField[T any](label string, get func(*T) string) StructField[T] {
+	return StructField[T]{
+		Label:  label,
+		IsZero: func(value *T) bool { return get(value) == "" },
+		Validate: func(value *T) error {
+			_, err := TextState(len(get(value)))
+			return err
+		},
+		Equal: func(left, right *T) bool { return get(left) == get(right) },
+	}
+}
+
+func BinField[T any](label string, get func(*T) []byte) StructField[T] {
+	return StructField[T]{
+		Label:  label,
+		IsZero: func(value *T) bool { return len(get(value)) == 0 },
+		Validate: func(value *T) error {
+			_, err := BinState(len(get(value)))
+			return err
+		},
+		Equal: func(left, right *T) bool { return bytes.Equal(get(left), get(right)) },
+	}
+}
+
+func SliceField[T any, V any](label string, get func(*T) []V, validate func([]V) error, equal func([]V, []V) bool) StructField[T] {
+	return StructField[T]{
+		Label:    label,
+		IsZero:   func(value *T) bool { return len(get(value)) == 0 },
+		Validate: func(value *T) error { return validate(get(value)) },
+		Equal:    func(left, right *T) bool { return equal(get(left), get(right)) },
+	}
+}
+
+func PtrField[T any, V any](label string, get func(*T) *V, validate func(*V) error, isZero func(*V) bool, equal func(*V, *V) bool) StructField[T] {
+	return StructField[T]{
+		Label:    label,
+		IsZero:   func(value *T) bool { return isZero(get(value)) },
+		Validate: func(value *T) error { return validate(get(value)) },
+		Equal:    func(left, right *T) bool { return equal(get(left), get(right)) },
+	}
+}

@@ -1,0 +1,124 @@
+func readStateBlock(buf *bytes.Buffer, count int, kind string) ([]uint8, error) {
+	size := itemHeaderSize(count)
+	if buf.Len() < size {
+		return nil, fmt.Errorf("%s not enough data: %d - %d", kind, buf.Len(), size)
+	}
+	data := buf.Next(size)
+	states := make([]uint8, count)
+	reader := NewBitReader(data, count*2)
+	for i := 0; i < count; i++ {
+		state, err := reader.ReadBits(2)
+		if err != nil {
+			return nil, err
+		}
+		states[i] = state
+	}
+	if err := ValidatePaddingZero(data, count*2, "state block"); err != nil {
+		return nil, err
+	}
+	return states, nil
+}
+
+func writeStateBlock(states []uint8) ([]byte, error) {
+	data := make([]byte, itemHeaderSize(len(states)))
+	bitOffset := 0
+	for _, state := range states {
+		if state > 0x03 {
+			return nil, fmt.Errorf("invalid state: %d", state)
+		}
+		for shift := 1; shift >= 0; shift-- {
+			bit := (state >> shift) & 1
+			byteIndex := bitOffset / 8
+			bitIndex := 7 - (bitOffset % 8)
+			data[byteIndex] |= bit << bitIndex
+			bitOffset++
+		}
+	}
+	return data, nil
+}
+
+func GetTextListInto(buf *bytes.Buffer, state uint8, dst []string) ([]string, error) {
+	count, err := getListCount(buf, state)
+	if err != nil {
+		return nil, err
+	}
+	if count == 0 {
+		if dst != nil {
+			return dst[:0], nil
+		}
+		return nil, nil
+	}
+	states, err := readStateBlock(buf, count, "text list state block")
+	if err != nil {
+		return nil, err
+	}
+	if cap(dst) >= count {
+		dst = dst[:count]
+	} else {
+		dst = make([]string, count)
+	}
+	for i, itemState := range states {
+		item, itemErr := GetText(buf, itemState)
+		if itemErr != nil {
+			return nil, fmt.Errorf("text list[%d]: %w", i, itemErr)
+		}
+		dst[i] = item
+	}
+	return dst, nil
+}
+
+func SetTextList(buf *bytes.Buffer, state uint8, values []string) error {
+	canonical, err := ListCountState(len(values))
+	if err != nil {
+		return err
+	}
+	if state != canonical {
+		return fmt.Errorf("text list state %d is not canonical for count %d", state, len(values))
+	}
+	if err := setListCount(buf, state, len(values)); err != nil {
+		return err
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	states := make([]uint8, len(values))
+	for i, item := range values {
+		itemState, itemErr := TextState(len(item))
+		if itemErr != nil {
+			return fmt.Errorf("text list[%d]: %w", i, itemErr)
+		}
+		states[i] = itemState
+	}
+	header, err := writeStateBlock(states)
+	if err != nil {
+		return err
+	}
+	if _, err := buf.Write(header); err != nil {
+		return err
+	}
+	for i, item := range values {
+		if err := SetText(buf, states[i], item); err != nil {
+			return fmt.Errorf("text list[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func SizeTextList(values []string) (int, error) {
+	state, err := ListCountState(len(values))
+	if err != nil {
+		return 0, err
+	}
+	if state == StateZero {
+		return 0, nil
+	}
+	size := 1 + itemHeaderSize(len(values))
+	for i, item := range values {
+		itemSize, itemErr := SizeText(item)
+		if itemErr != nil {
+			return 0, fmt.Errorf("text list[%d]: %w", i, itemErr)
+		}
+		size += itemSize
+	}
+	return size, nil
+}

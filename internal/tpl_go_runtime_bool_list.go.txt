@@ -1,0 +1,63 @@
+func GetBoolListInto(buf *bytes.Buffer, state uint8, dst []bool) ([]bool, error) {
+	count, err := getListCount(buf, state)
+	if err != nil {
+		return nil, err
+	}
+	if count == 0 {
+		if dst != nil {
+			return dst[:0], nil
+		}
+		return nil, nil
+	}
+	bitmap, err := readBitmap(buf, count, "bool list bitmap")
+	if err != nil {
+		return nil, err
+	}
+	if cap(dst) >= count {
+		dst = dst[:count]
+	} else {
+		dst = make([]bool, count)
+	}
+	for i := 0; i < count; i++ {
+		dst[i] = bitmapBit(bitmap, i)
+	}
+	return dst, nil
+}
+
+func SetBoolList(buf *bytes.Buffer, state uint8, values []bool) error {
+	canonical, err := ListCountState(len(values))
+	if err != nil {
+		return err
+	}
+	if state != canonical {
+		return fmt.Errorf("bool list state %d is not canonical for count %d", state, len(values))
+	}
+	if err := setListCount(buf, state, len(values)); err != nil {
+		return err
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	bitmap := make([]byte, bitmapSize(len(values)))
+	for i, value := range values {
+		if !value {
+			continue
+		}
+		byteIndex := i / 8
+		bitIndex := 7 - (i % 8)
+		bitmap[byteIndex] |= 1 << bitIndex
+	}
+	_, err = buf.Write(bitmap)
+	return err
+}
+
+func SizeBoolList(values []bool) (int, error) {
+	state, err := ListCountState(len(values))
+	if err != nil {
+		return 0, err
+	}
+	if state == StateZero {
+		return 0, nil
+	}
+	return 1 + bitmapSize(len(values)), nil
+}

@@ -1,0 +1,50 @@
+func NewBitReader(data []byte, bitLimit int) *BitReader {
+	maxBits := len(data) * 8
+	if bitLimit < 0 || bitLimit > maxBits {
+		bitLimit = maxBits
+	}
+	return &BitReader{data: data, bitLimit: bitLimit}
+}
+
+func (r *BitReader) ReadBit() (bool, error) {
+	if r.bitOffset >= r.bitLimit {
+		return false, fmt.Errorf("not enough bits")
+	}
+	byteIndex := r.bitOffset / 8
+	bitIndex := 7 - (r.bitOffset % 8)
+	r.bitOffset++
+	return (r.data[byteIndex] & (1 << bitIndex)) != 0, nil
+}
+
+func (r *BitReader) ReadBits(width int) (uint8, error) {
+	if width <= 0 || width > 8 {
+		return 0, fmt.Errorf("invalid bit width: %d", width)
+	}
+	var value uint8
+	for i := 0; i < width; i++ {
+		bit, err := r.ReadBit()
+		if err != nil {
+			return 0, err
+		}
+		value <<= 1
+		if bit {
+			value |= 1
+		}
+	}
+	return value, nil
+}
+
+func ValidatePaddingZero(data []byte, usedBits int, kind string) error {
+	maxBits := len(data) * 8
+	if usedBits < 0 || usedBits > maxBits {
+		return fmt.Errorf("%s invalid used bits: %d not in [0,%d]", kind, usedBits, maxBits)
+	}
+	for bitOffset := usedBits; bitOffset < len(data)*8; bitOffset++ {
+		byteIndex := bitOffset / 8
+		bitIndex := 7 - (bitOffset % 8)
+		if (data[byteIndex] & (1 << bitIndex)) != 0 {
+			return fmt.Errorf("%s padding bit %d is not zero", kind, bitOffset-usedBits)
+		}
+	}
+	return nil
+}
